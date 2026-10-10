@@ -32,6 +32,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
@@ -2604,6 +2605,20 @@ fun ChatScreen(
         containerColor = ChatColors.background,
         contentWindowInsets = WindowInsets(0),
         topBar = {
+            // nanoMuse: Meta AI's header fade — the dark overlay starts at the
+            // very top edge and dissolves downward through the header, so
+            // scrolled text melts into it instead of hitting a flat bar.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to ChatColors.background,
+                            0.62f to ChatColors.background,
+                            1f to ChatColors.background.copy(alpha = 0.25f),
+                        )
+                    ),
+            ) {
             TopAppBar(
                 title = {
                     // iOS-style centered layout: "nanoMuse" + group row + provider·model row
@@ -3334,9 +3349,11 @@ fun ChatScreen(
                     }
                 },
                 windowInsets = WindowInsets.statusBars,
+                // nanoMuse: transparent — the gradient wrapper behind this bar
+                // carries the Meta AI header fade from the top edge.
                 colors = androidx.compose.material3.TopAppBarDefaults.topAppBarColors(
-                    containerColor = ChatColors.background.copy(alpha = 0.92f),
-                    scrolledContainerColor = ChatColors.background.copy(alpha = 0.92f),
+                    containerColor = Color.Transparent,
+                    scrolledContainerColor = Color.Transparent,
                 ),
                 // [T-android-topbar-shrink] 76dp → 68dp. The earlier
                 // T-topbar-model-row-clip fix bumped 60dp → 76dp to give the
@@ -3363,6 +3380,7 @@ fun ChatScreen(
                     else -> 72.dp
                 },
             )
+            } // nanoMuse: close the header-fade wrapper
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -4863,16 +4881,25 @@ fun ChatScreen(
 
                 // nanoMuse: Meta AI's edge fades — scrolled text dissolves into the
                 // background at the top (under the header) and bottom (above the
-                // composer) instead of sliding under a hard edge.
+                // composer) instead of sliding under a hard edge. The bottom fade
+                // only earns its place while scrolled up: at the latest message
+                // there is nothing above the composer left to dissolve.
                 val nmEdgeFade = ChatColors.background
+                val nmScrolledUp = listState.firstVisibleItemIndex > 0 ||
+                    listState.firstVisibleItemScrollOffset > 0
+                val nmBottomFadeAlpha by animateFloatAsState(
+                    targetValue = if (nmScrolledUp) 1f else 0f,
+                    animationSpec = tween(250),
+                    label = "nmBottomFade",
+                )
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .fillMaxWidth()
-                        .height(110.dp)
+                        .height(70.dp)
                         .background(
                             Brush.verticalGradient(
-                                0f to nmEdgeFade,
+                                0f to nmEdgeFade.copy(alpha = 0.25f),
                                 1f to Color.Transparent,
                             )
                         ),
@@ -4882,6 +4909,7 @@ fun ChatScreen(
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .height(90.dp)
+                        .graphicsLayer { alpha = nmBottomFadeAlpha }
                         .background(
                             Brush.verticalGradient(
                                 0f to Color.Transparent,
@@ -7041,14 +7069,24 @@ fun ChatScreen(
                             // Streaming with content → Send-into-queue; Idle with content → Send.
                             // Idle without text or attachments → disabled.
                             val canActivate = hasContent
+                            // nanoMuse: monochrome send — white disc, black arrow in
+                            // dark theme, inverted in light. No more blue accent.
+                            val nmSendDark = ChatColors.isDark
+                            val nmSendBg = if (canActivate) {
+                                if (nmSendDark) Color.White else Color.Black
+                            } else {
+                                if (nmSendDark) Color.White.copy(alpha = 0.15f)
+                                else Color.Black.copy(alpha = 0.08f)
+                            }
+                            val nmSendFg = if (canActivate) {
+                                if (nmSendDark) Color.Black else Color.White
+                            } else {
+                                ChatColors.primaryText.copy(alpha = 0.4f)
+                            }
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
-                                    .background(
-                                        if (canActivate) ChatColors.sendButton
-                                        else ChatColors.sendButtonDisabled,
-                                        CircleShape,
-                                    )
+                                    .background(nmSendBg, CircleShape)
                                     .clip(CircleShape)
                                     .clickable(enabled = canActivate) {
                                         // T-drag-send-queue: route through the
@@ -7068,8 +7106,7 @@ fun ChatScreen(
                                 Icon(
                                     Icons.Default.ArrowUpward,
                                     contentDescription = "Send",
-                                    tint = if (canActivate) ChatColors.background
-                                    else ChatColors.primaryText.copy(alpha = 0.5f),
+                                    tint = nmSendFg,
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
