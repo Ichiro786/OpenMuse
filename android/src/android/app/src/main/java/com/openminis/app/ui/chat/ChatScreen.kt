@@ -544,6 +544,10 @@ fun ChatScreen(
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    // nanoMuse: pixel offset for "scroll to bottom" (idx 0 with reverseLayout)
+    // so the latest message lands above the composer + pill overlay, never
+    // behind the pill. Updated when the composer height or reserve changes.
+    var nmBottomScrollPx by remember { mutableStateOf(0) }
     // Scoped to a process-level per-session ViewModelStore (ChatViewModelStore)
     // so the ViewModel and its viewModelScope survive:
     //   - configuration changes (rotation — NavBackStackEntry still alive)
@@ -1198,7 +1202,11 @@ fun ChatScreen(
             "ScrollSrc",
             "scrollToItem src=$source idx=$idx off=$off canBwd=${listState.canScrollBackward} firstIdx=${listState.firstVisibleItemIndex} firstOff=${listState.firstVisibleItemScrollOffset} inProgress=${listState.isScrollInProgress}",
         )
-        runCatching { listState.scrollToItem(idx, off) }
+        // nanoMuse: with reverseLayout, idx 0 is the latest message. Force the
+        // offset to clear the composer + pill overlay so it never lands behind
+        // the pill. Explicit larger offsets are respected.
+        val actualOff = if (idx == 0) maxOf(off, nmBottomScrollPx) else off
+        runCatching { listState.scrollToItem(idx, actualOff) }
         Unit
     }
     val tracedScrollBy: suspend (source: String, delta: Float) -> Unit = { source, delta ->
@@ -3564,6 +3572,14 @@ fun ChatScreen(
                     if (!userScrolledAway && (isNearBottom.value || sendGrace)) {
                         val reason = if (!isNearBottom.value) "send-grace" else "near-bottom"
                         tracedScrollToItem("reserve-change/$reason", 0, 0)
+                    }
+                }
+                // nanoMuse: keep the "scroll to bottom" pixel offset in sync
+                // with the measured composer height and tool reserve, so the
+                // latest message lands above the overlay, never behind the pill.
+                LaunchedEffect(composerHeightDp, bottomReserve) {
+                    nmBottomScrollPx = with(nmDensity) {
+                        (composerHeightDp + bottomReserve + 12.dp).roundToPx()
                     }
                 }
                 // T120: removed three streaming-time LaunchedEffects that
