@@ -4808,7 +4808,9 @@ fun ChatScreen(
                             .fillMaxWidth()
                             .onGloballyPositioned { toolBarHeightPx = it.size.height }
                             .padding(horizontal = 12.dp)
-                            .padding(bottom = 6.dp),
+                            // nanoMuse: clear the composer + pill overlay so the
+                            // tool status is visible, not hidden behind the nav.
+                            .padding(bottom = 6.dp + composerHeightDp),
                     ) {
                         FloatingToolStatusBar(
                             toolBlocks = lastToolBlocks,
