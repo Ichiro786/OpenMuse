@@ -2735,7 +2735,10 @@ fun ChatScreen(
                                 modifier = Modifier
                                     // nanoMuse: the name sits in a capsule under the face (Muse's name pill).
                                     .clip(CircleShape)
-                                    .background(ChatColors.userBubble)
+                                    // nanoMuse: not userBubble — that is now the
+                                    // white Meta AI message pill; the capsule
+                                    // keeps a neutral wash.
+                                    .background(ChatColors.secondaryBg)
                                     .clickable { io.github.nanomuse.ui.header.openSoulSettings(context) }
                                     .padding(horizontal = 12.dp, vertical = 3.dp),
                             )
@@ -4858,6 +4861,35 @@ fun ChatScreen(
                     if (leftover > 0.dp) leftover / 2 else 0.dp
                 }
 
+                // nanoMuse: Meta AI's edge fades — scrolled text dissolves into the
+                // background at the top (under the header) and bottom (above the
+                // composer) instead of sliding under a hard edge.
+                val nmEdgeFade = ChatColors.background
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(110.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to nmEdgeFade,
+                                1f to Color.Transparent,
+                            )
+                        ),
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(90.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                1f to nmEdgeFade,
+                            )
+                        ),
+                )
+
                 // Scroll-to-bottom FAB (iOS: circle chevron.down, bottom-right)
                 // T138 phase 2 v3: show on user-scroll intent, not transient
                 // layout state. Otherwise the FAB flickers whenever multi-tool
@@ -4950,14 +4982,16 @@ fun ChatScreen(
                                 tracedScrollToItem("FAB-DOWN/settle", 0, 0)
                             }
                         },
+                        // nanoMuse: Meta AI's scroll-to-latest — centered under the
+                        // conversation, white disc with a black arrow.
                         modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 12.dp + fabEndInset, bottom = fabBottomPadding)
-                            .shadow(4.dp, CircleShape)
-                            .size(36.dp),
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = fabBottomPadding)
+                            .shadow(6.dp, CircleShape)
+                            .size(40.dp),
                         colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
-                            containerColor = ChatColors.inputBg,
-                            contentColor = ChatColors.primaryText,
+                            containerColor = Color.White,
+                            contentColor = Color.Black,
                         ),
                     ) {
                         Icon(
