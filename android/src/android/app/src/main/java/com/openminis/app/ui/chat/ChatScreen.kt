@@ -547,9 +547,7 @@ fun ChatScreen(
     // nanoMuse: pixel offset for "scroll to bottom" (idx 0 with reverseLayout)
     // so the latest message lands above the composer + pill overlay, never
     // behind the pill. Pill height + composer approximation.
-    val nmBottomScrollPx = remember(nmBottomOverlay) {
-        with(LocalDensity.current) { (nmBottomOverlay + 80.dp).roundToPx() }
-    }
+    val nmBottomScrollPx = with(LocalDensity.current) { (nmBottomOverlay + 80.dp).roundToPx() }
     // Scoped to a process-level per-session ViewModelStore (ChatViewModelStore)
     // so the ViewModel and its viewModelScope survive:
     //   - configuration changes (rotation — NavBackStackEntry still alive)
