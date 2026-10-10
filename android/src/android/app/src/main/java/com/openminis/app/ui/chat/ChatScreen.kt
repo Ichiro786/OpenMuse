@@ -546,8 +546,10 @@ fun ChatScreen(
     val focusManager = LocalFocusManager.current
     // nanoMuse: pixel offset for "scroll to bottom" (idx 0 with reverseLayout)
     // so the latest message lands above the composer + pill overlay, never
-    // behind the pill. Updated when the composer height or reserve changes.
-    var nmBottomScrollPx by remember { mutableStateOf(0) }
+    // behind the pill. Pill height + composer approximation.
+    val nmBottomScrollPx = remember(nmBottomOverlay) {
+        with(LocalDensity.current) { (nmBottomOverlay + 80.dp).roundToPx() }
+    }
     // Scoped to a process-level per-session ViewModelStore (ChatViewModelStore)
     // so the ViewModel and its viewModelScope survive:
     //   - configuration changes (rotation — NavBackStackEntry still alive)
@@ -3572,14 +3574,6 @@ fun ChatScreen(
                     if (!userScrolledAway && (isNearBottom.value || sendGrace)) {
                         val reason = if (!isNearBottom.value) "send-grace" else "near-bottom"
                         tracedScrollToItem("reserve-change/$reason", 0, 0)
-                    }
-                }
-                // nanoMuse: keep the "scroll to bottom" pixel offset in sync
-                // with the measured composer height and tool reserve, so the
-                // latest message lands above the overlay, never behind the pill.
-                LaunchedEffect(composerHeightDp, bottomReserve) {
-                    nmBottomScrollPx = with(nmDensity) {
-                        (composerHeightDp + bottomReserve + 12.dp).roundToPx()
                     }
                 }
                 // T120: removed three streaming-time LaunchedEffects that
