@@ -211,6 +211,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TileMode // nanoMuse
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
@@ -3418,6 +3419,9 @@ fun ChatScreen(
             else if (nmBarLingers) { kotlinx.coroutines.delay(1_500); nmBarLingers = false }
         }
         val nmToolBarShown = nmShowSteps && (isStreaming || nmBarLingers) && lastToolBlocks.isNotEmpty()
+        // nanoMuse: browser/tool controls take priority over the composer's top fade.
+        val nmBrowserHandOver by io.github.nanomuse.browser.BrowserHandOver.pending.collectAsState()
+        val nmComposerFadeSuppressed = nmToolBarShown || showBrowserSheet || nmBrowserHandOver != null
 
         // nanoMuse: measure the whole footer before the list, while keeping the
         // list full-size behind the pill for Haze. No asynchronous height feedback.
@@ -4727,35 +4731,40 @@ fun ChatScreen(
                     if (leftover > 0.dp) leftover / 2 else 0.dp
                 }
 
-                // nanoMuse: Meta AI's bottom vignette — scrolled text dissolves
-                // into the background above the composer instead of sliding
-                // under a hard edge. It only earns its place while scrolled
-                // up: at the latest message there is nothing left to dissolve.
-                // (The top vignette lives on the header itself, as a scrim.)
+                // nanoMuse: fade into the canvas above the composer while reading
+                // older messages. Browser/tool controls hide it immediately, even
+                // if a scroll animation or the alpha tween is still in progress.
                 val nmEdgeFade = ChatColors.background
                 val nmScrolledUp = listState.firstVisibleItemIndex > 0 ||
                     listState.firstVisibleItemScrollOffset > 0
                 val nmBottomFadeAlpha by animateFloatAsState(
-                    targetValue = if (nmScrolledUp) 1f else 0f,
+                    targetValue = if (nmScrolledUp && !nmComposerFadeSuppressed) 1f else 0f,
                     animationSpec = tween(250),
                     label = "nmBottomFade",
                 )
-                // nanoMuse: inset first, then size the gradient; reversing these
-                // modifiers subtracts the footer from the gradient's own height.
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .padding(bottom = bottomChromeHeight)
-                        .height(90.dp)
-                        .graphicsLayer { alpha = nmBottomFadeAlpha }
-                        .background(
-                            Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                1f to nmEdgeFade,
-                            )
-                        ),
-                )
+                if (!nmComposerFadeSuppressed) {
+                    val nmFadeHeight = 90.dp
+                    val nmFooterHeight = (bottomChromeHeight - nmBottomOverlay).coerceAtLeast(0.dp)
+                    // nanoMuse: the gradient ends at the footer's top, then its
+                    // solid canvas continues behind the composer padding and
+                    // rounded corners. Stop above the nav pill to retain its blur.
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(bottom = nmBottomOverlay)
+                            .height(nmFadeHeight + nmFooterHeight)
+                            .graphicsLayer { alpha = nmBottomFadeAlpha }
+                            .background(
+                                Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    1f to nmEdgeFade,
+                                    endY = with(LocalDensity.current) { nmFadeHeight.toPx() },
+                                    tileMode = TileMode.Clamp,
+                                ),
+                            ),
+                    )
+                }
 
                 // nanoMuse: Meta AI's top vignette — when scrolled up away from
                 // the latest, the top edge gets a slow dark fade so messages
