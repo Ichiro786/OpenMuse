@@ -4057,7 +4057,9 @@ fun ChatScreen(
                     // The bottom clears the floating pill bar the same way.
                     contentPadding = PaddingValues(
                         top = 100.dp,
-                        bottom = (if (bottomReserve == 0.dp) 12.dp else bottomReserve) + nmBottomOverlay,
+                        // nanoMuse: clear the overlaid composer (its measured
+                        // height includes the pill) plus the tool reserve.
+                        bottom = composerHeightDp + bottomReserve + 12.dp,
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4911,18 +4913,43 @@ fun ChatScreen(
                     animationSpec = tween(250),
                     label = "nmBottomFade",
                 )
-                // nanoMuse: sits above the composer + pill overlay.
+                // nanoMuse: sits above the composer (its measured height
+                // already includes the pill inset).
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .height(90.dp)
-                        .padding(bottom = nmBottomOverlay + composerHeightDp)
+                        .padding(bottom = composerHeightDp)
                         .graphicsLayer { alpha = nmBottomFadeAlpha }
                         .background(
                             Brush.verticalGradient(
                                 0f to Color.Transparent,
                                 1f to nmEdgeFade,
+                            )
+                        ),
+                )
+
+                // nanoMuse: Meta AI's top vignette — when scrolled up away from
+                // the latest, the top edge gets a slow dark fade so messages
+                // dissolve under the header instead of hitting a hard edge.
+                // Distinct from the header's static scrim; this one earns its
+                // place dynamically with scroll.
+                val nmTopFadeAlpha by animateFloatAsState(
+                    targetValue = if (nmScrolledUp) 1f else 0f,
+                    animationSpec = tween(250),
+                    label = "nmTopFade",
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .graphicsLayer { alpha = nmTopFadeAlpha }
+                        .background(
+                            Brush.verticalGradient(
+                                0f to nmEdgeFade,
+                                1f to Color.Transparent,
                             )
                         ),
                 )
@@ -4948,7 +4975,8 @@ fun ChatScreen(
                 // spacing). Tapping walks BACK one user turn at a time rather
                 // than jumping to the oldest message.
                 if (messages.isNotEmpty() && !isNearBottom.value) {
-                    // nanoMuse: sits above the composer + pill overlay.
+                    // nanoMuse: sits above the composer (its measured height
+                    // already includes the pill inset).
                     val upBaseBottom = if (nmToolBarShown) 80.dp else 8.dp // nanoMuse: follows the bar
                     androidx.compose.material3.FilledIconButton(
                         onClick = {
@@ -4970,7 +4998,7 @@ fun ChatScreen(
                         },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 12.dp + fabEndInset, bottom = upBaseBottom + 46.dp + nmBottomOverlay + composerHeightDp)
+                            .padding(end = 12.dp + fabEndInset, bottom = upBaseBottom + 46.dp + composerHeightDp)
                             .shadow(4.dp, CircleShape)
                             .size(36.dp),
                         colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
@@ -4991,7 +5019,8 @@ fun ChatScreen(
                 }
 
                 if (userScrolledAway && contentOverflows.value && messages.isNotEmpty()) {
-                    // nanoMuse: sits above the composer + pill overlay.
+                    // nanoMuse: sits above the composer (its measured height
+                    // already includes the pill inset).
                     val fabBottomPadding = if (nmToolBarShown) 80.dp else 8.dp // nanoMuse: follows the bar
                     androidx.compose.material3.FilledIconButton(
                         onClick = {
@@ -5025,7 +5054,7 @@ fun ChatScreen(
                         // conversation, white disc with a black arrow.
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = fabBottomPadding + nmBottomOverlay + composerHeightDp)
+                            .padding(bottom = fabBottomPadding + composerHeightDp)
                             .shadow(6.dp, CircleShape)
                             .size(40.dp),
                         colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
