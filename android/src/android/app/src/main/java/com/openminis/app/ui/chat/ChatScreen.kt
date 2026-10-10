@@ -2605,16 +2605,16 @@ fun ChatScreen(
         containerColor = ChatColors.background,
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            // nanoMuse: Meta AI's header vignette — a soft scrim, not a bar. It
-            // starts as a light shade at the top edge and melts away through
-            // the header, so scrolled text dissolves instead of hitting black.
+            // nanoMuse: Meta AI's overlay header. The list slides underneath and
+            // the scrim melts it away — a soft shade at the top edge dissolving
+            // to clear, never a bar.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            0f to ChatColors.background.copy(alpha = 0.75f),
-                            0.5f to ChatColors.background.copy(alpha = 0.35f),
+                            0f to ChatColors.background.copy(alpha = 0.8f),
+                            0.55f to ChatColors.background.copy(alpha = 0.35f),
                             1f to Color.Transparent,
                         )
                     ),
@@ -3390,7 +3390,10 @@ fun ChatScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                // nanoMuse: the message list slides UNDER the header (Meta AI's
+                // overlay), so only the bottom bar insets the content. The
+                // header itself is a scrim over the scrolling list.
+                .padding(bottom = padding.calculateBottomPadding())
                 .imePadding()
                 .onGloballyPositioned { chatPaneWidthPx = it.size.width },
         ) {
@@ -4036,8 +4039,10 @@ fun ChatScreen(
                     // the bubble's 4dp = 8dp (≈22px), tighter but still a clear
                     // breath under the title bar. Bottom padding and inter-
                     // message spacing are untouched.
+                    // nanoMuse: the list slides under the overlay header, so it
+                    // starts below it (status bars + 68dp bar + breathing room).
                     contentPadding = PaddingValues(
-                        top = 4.dp,
+                        top = 100.dp,
                         bottom = if (bottomReserve == 0.dp) 12.dp else bottomReserve,
                     ),
                     modifier = Modifier
