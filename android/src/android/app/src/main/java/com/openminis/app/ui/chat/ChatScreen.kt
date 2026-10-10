@@ -3400,7 +3400,10 @@ fun ChatScreen(
                 .imePadding()
                 .onGloballyPositioned { chatPaneWidthPx = it.size.width },
         ) {
-        Column(
+        // nanoMuse: Box, not Column — the message list fills the whole area
+        // (sliding behind the pill bar for the blur) and the composer
+        // overlays the bottom.
+        Box(
             modifier = Modifier.fillMaxSize(),
         ) {
             // Dismiss keyboard when the USER scrolls the messages. Gated on
@@ -3422,7 +3425,10 @@ fun ChatScreen(
             }
 
             // Messages + scroll-to-bottom button
-            Box(modifier = Modifier.weight(1f)) {
+            // nanoMuse: the list fills the whole Box, extending behind the
+            // pill bar so the haze has content to blur. Bottom contentPadding
+            // keeps the last message clear of the composer + pill.
+            Box(modifier = Modifier.fillMaxSize()) {
                 var toolBarHeightPx by remember { mutableStateOf(0) }
                 val density = LocalDensity.current
                 val toolBarHeightDp = with(density) { toolBarHeightPx.toDp() }
@@ -5085,8 +5091,10 @@ fun ChatScreen(
                 !com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive &&
                 !nmRecording && editingId == null
             // ─── Input area (iOS-style: rounded box with text + buttons below) ───
+            // nanoMuse: overlaid at the bottom of the Box (the list fills behind).
             Column(
                 modifier = Modifier
+                    .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     // [T-android-chat-max-content-width] Same cap and centring
                     // as the message list, so the composer stays aligned with
