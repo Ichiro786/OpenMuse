@@ -3406,6 +3406,7 @@ fun ChatScreen(
         // nanoMuse: the composer's height, so the vignette and scroll
         // buttons can sit above it.
         var composerHeightDp by remember { mutableStateOf(0.dp) }
+        val nmDensity = LocalDensity.current
         Box(
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -5126,7 +5127,7 @@ fun ChatScreen(
                     .onGloballyPositioned {
                         composerWidthPx = it.size.width
                         // nanoMuse: capture height for the vignette/buttons above.
-                        composerHeightDp = with(LocalDensity.current) { it.size.height.toDp() }
+                        composerHeightDp = with(nmDensity) { it.size.height.toDp() }
                     }
                     // nanoMuse: when the pill bar overlays the bottom, its height
                     // (which already includes the nav bars) is the inset;
