@@ -380,7 +380,9 @@ fun NanoMuseHome(
                 modifier = Modifier
                     .fillMaxSize()
                     .hazeSource(hazeState)
-                    .padding(bottom = bottom)
+                    // nanoMuse: no bottom inset — the pill bar is an overlay and the
+                    // content slides behind it for the frosted blur. Each tab pads
+                    // its own scrollable content above the pill.
                     .consumeWindowInsets(PaddingValues(bottom = bottom)),
             ) {
                 // Chat tab — always composed, hidden while another tab is on top.
@@ -421,6 +423,9 @@ fun NanoMuseHome(
                             },
                             onModelGroupsClick = { navController.safeNavigate(Routes.MODEL_GROUPS) },
                             nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }),
+                            // nanoMuse: the pill bar overlays the bottom — the list
+                            // blurs behind it, the composer clears it.
+                            nmBottomOverlay = bottom,
                         )
                     }
                 }
@@ -438,7 +443,8 @@ fun NanoMuseHome(
                 ) {
                     Surface(
                         color = ChatColors.background,
-                        modifier = Modifier.fillMaxSize(),
+                        // nanoMuse: pad above the pill overlay like the chat does.
+                        modifier = Modifier.fillMaxSize().padding(bottom = bottom),
                     ) {
                         // Pages cross-fade; the header sits at the same spot on every page,
                         // so only the content below it appears to change.

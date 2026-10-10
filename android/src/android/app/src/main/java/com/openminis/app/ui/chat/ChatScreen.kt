@@ -537,6 +537,9 @@ fun ChatScreen(
     // nanoMuse: non-null when this chat is a tab of the home shell — hamburger
     // instead of back, round kebab, big-face header on the main chat.
     nmHome: io.github.nanomuse.ui.chat.NmHomeChrome? = null,
+    // nanoMuse: height of the floating pill bar overlaying the bottom. The
+    // composer sits above it; the message list slides behind it for the blur.
+    nmBottomOverlay: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val context = LocalContext.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -4041,9 +4044,10 @@ fun ChatScreen(
                     // message spacing are untouched.
                     // nanoMuse: the list slides under the overlay header, so it
                     // starts below it (status bars + 68dp bar + breathing room).
+                    // The bottom clears the floating pill bar the same way.
                     contentPadding = PaddingValues(
                         top = 100.dp,
-                        bottom = if (bottomReserve == 0.dp) 12.dp else bottomReserve,
+                        bottom = (if (bottomReserve == 0.dp) 12.dp else bottomReserve) + nmBottomOverlay,
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -5105,7 +5109,13 @@ fun ChatScreen(
                     // which is exactly how the first attempt at this fix still
                     // looked broken.
                     .onGloballyPositioned { composerWidthPx = it.size.width }
-                    .navigationBarsPadding()
+                    // nanoMuse: when the pill bar overlays the bottom, its height
+                    // (which already includes the nav bars) is the inset;
+                    // otherwise fall back to the nav bars.
+                    .then(
+                        if (nmBottomOverlay > 0.dp) Modifier.padding(bottom = nmBottomOverlay)
+                        else Modifier.navigationBarsPadding()
+                    )
                     .padding(horizontal = if (nmPill) 16.dp else 12.dp) // nanoMuse: Muse's 16dp margins
                     .padding(top = 2.dp, bottom = 8.dp),
             ) {
