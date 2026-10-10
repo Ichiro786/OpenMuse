@@ -376,6 +376,9 @@ fun NanoMuseHome(
             },
         ) { padding ->
             val bottom = padding.calculateBottomPadding()
+            // Scaffold measures the entire bar, including its floating gap and
+            // navigation inset, before laying out this content. Use that same
+            // inset for placement and IME consumption, without a frame-late callback.
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -423,8 +426,8 @@ fun NanoMuseHome(
                             },
                             onModelGroupsClick = { navController.safeNavigate(Routes.MODEL_GROUPS) },
                             nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }),
-                            // nanoMuse: the pill bar overlays the bottom — the list
-                            // blurs behind it, the composer clears it.
+                            // nanoMuse: preserve the full-size blur source, but keep
+                            // the chat footer above the bar measured by Scaffold.
                             nmBottomOverlay = bottom,
                         )
                     }
