@@ -2605,17 +2605,17 @@ fun ChatScreen(
         containerColor = ChatColors.background,
         contentWindowInsets = WindowInsets(0),
         topBar = {
-            // nanoMuse: Meta AI's header fade — the dark overlay starts at the
-            // very top edge and dissolves downward through the header, so
-            // scrolled text melts into it instead of hitting a flat bar.
+            // nanoMuse: Meta AI's header vignette — a soft scrim, not a bar. It
+            // starts as a light shade at the top edge and melts away through
+            // the header, so scrolled text dissolves instead of hitting black.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(
                         Brush.verticalGradient(
-                            0f to ChatColors.background,
-                            0.62f to ChatColors.background,
-                            1f to ChatColors.background.copy(alpha = 0.25f),
+                            0f to ChatColors.background.copy(alpha = 0.75f),
+                            0.5f to ChatColors.background.copy(alpha = 0.35f),
+                            1f to Color.Transparent,
                         )
                     ),
             ) {
@@ -4879,11 +4879,11 @@ fun ChatScreen(
                     if (leftover > 0.dp) leftover / 2 else 0.dp
                 }
 
-                // nanoMuse: Meta AI's edge fades — scrolled text dissolves into the
-                // background at the top (under the header) and bottom (above the
-                // composer) instead of sliding under a hard edge. The bottom fade
-                // only earns its place while scrolled up: at the latest message
-                // there is nothing above the composer left to dissolve.
+                // nanoMuse: Meta AI's bottom vignette — scrolled text dissolves
+                // into the background above the composer instead of sliding
+                // under a hard edge. It only earns its place while scrolled
+                // up: at the latest message there is nothing left to dissolve.
+                // (The top vignette lives on the header itself, as a scrim.)
                 val nmEdgeFade = ChatColors.background
                 val nmScrolledUp = listState.firstVisibleItemIndex > 0 ||
                     listState.firstVisibleItemScrollOffset > 0
@@ -4891,18 +4891,6 @@ fun ChatScreen(
                     targetValue = if (nmScrolledUp) 1f else 0f,
                     animationSpec = tween(250),
                     label = "nmBottomFade",
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(70.dp)
-                        .background(
-                            Brush.verticalGradient(
-                                0f to nmEdgeFade.copy(alpha = 0.25f),
-                                1f to Color.Transparent,
-                            )
-                        ),
                 )
                 Box(
                     modifier = Modifier
