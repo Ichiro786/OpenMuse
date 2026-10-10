@@ -443,8 +443,10 @@ fun NanoMuseHome(
                 ) {
                     Surface(
                         color = ChatColors.background,
-                        // nanoMuse: pad above the pill overlay like the chat does.
-                        modifier = Modifier.fillMaxSize().padding(bottom = bottom),
+                        // nanoMuse: no bottom padding — tab content flows behind
+                        // the pill overlay like the chat does. Tabs handle their
+                        // own bottom contentPadding internally.
+                        modifier = Modifier.fillMaxSize(),
                     ) {
                         // Pages cross-fade; the header sits at the same spot on every page,
                         // so only the content below it appears to change.

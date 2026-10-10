@@ -3403,6 +3403,9 @@ fun ChatScreen(
         // nanoMuse: Box, not Column — the message list fills the whole area
         // (sliding behind the pill bar for the blur) and the composer
         // overlays the bottom.
+        // nanoMuse: the composer's height, so the vignette and scroll
+        // buttons can sit above it.
+        var composerHeightDp by remember { mutableStateOf(0.dp) }
         Box(
             modifier = Modifier.fillMaxSize(),
         ) {
@@ -4907,11 +4910,13 @@ fun ChatScreen(
                     animationSpec = tween(250),
                     label = "nmBottomFade",
                 )
+                // nanoMuse: sits above the composer + pill overlay.
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
                         .height(90.dp)
+                        .padding(bottom = nmBottomOverlay + composerHeightDp)
                         .graphicsLayer { alpha = nmBottomFadeAlpha }
                         .background(
                             Brush.verticalGradient(
@@ -4942,6 +4947,7 @@ fun ChatScreen(
                 // spacing). Tapping walks BACK one user turn at a time rather
                 // than jumping to the oldest message.
                 if (messages.isNotEmpty() && !isNearBottom.value) {
+                    // nanoMuse: sits above the composer + pill overlay.
                     val upBaseBottom = if (nmToolBarShown) 80.dp else 8.dp // nanoMuse: follows the bar
                     androidx.compose.material3.FilledIconButton(
                         onClick = {
@@ -4963,7 +4969,7 @@ fun ChatScreen(
                         },
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .padding(end = 12.dp + fabEndInset, bottom = upBaseBottom + 46.dp)
+                            .padding(end = 12.dp + fabEndInset, bottom = upBaseBottom + 46.dp + nmBottomOverlay + composerHeightDp)
                             .shadow(4.dp, CircleShape)
                             .size(36.dp),
                         colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
@@ -4984,6 +4990,7 @@ fun ChatScreen(
                 }
 
                 if (userScrolledAway && contentOverflows.value && messages.isNotEmpty()) {
+                    // nanoMuse: sits above the composer + pill overlay.
                     val fabBottomPadding = if (nmToolBarShown) 80.dp else 8.dp // nanoMuse: follows the bar
                     androidx.compose.material3.FilledIconButton(
                         onClick = {
@@ -5017,7 +5024,7 @@ fun ChatScreen(
                         // conversation, white disc with a black arrow.
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .padding(bottom = fabBottomPadding)
+                            .padding(bottom = fabBottomPadding + nmBottomOverlay + composerHeightDp)
                             .shadow(6.dp, CircleShape)
                             .size(40.dp),
                         colors = androidx.compose.material3.IconButtonDefaults.filledIconButtonColors(
@@ -5116,7 +5123,11 @@ fun ChatScreen(
                     // width and the popup faithfully matched the wrong number —
                     // which is exactly how the first attempt at this fix still
                     // looked broken.
-                    .onGloballyPositioned { composerWidthPx = it.size.width }
+                    .onGloballyPositioned {
+                        composerWidthPx = it.size.width
+                        // nanoMuse: capture height for the vignette/buttons above.
+                        composerHeightDp = with(LocalDensity.current) { it.size.height.toDp() }
+                    }
                     // nanoMuse: when the pill bar overlays the bottom, its height
                     // (which already includes the nav bars) is the inset;
                     // otherwise fall back to the nav bars.
