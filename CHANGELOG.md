@@ -238,6 +238,7 @@ Keel: the first stable version. What has been a preview since 2026-09-25 is now 
 - **Debug builds install next to the release app** (`io.github.nanomuse.app.debug`), so a test APK never replaces the installed nanoMuse.
 - **Chat goes Meta AI.** The conversation fades into the background at the top and above the composer instead of sliding under hard edges; your messages are white pills with black ink (black pills in the light theme) and the assistant's replies sit in soft off-black pills; the scroll-to-latest button is a centered white disc with a black arrow; the light theme is white like Meta AI's. The header fade starts at the top edge and melts down through the header; the lower fade appears only while scrolled up, never over the latest message; the send button is monochrome (white disc, black arrow in dark; inverted in light) with no blue accent.
 - **The nav bar's selected tab is a white disc with a black glyph** (inverted in the light theme); the frosted blur is unchanged.
+- **The chats drawer speaks Muse.** Pure black canvas, the agent name big up top, quiet monochrome pills for the selected row, and circular settings/search/new buttons along the bottom; the search cursor is white, not blue.
 
 ### iOS
 
