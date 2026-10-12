@@ -4346,6 +4346,12 @@ fun ChatScreen(
                                 slotKey = "text:${item.block.id}",
                                 markdown = item.messageMarkdown,
                             ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content) {
+                                // nanoMuse: animate glyphs above the existing message background.
+                                io.github.nanomuse.ui.chat.NmStreamingText(
+                                    isStreaming = item.isStreaming,
+                                    revealWords = item.isStreaming,
+                                    enabled = nmHome != null,
+                                ) {
                                 // T-android-gc-storm-issue17: collapse oversized frozen
                                 // assistant text before feeding the markdown parser, which
                                 // is the GC-storm hotspot for legacy sessions.
@@ -4366,12 +4372,18 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } // nanoMuse: bubble
+                            } } } // nanoMuse: bubble + streaming foreground
                             is FlatChatItem.AssistantMarkdownBlock -> BoundsTrackedBlock(
                                 messageId = item.messageId,
                                 slotKey = "mdblock:${item.parentBlockId}:${item.blockIndex}",
                                 markdown = item.messageMarkdown,
                             ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText) {
+                                // nanoMuse: animate glyphs above the existing message background.
+                                io.github.nanomuse.ui.chat.NmStreamingText(
+                                    isStreaming = item.messageIsStreaming,
+                                    revealWords = item.isStreaming,
+                                    enabled = nmHome != null,
+                                ) {
                                 LargeContentGuard(
                                     content = item.rawText,
                                     isStreaming = item.isStreaming,
@@ -4389,7 +4401,7 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } // nanoMuse: bubble
+                            } } } // nanoMuse: bubble + streaming foreground
                             is FlatChatItem.AssistantThinking -> {
                                 // T300: hide Deep Thinking block when the user
                                 // currently has thinking turned off — even if
@@ -4419,6 +4431,7 @@ fun ChatScreen(
                                 }
                             }
                             is FlatChatItem.AssistantToolUse -> ToolCallPill(
+                                nmReasoning = nmHome != null, // nanoMuse: real progress steps
                                 block = item.block,
                                 allToolBlocks = item.allToolBlocks,
                                 onRetry = if (item.isLastCancelled && !isStreaming && !canResume) ({ safeMutate { viewModel.retryLast() } }) else null,
@@ -4519,7 +4532,11 @@ fun ChatScreen(
                                     )
                                 }
                             }
-                            is FlatChatItem.AssistantTyping -> TypingIndicator()
+                            is FlatChatItem.AssistantTyping -> {
+                                // nanoMuse: the same calm dot grid before the first tool or token.
+                                if (nmHome != null && nmShowSteps) io.github.nanomuse.ui.chat.NmReasoningWorking()
+                                else TypingIndicator()
+                            }
                             // nanoMuse: a provider that could not be reached (or refused the
                             // region, or whose sign-in ran out) is a card, not the socket's text
                             is FlatChatItem.AssistantError -> io.github.nanomuse.ui.chat.NmProviderErrorOrBanner(
@@ -4547,6 +4564,12 @@ fun ChatScreen(
                                 slotKey = "legacy",
                                 markdown = item.messageMarkdown,
                             ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content) {
+                                // nanoMuse: animate glyphs above the existing message background.
+                                io.github.nanomuse.ui.chat.NmStreamingText(
+                                    isStreaming = item.isStreaming,
+                                    revealWords = item.isStreaming,
+                                    enabled = nmHome != null,
+                                ) {
                                 LargeContentGuard(
                                     content = item.content,
                                     isStreaming = item.isStreaming,
@@ -4564,7 +4587,7 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } // nanoMuse: bubble
+                            } } } // nanoMuse: bubble + streaming foreground
                         }
                         } // Box (alpha wrapper)
                     }

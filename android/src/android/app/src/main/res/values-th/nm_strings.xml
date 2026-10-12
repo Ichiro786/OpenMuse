@@ -1102,4 +1102,19 @@
     <string name="nm_models_search">ค้นหาโมเดล</string>
     <string name="nm_models_search_clear">ล้างการค้นหา</string>
     <string name="nm_models_no_match">ไม่มีโมเดลที่ตรงกัน</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">กำลังเตรียมคำตอบ</string>
+    <string name="nm_reasoning_search">กำลังค้นหาเว็บ</string>
+    <string name="nm_reasoning_code">กำลังเรียกใช้โค้ด</string>
+    <string name="nm_reasoning_read">กำลังอ่านไฟล์</string>
+    <string name="nm_reasoning_write">กำลังเขียนไฟล์</string>
+    <string name="nm_reasoning_edit">กำลังแก้ไขไฟล์</string>
+    <string name="nm_reasoning_image">กำลังดูรูปภาพ</string>
+    <string name="nm_reasoning_memory_read">กำลังตรวจสอบความจำ</string>
+    <string name="nm_reasoning_memory_write">กำลังบันทึกลงความจำ</string>
+    <string name="nm_reasoning_tool">กำลังใช้เครื่องมือ</string>
+    <string name="nm_reasoning_failed">ล้มเหลว</string>
+    <string name="nm_reasoning_timeout">หมดเวลา</string>
+    <string name="nm_reasoning_stopped">หยุดแล้ว</string>
 </resources>

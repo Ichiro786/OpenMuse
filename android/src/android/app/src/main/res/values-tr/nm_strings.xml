@@ -1106,4 +1106,19 @@
     <string name="nm_models_search">Model ara</string>
     <string name="nm_models_search_clear">Aramayı temizle</string>
     <string name="nm_models_no_match">Eşleşen model yok</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Yanıt hazırlanıyor</string>
+    <string name="nm_reasoning_search">Web’de aranıyor</string>
+    <string name="nm_reasoning_code">Kod çalıştırılıyor</string>
+    <string name="nm_reasoning_read">Dosya okunuyor</string>
+    <string name="nm_reasoning_write">Dosya yazılıyor</string>
+    <string name="nm_reasoning_edit">Dosya düzenleniyor</string>
+    <string name="nm_reasoning_image">Görüntü inceleniyor</string>
+    <string name="nm_reasoning_memory_read">Bellek kontrol ediliyor</string>
+    <string name="nm_reasoning_memory_write">Belleğe kaydediliyor</string>
+    <string name="nm_reasoning_tool">Araç kullanılıyor</string>
+    <string name="nm_reasoning_failed">Başarısız</string>
+    <string name="nm_reasoning_timeout">Zaman aşımı</string>
+    <string name="nm_reasoning_stopped">Durduruldu</string>
 </resources>

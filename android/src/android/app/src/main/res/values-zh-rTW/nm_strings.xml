@@ -1072,4 +1072,19 @@
     <string name="nm_models_search">搜尋模型</string>
     <string name="nm_models_search_clear">清除搜尋</string>
     <string name="nm_models_no_match">沒有符合的模型</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">正在準備回覆</string>
+    <string name="nm_reasoning_search">正在搜尋網頁</string>
+    <string name="nm_reasoning_code">正在執行程式碼</string>
+    <string name="nm_reasoning_read">正在讀取檔案</string>
+    <string name="nm_reasoning_write">正在寫入檔案</string>
+    <string name="nm_reasoning_edit">正在編輯檔案</string>
+    <string name="nm_reasoning_image">正在查看圖片</string>
+    <string name="nm_reasoning_memory_read">正在查看記憶</string>
+    <string name="nm_reasoning_memory_write">正在儲存記憶</string>
+    <string name="nm_reasoning_tool">正在使用工具</string>
+    <string name="nm_reasoning_failed">失敗</string>
+    <string name="nm_reasoning_timeout">已逾時</string>
+    <string name="nm_reasoning_stopped">已停止</string>
 </resources>

@@ -1106,4 +1106,19 @@
     <string name="nm_models_search">Buscar modelos</string>
     <string name="nm_models_search_clear">Limpar a busca</string>
     <string name="nm_models_no_match">Nenhum modelo corresponde</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Preparando uma resposta</string>
+    <string name="nm_reasoning_search">Pesquisando na web</string>
+    <string name="nm_reasoning_code">Executando código</string>
+    <string name="nm_reasoning_read">Lendo um arquivo</string>
+    <string name="nm_reasoning_write">Gravando um arquivo</string>
+    <string name="nm_reasoning_edit">Editando um arquivo</string>
+    <string name="nm_reasoning_image">Visualizando uma imagem</string>
+    <string name="nm_reasoning_memory_read">Consultando a memória</string>
+    <string name="nm_reasoning_memory_write">Salvando na memória</string>
+    <string name="nm_reasoning_tool">Usando uma ferramenta</string>
+    <string name="nm_reasoning_failed">Falhou</string>
+    <string name="nm_reasoning_timeout">Tempo esgotado</string>
+    <string name="nm_reasoning_stopped">Interrompido</string>
 </resources>

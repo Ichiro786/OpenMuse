@@ -88,12 +88,12 @@ jobs:
           ./gradlew :app:assembleDebug --console=plain --no-daemon
 
       # Our unit tests (io.github.nanomuse.*: the guards, the hub client, the sandbox paths, the
-      # strings' parity). Same Gradle invocation as AGENTS.md; the compiled classes are warm.
+      # strings' parity), plus chat regression tests; the compiled classes are warm.
       - name: Unit tests
         working-directory: android/src/android
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --console=plain --no-daemon
+          ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.ui.chat.*' --console=plain --no-daemon
 
       - name: Badging
         run: |

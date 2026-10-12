@@ -1114,4 +1114,19 @@
     <string name="nm_models_search">Szukaj modeli</string>
     <string name="nm_models_search_clear">Wyczyść wyszukiwanie</string>
     <string name="nm_models_no_match">Żaden model nie pasuje</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Przygotowywanie odpowiedzi</string>
+    <string name="nm_reasoning_search">Przeszukiwanie sieci</string>
+    <string name="nm_reasoning_code">Uruchamianie kodu</string>
+    <string name="nm_reasoning_read">Odczytywanie pliku</string>
+    <string name="nm_reasoning_write">Zapisywanie pliku</string>
+    <string name="nm_reasoning_edit">Edytowanie pliku</string>
+    <string name="nm_reasoning_image">Wyświetlanie obrazu</string>
+    <string name="nm_reasoning_memory_read">Sprawdzanie pamięci</string>
+    <string name="nm_reasoning_memory_write">Zapisywanie w pamięci</string>
+    <string name="nm_reasoning_tool">Korzystanie z narzędzia</string>
+    <string name="nm_reasoning_failed">Błąd</string>
+    <string name="nm_reasoning_timeout">Przekroczono czas</string>
+    <string name="nm_reasoning_stopped">Zatrzymano</string>
 </resources>

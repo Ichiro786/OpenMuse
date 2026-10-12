@@ -1110,4 +1110,19 @@
     <string name="nm_models_search">Caută modele</string>
     <string name="nm_models_search_clear">Șterge căutarea</string>
     <string name="nm_models_no_match">Niciun model nu se potrivește</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Se pregătește răspunsul</string>
+    <string name="nm_reasoning_search">Se caută pe web</string>
+    <string name="nm_reasoning_code">Se execută codul</string>
+    <string name="nm_reasoning_read">Se citește fișierul</string>
+    <string name="nm_reasoning_write">Se scrie fișierul</string>
+    <string name="nm_reasoning_edit">Se editează fișierul</string>
+    <string name="nm_reasoning_image">Se vizualizează imaginea</string>
+    <string name="nm_reasoning_memory_read">Se verifică memoria</string>
+    <string name="nm_reasoning_memory_write">Se salvează în memorie</string>
+    <string name="nm_reasoning_tool">Se folosește un instrument</string>
+    <string name="nm_reasoning_failed">Eșuat</string>
+    <string name="nm_reasoning_timeout">Timp expirat</string>
+    <string name="nm_reasoning_stopped">Oprit</string>
 </resources>

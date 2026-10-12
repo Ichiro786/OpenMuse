@@ -1114,4 +1114,19 @@
     <string name="nm_models_search">Поиск моделей</string>
     <string name="nm_models_search_clear">Очистить поиск</string>
     <string name="nm_models_no_match">Ни одна модель не подходит</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Подготовка ответа</string>
+    <string name="nm_reasoning_search">Поиск в интернете</string>
+    <string name="nm_reasoning_code">Выполнение кода</string>
+    <string name="nm_reasoning_read">Чтение файла</string>
+    <string name="nm_reasoning_write">Запись файла</string>
+    <string name="nm_reasoning_edit">Редактирование файла</string>
+    <string name="nm_reasoning_image">Просмотр изображения</string>
+    <string name="nm_reasoning_memory_read">Проверка памяти</string>
+    <string name="nm_reasoning_memory_write">Сохранение в память</string>
+    <string name="nm_reasoning_tool">Использование инструмента</string>
+    <string name="nm_reasoning_failed">Ошибка</string>
+    <string name="nm_reasoning_timeout">Время истекло</string>
+    <string name="nm_reasoning_stopped">Остановлено</string>
 </resources>

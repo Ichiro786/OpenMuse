@@ -118,6 +118,16 @@ It fades out below the composer before the navigation pill without a rectangular
 Only live browser controls hide it: the browser step bar, browser panel or browser
 hand-over controls. Older browser pills and other tools do not disable the effect.
 The composer's fill, content clipping and soft shadow share one rounded outline.
+Home and side chats show tool activity as monochrome reasoning steps: a gently pulsing
+dot grid, a readable action title, and source or file pills from the actual tool metadata.
+Completed steps dim and stop pulsing. Tapping a step still opens its details; stop and
+long-press actions remain available. The existing appearance setting hides these steps.
+
+Responses reveal complete words as they arrive, with a slow grey-to-white shimmer above
+the message background. Completed replies settle to solid text. Markdown, links, code
+copying and text selection keep their existing behavior. Both effects respect the system
+animation scale, and light mode uses the matching black-and-grey treatment.
+
 The upper scrolling fade is slightly lighter. In dark mode, home and side chats use
 pure black around the navigation pill, including the gap below the composer. Its
 rounded glass area stays open to the scrolling content, preserving the live frosted

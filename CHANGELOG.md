@@ -49,6 +49,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Replaced home and side chat tool capsules with monochrome reasoning steps, a gentle dot-grid pulse, readable tool titles and staggered source/file pills. Completed steps dimmed, and tool details, stop and long-press actions remained available.
+- Added complete-word response reveals and a slow monochrome text shimmer above the existing message bubbles. Finished replies became solid text, with Markdown, links, code copying and selection preserved.
 - Limited the AMOLED navigation surround to home and side chats, restored the original treatment in Feed, Ideas, Goals and Library, and filled the gap below the composer while keeping the glass blur visible.
 - Lightened the scrolling fade above the chat composer slightly and added a pure-black surround at the sides and below the navigation pill in dark mode. The rounded glass area still shows scrolling content through its live frosted blur.
 - Restored the broad scrolling fade around the chat composer, with a soft rounded outline instead of a rectangular backing or a small drop shadow. Historical browser pills and other tools no longer hide it; live browser controls still do.

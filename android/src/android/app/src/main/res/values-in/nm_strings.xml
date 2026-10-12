@@ -1102,4 +1102,19 @@
     <string name="nm_models_search">Cari model</string>
     <string name="nm_models_search_clear">Hapus pencarian</string>
     <string name="nm_models_no_match">Tidak ada model yang cocok</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Menyiapkan jawaban</string>
+    <string name="nm_reasoning_search">Mencari di web</string>
+    <string name="nm_reasoning_code">Menjalankan kode</string>
+    <string name="nm_reasoning_read">Membaca file</string>
+    <string name="nm_reasoning_write">Menulis file</string>
+    <string name="nm_reasoning_edit">Mengedit file</string>
+    <string name="nm_reasoning_image">Melihat gambar</string>
+    <string name="nm_reasoning_memory_read">Memeriksa memori</string>
+    <string name="nm_reasoning_memory_write">Menyimpan ke memori</string>
+    <string name="nm_reasoning_tool">Menggunakan alat</string>
+    <string name="nm_reasoning_failed">Gagal</string>
+    <string name="nm_reasoning_timeout">Waktu habis</string>
+    <string name="nm_reasoning_stopped">Dihentikan</string>
 </resources>

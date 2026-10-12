@@ -1106,4 +1106,19 @@
     <string name="nm_models_search">Maghanap ng mga modelo</string>
     <string name="nm_models_search_clear">I-clear ang paghahanap</string>
     <string name="nm_models_no_match">Walang tumutugmang modelo</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Inihahanda ang sagot</string>
+    <string name="nm_reasoning_search">Naghahanap sa web</string>
+    <string name="nm_reasoning_code">Pinapatakbo ang code</string>
+    <string name="nm_reasoning_read">Binabasa ang file</string>
+    <string name="nm_reasoning_write">Sinusulat ang file</string>
+    <string name="nm_reasoning_edit">Ine-edit ang file</string>
+    <string name="nm_reasoning_image">Tinitingnan ang larawan</string>
+    <string name="nm_reasoning_memory_read">Sinusuri ang memorya</string>
+    <string name="nm_reasoning_memory_write">Sine-save sa memorya</string>
+    <string name="nm_reasoning_tool">Gumagamit ng tool</string>
+    <string name="nm_reasoning_failed">Nabigo</string>
+    <string name="nm_reasoning_timeout">Nag-time out</string>
+    <string name="nm_reasoning_stopped">Itinigil</string>
 </resources>

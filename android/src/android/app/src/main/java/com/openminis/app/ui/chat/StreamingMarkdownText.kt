@@ -176,6 +176,9 @@ private fun ShardSubIndexScope(content: @Composable () -> Unit) {
 private fun currentSelectionHighlightColor(): Color {
     // Match Android's default textSelectHandle tint at ~30% alpha so it
     // visually overlays without obscuring the glyphs underneath.
+    // nanoMuse: selection in the new monochrome response renderer stays neutral.
+    val nm = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+    if (nm != null) return nm.ink.copy(alpha = 0.2f)
     val accent = androidx.compose.material3.MaterialTheme.colorScheme.primary
     return accent.copy(alpha = 0.28f)
 }
@@ -198,6 +201,15 @@ private data class MdColors(
 @androidx.compose.runtime.ReadOnlyComposable
 private fun currentMdColors(): MdColors {
     val c = com.openminis.app.ui.theme.LocalChatPalette.current
+    // nanoMuse: response foregrounds and their supporting surfaces remain monochrome.
+    val nm = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+    if (nm != null) return MdColors(
+        text = nm.ink, codeText = nm.ink, codeBg = nm.ink.copy(alpha = 0.06f),
+        inlineCodeText = nm.ink, inlineCodeBg = nm.ink.copy(alpha = 0.08f),
+        link = nm.ink, blockquote = nm.ink.copy(alpha = 0.6f),
+        divider = nm.ink.copy(alpha = 0.18f), tableBorder = nm.ink.copy(alpha = 0.2f),
+        tableHeaderBg = nm.ink.copy(alpha = 0.06f),
+    )
     return MdColors(
         text = c.primaryText,
         codeText = c.codeBlockText,
@@ -339,7 +351,9 @@ private fun MdText(
     // overlay a fade-in alpha on each freshly-appended word range. Off by
     // default (LocalAppendOnlyFade=false) so cold-loaded history and
     // completed messages render fully opaque without per-frame work.
-    val fadeEnabled = LocalAppendOnlyFade.current
+    // nanoMuse: word reveal and shimmer operate after parsing, preserving all annotations.
+    val nmText = io.github.nanomuse.ui.chat.rememberNmStreamingText(text, layoutResult?.size?.width ?: 0)
+    val fadeEnabled = LocalAppendOnlyFade.current && nmText == null
     val fadeController = if (fadeEnabled) rememberFadeController() else null
     if (fadeController != null) {
         // Ingest synchronously during composition (not in a LaunchedEffect):
@@ -355,7 +369,7 @@ private fun MdText(
     // frame, so this expression re-runs (recomposing only THIS MdText) on
     // every animation frame. When no ranges are active overlay() returns the
     // base text unchanged.
-    val effectiveText = fadeController?.overlay(text, color) ?: text
+    val effectiveText = nmText ?: fadeController?.overlay(text, color) ?: text // nanoMuse: foreground only
     val tapModifier = if (hasUrlAnnotation || hasInlineCodeAnnotation) {
         Modifier.pointerInput(text) {
             detectTapGestures { pos ->
@@ -1704,6 +1718,12 @@ private fun RenderBlock(block: MdBlock) {
             io.github.nanomuse.ui.chat.NanoMuseBlock(block.language, block.code)
         } else {
             val clipboardManager = LocalClipboardManager.current
+            // nanoMuse: code keeps its scroll/copy controls while its foreground streams.
+            val nmPresentation = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+            var nmCodeWidth by remember { mutableStateOf(0) }
+            val nmCodeText = io.github.nanomuse.ui.chat.rememberNmStreamingText(
+                AnnotatedString(block.code), nmCodeWidth,
+            )
             var copied by remember { mutableStateOf(false) }
             if (copied) {
                 LaunchedEffect(Unit) {
@@ -1728,13 +1748,15 @@ private fun RenderBlock(block: MdBlock) {
                     Text(
                         text = block.language.ifEmpty { "code" },
                         fontSize = 11.sp,
-                        color = MdCodeLangColor,
+                        color = nmPresentation?.ink?.copy(alpha = 0.5f) ?: MdCodeLangColor, // nanoMuse
                         modifier = Modifier.weight(1f),
                     )
                     Icon(
                         imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                         contentDescription = if (copied) "Copied" else "Copy code",
-                        tint = if (copied) Color(0xFF34C759) else Color.White.copy(alpha = 0.4f),
+                        // nanoMuse: copied state uses the check glyph, without a color accent.
+                        tint = nmPresentation?.ink?.copy(alpha = if (copied) 0.8f else 0.4f)
+                            ?: if (copied) Color(0xFF34C759) else Color.White.copy(alpha = 0.4f),
                         modifier = Modifier
                             .size(16.dp)
                             .clickable {
@@ -1766,7 +1788,8 @@ private fun RenderBlock(block: MdBlock) {
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         Text(
-                            text = block.code,
+                            text = nmCodeText ?: AnnotatedString(block.code), // nanoMuse
+                            onTextLayout = { nmCodeWidth = it.size.width }, // nanoMuse: shader width
                             fontSize = BaseFontSize * 0.85f,
                             fontFamily = FontFamily.Monospace,
                             color = colors.codeText,
@@ -1783,7 +1806,9 @@ private fun RenderBlock(block: MdBlock) {
             // refuses intrinsic measurement on those. Draw the orange rule
             // directly behind a single Column so layout never queries
             // intrinsics.
-            val barColor = Color(0xFFFF9500)
+            // nanoMuse: match quote rules to the monochrome response foreground.
+            val barColor = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+                ?.ink?.copy(alpha = 0.4f) ?: Color(0xFFFF9500)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
