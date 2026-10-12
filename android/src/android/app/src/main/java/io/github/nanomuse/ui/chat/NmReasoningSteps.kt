@@ -1,15 +1,11 @@
 package io.github.nanomuse.ui.chat
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -37,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +44,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -119,6 +118,10 @@ fun NmReasoningSteps(
     val active = block.toolStatus in setOf(ToolBlockStatus.PENDING, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING)
     val motion = nmChatMotionScale() > 0f
     val ink = nmChatInk()
+    var hasBeenActive by remember(block.id) { mutableStateOf(active) }
+    SideEffect { if (active) hasBeenActive = true }
+    val animateSources = motion && hasBeenActive
+    val slidePx = with(LocalDensity.current) { 4.dp.toPx() }
     var entered by remember(block.id) { mutableStateOf(!active || !motion) }
     LaunchedEffect(block.id) { entered = true }
     val titleAlpha by animateFloatAsState(
@@ -194,38 +197,44 @@ fun NmReasoningSteps(
             ) {
                 sources.forEachIndexed { index, source ->
                     key(block.id, source.key) {
-                        val visible = remember { MutableTransitionState(!active || !motion) }
-                        LaunchedEffect(active, motion) {
-                            if (active && motion) delay(index * 80L)
-                            visible.targetState = true
+                        var shown by remember { mutableStateOf(!animateSources) }
+                        LaunchedEffect(animateSources) {
+                            if (animateSources) delay(index * 80L)
+                            shown = true
                         }
-                        AnimatedVisibility(
-                            visibleState = visible,
-                            enter = fadeIn(tween(220)) + slideInVertically(tween(240)) { it / 4 },
+                        val entrance = animateFloatAsState(
+                            targetValue = if (shown || !motion) 1f else 0f,
+                            animationSpec = tween(240),
+                            label = "nmSourceEntrance",
+                        )
+                        // Keep every known pill measured; only its drawing moves.
+                        // This prevents the stagger from shifting rows or the scroll anchor.
+                        Row(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    alpha = entrance.value
+                                    translationY = slidePx * (1f - entrance.value)
+                                }
+                                .widthIn(max = 240.dp)
+                                .background(ink.copy(alpha = 0.035f), RoundedCornerShape(50))
+                                .border(0.5.dp, ink.copy(alpha = 0.12f), RoundedCornerShape(50))
+                                .padding(horizontal = 9.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .widthIn(max = 240.dp)
-                                    .background(ink.copy(alpha = 0.035f), RoundedCornerShape(50))
-                                    .border(0.5.dp, ink.copy(alpha = 0.12f), RoundedCornerShape(50))
-                                    .padding(horizontal = 9.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Icon(
-                                    imageVector = if (source.kind == NmReasoningSourceKind.WEB) Icons.Default.Language else Icons.Default.Description,
-                                    contentDescription = null,
-                                    tint = ink.copy(alpha = if (active) 0.6f else 0.35f),
-                                    modifier = Modifier.size(12.dp),
-                                )
-                                Spacer(Modifier.width(5.dp))
-                                Text(
-                                    text = source.label,
-                                    fontSize = 11.sp,
-                                    color = ink.copy(alpha = if (active) 0.65f else 0.4f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
+                            Icon(
+                                imageVector = if (source.kind == NmReasoningSourceKind.WEB) Icons.Default.Language else Icons.Default.Description,
+                                contentDescription = null,
+                                tint = ink.copy(alpha = if (active) 0.6f else 0.35f),
+                                modifier = Modifier.size(12.dp),
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = source.label,
+                                fontSize = 11.sp,
+                                color = ink.copy(alpha = if (active) 0.65f else 0.4f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
