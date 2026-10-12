@@ -4773,10 +4773,8 @@ fun ChatScreen(
                             .fillMaxWidth()
                             .wrapContentWidth(Alignment.CenterHorizontally)
                             .widthIn(max = CHAT_MAX_CONTENT_WIDTH)
-                            .padding(
-                                horizontal = nmComposerHorizontalInset,
-                                bottom = nmBottomOverlay + nmComposerBottomPadding,
-                            )
+                            .padding(horizontal = nmComposerHorizontalInset)
+                            .padding(bottom = nmBottomOverlay + nmComposerBottomPadding)
                             .height(nmFadeHeight + nmBackdropHeight)
                             .clip(
                                 RoundedCornerShape(
