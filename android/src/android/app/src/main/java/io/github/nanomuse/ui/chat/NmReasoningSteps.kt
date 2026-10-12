@@ -39,6 +39,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,8 +119,10 @@ fun NmReasoningSteps(
     val active = block.toolStatus in setOf(ToolBlockStatus.PENDING, ToolBlockStatus.RUNNING, ToolBlockStatus.STREAMING)
     val motion = nmChatMotionScale() > 0f
     val ink = nmChatInk()
+    var entered by remember(block.id) { mutableStateOf(!active || !motion) }
+    LaunchedEffect(block.id) { entered = true }
     val titleAlpha by animateFloatAsState(
-        targetValue = if (active) 0.72f else 0.48f,
+        targetValue = if (!entered) 0f else if (active) 0.72f else 0.48f,
         animationSpec = tween(220),
         label = "nmStepTitle",
     )

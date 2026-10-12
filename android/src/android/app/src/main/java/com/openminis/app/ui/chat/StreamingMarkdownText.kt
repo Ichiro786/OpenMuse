@@ -1867,6 +1867,8 @@ private fun RenderBlock(block: MdBlock) {
         }
 
         is MdBlock.TaskList -> {
+            // nanoMuse: checked boxes need a contrasting monochrome checkmark.
+            val nmTaskInk = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current?.ink
             Column(modifier = Modifier.padding(bottom = 8.dp)) {
                 block.items.forEach { item ->
                     Row(
@@ -1877,9 +1879,11 @@ private fun RenderBlock(block: MdBlock) {
                             checked = item.checked,
                             onCheckedChange = null,
                             modifier = Modifier.size(20.dp),
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = colors.link,
-                            ),
+                            colors = if (nmTaskInk != null) CheckboxDefaults.colors(
+                                checkedColor = nmTaskInk,
+                                uncheckedColor = nmTaskInk.copy(alpha = 0.5f),
+                                checkmarkColor = if (nmTaskInk == Color.White) Color.Black else Color.White,
+                            ) else CheckboxDefaults.colors(checkedColor = colors.link),
                         )
                         Spacer(Modifier.width(6.dp))
                         MdText(
