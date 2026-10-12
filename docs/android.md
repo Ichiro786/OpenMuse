@@ -113,10 +113,11 @@ the step bar sits above the composer; the latest message and tool pills can scro
 above both. The conversation still scrolls behind the navigation pill for its frosted blur.
 The spacing follows the actual footer height when the composer expands or a tool preview
 or approval card appears. When reading older messages, the fade above the composer
-continues behind its padding and rounded corners without a gap. It stays hidden while
-the tool step bar, browser panel or browser hand-over controls are visible.
+stays broad over the scrolling text and wraps softly around its rounded outline.
+It fades out below the composer before the navigation pill without a rectangular edge.
+Only live browser controls hide it: the browser step bar, browser panel or browser
+hand-over controls. Older browser pills and other tools do not disable the effect.
 The composer's fill, content clipping and soft shadow share one rounded outline.
-The fade backing ends at its rounded lower corners, leaving no square edge below the bar.
 
 The web console of the same account is at the relay (`/app`), the desktop app in
 [desktop.md](desktop.md); the phone, the desktop and the web share the design language

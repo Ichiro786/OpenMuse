@@ -210,7 +210,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TileMode // nanoMuse
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -3416,9 +3415,13 @@ fun ChatScreen(
             else if (nmBarLingers) { kotlinx.coroutines.delay(1_500); nmBarLingers = false }
         }
         val nmToolBarShown = nmShowSteps && (isStreaming || nmBarLingers) && lastToolBlocks.isNotEmpty()
-        // nanoMuse: browser/tool controls take priority over the composer's top fade.
+        // nanoMuse: hide the scrim for live browser controls, not tool history
+        // or unrelated tools. Old browser pills must not disable the scrolling fade.
         val nmBrowserHandOver by io.github.nanomuse.browser.BrowserHandOver.pending.collectAsState()
-        val nmComposerFadeSuppressed = nmToolBarShown || showBrowserSheet || nmBrowserHandOver != null
+        val nmBrowserToolMenuShown =
+            nmToolBarShown && lastToolBlocks.lastOrNull()?.toolName == "browser_use"
+        val nmComposerFadeSuppressed =
+            nmBrowserToolMenuShown || showBrowserSheet || nmBrowserHandOver != null
 
         // nanoMuse: in the home shell the composer is Muse's one-row
         // pill — "+", the text, the mic (a send arrow once there is
@@ -3438,6 +3441,7 @@ fun ChatScreen(
         val nmComposerCorner = if (nmPill) 26.dp else 20.dp
         val nmComposerShape = RoundedCornerShape(nmComposerCorner)
         val nmComposerHorizontalInset = if (nmPill) 16.dp else 12.dp
+        val nmComposerTopPadding = 2.dp
         val nmComposerBottomPadding = 8.dp
 
         // nanoMuse: measure the whole footer before the list, while keeping the
@@ -4748,49 +4752,36 @@ fun ChatScreen(
                     if (leftover > 0.dp) leftover / 2 else 0.dp
                 }
 
-                // nanoMuse: fade into the canvas above the composer while reading
-                // older messages. Browser/tool controls hide it immediately, even
+                // nanoMuse: keep the broad scrim over older messages and around
+                // the composer. Browser controls hide it immediately, even
                 // if a scroll animation or the alpha tween is still in progress.
                 val nmEdgeFade = ChatColors.background
                 val nmScrolledUp = listState.firstVisibleItemIndex > 0 ||
                     listState.firstVisibleItemScrollOffset > 0
                 val nmBottomFadeAlpha by animateFloatAsState(
-                    targetValue = if (nmScrolledUp && !nmComposerFadeSuppressed) 1f else 0f,
+                    targetValue = if ((userScrolledAway || nmScrolledUp) && !nmComposerFadeSuppressed) 1f else 0f,
                     animationSpec = tween(250),
                     label = "nmBottomFade",
                 )
                 if (!nmComposerFadeSuppressed) {
                     val nmFadeHeight = 90.dp
-                    val nmBackdropHeight =
-                        (bottomChromeHeight - nmBottomOverlay - nmComposerBottomPadding)
-                            .coerceAtLeast(0.dp)
-                    // nanoMuse: the solid end fits the composer's lower outline,
-                    // not the footer's bounding box or the gap above navigation.
-                    // The transparent top still joins the gradient without a seam.
-                    Box(
+                    val nmFooterHeight = (bottomChromeHeight - nmBottomOverlay).coerceAtLeast(0.dp)
+                    // nanoMuse: a continuous rounded halo retains the original
+                    // broad fade without a rectangular backing below the pill.
+                    io.github.nanomuse.ui.chat.NmComposerVignette(
+                        color = nmEdgeFade,
+                        opacity = nmBottomFadeAlpha,
+                        spread = nmFadeHeight,
+                        cornerRadius = nmComposerCorner,
+                        horizontalInset = nmComposerHorizontalInset,
+                        topPadding = nmComposerTopPadding,
+                        bottomPadding = nmComposerBottomPadding,
+                        maxContentWidth = CHAT_MAX_CONTENT_WIDTH,
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .wrapContentWidth(Alignment.CenterHorizontally)
-                            .widthIn(max = CHAT_MAX_CONTENT_WIDTH)
-                            .padding(horizontal = nmComposerHorizontalInset)
-                            .padding(bottom = nmBottomOverlay + nmComposerBottomPadding)
-                            .height(nmFadeHeight + nmBackdropHeight)
-                            .clip(
-                                RoundedCornerShape(
-                                    bottomStart = nmComposerCorner,
-                                    bottomEnd = nmComposerCorner,
-                                ),
-                            )
-                            .graphicsLayer { alpha = nmBottomFadeAlpha }
-                            .background(
-                                Brush.verticalGradient(
-                                    0f to Color.Transparent,
-                                    1f to nmEdgeFade,
-                                    endY = with(LocalDensity.current) { nmFadeHeight.toPx() },
-                                    tileMode = TileMode.Clamp,
-                                ),
-                            ),
+                            .padding(bottom = nmBottomOverlay)
+                            .height(nmFadeHeight + nmFooterHeight),
                     )
                 }
 
@@ -5031,7 +5022,7 @@ fun ChatScreen(
                         else Modifier.navigationBarsPadding()
                     )
                     .padding(horizontal = nmComposerHorizontalInset) // nanoMuse: matches the fade
-                    .padding(top = 2.dp, bottom = nmComposerBottomPadding),
+                    .padding(top = nmComposerTopPadding, bottom = nmComposerBottomPadding),
             ) {
                 // T13 banner moved INSIDE the LazyColumn so it renders at the
                 // visual end of the message list (mirrors iOS — see the
