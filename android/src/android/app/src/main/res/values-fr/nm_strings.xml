@@ -1121,4 +1121,23 @@
     <string name="nm_reasoning_failed">Échec</string>
     <string name="nm_reasoning_timeout">Délai dépassé</string>
     <string name="nm_reasoning_stopped">Arrêté</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Questions</string>
+    <string name="nm_card_previous">Précédent</string>
+    <string name="nm_card_skip">Passer</string>
+    <string name="nm_card_next">Suivant</string>
+    <string name="nm_card_other_answer">Votre réponse</string>
+    <string name="nm_card_skipped">Passée</string>
+    <string name="nm_card_todos">Tâches</string>
+    <string name="nm_card_show_less">Afficher moins</string>
+    <string name="nm_card_more">%1$d de plus</string>
+    <string name="nm_card_auto_approve">Approbation automatique dans %1$d s</string>
+    <string name="nm_card_approved">Approuvé</string>
+    <string name="nm_card_auto_paused">Approbation automatique en pause</string>
+    <string name="nm_card_view_plan">Voir le plan</string>
+    <string name="nm_card_approve">Approuver</string>
+    <string name="nm_card_answers">Réponses à vos questions</string>
+    <string name="nm_card_plan_reply">J’approuve ce plan : %1$s</string>
+    <string name="nm_card_submitted">Réponse envoyée</string>
 </resources>

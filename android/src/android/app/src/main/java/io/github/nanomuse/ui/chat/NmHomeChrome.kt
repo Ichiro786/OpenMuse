@@ -75,30 +75,35 @@ fun rememberShowSteps(): State<Boolean> {
     return state
 }
 
-/**
- * Muse's grey bubble around one block of the agent's reply. Each top-level block of a message
- * (a paragraph, a list) is its own bubble, which is also how Muse breaks a long reply up. Code
- * blocks, tables and the app's own `nanomuse-*` cards carry their own frame and are left bare.
- */
+/** nanoMuse: connected Markdown rows share one bubble; attachments keep their own frames. */
 @Composable
 fun NmAssistantBubble(
     enabled: Boolean,
     rawText: String,
+    segment: NmBubbleSegment? = null,
     content: @Composable () -> Unit,
 ) {
-    val bare = !enabled || isBareBlock(rawText)
+    val bare = !enabled || (segment == null && isBareBlock(rawText))
     if (bare) {
         content()
         return
     }
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.TopStart) {
+    val first = segment?.first ?: true
+    val last = segment?.last ?: true
+    Box(modifier = Modifier.fillMaxWidth().padding(top = if (first) 2.dp else 0.dp, bottom = if (last) 2.dp else 0.dp), contentAlignment = Alignment.TopStart) {
         Box(
             modifier = Modifier
                 .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(20.dp))
+                .then(if (segment != null) Modifier.fillMaxWidth() else Modifier)
+                .clip(RoundedCornerShape(
+                    topStart = if (first) 20.dp else 0.dp,
+                    topEnd = if (first) 20.dp else 0.dp,
+                    bottomStart = if (last) 20.dp else 0.dp,
+                    bottomEnd = if (last) 20.dp else 0.dp,
+                ))
                 // nanoMuse: Meta AI's assistant pill — a touch off the background.
                 .background(ChatColors.assistantBubble)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(start = 14.dp, end = 14.dp, top = if (first) 10.dp else 0.dp, bottom = if (last) 10.dp else 0.dp),
         ) {
             content()
         }

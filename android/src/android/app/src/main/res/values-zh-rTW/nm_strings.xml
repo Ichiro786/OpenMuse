@@ -1087,4 +1087,23 @@
     <string name="nm_reasoning_failed">失敗</string>
     <string name="nm_reasoning_timeout">已逾時</string>
     <string name="nm_reasoning_stopped">已停止</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">問題</string>
+    <string name="nm_card_previous">上一個</string>
+    <string name="nm_card_skip">略過</string>
+    <string name="nm_card_next">下一個</string>
+    <string name="nm_card_other_answer">你的回答</string>
+    <string name="nm_card_skipped">已略過</string>
+    <string name="nm_card_todos">待辦事項</string>
+    <string name="nm_card_show_less">收起</string>
+    <string name="nm_card_more">還有 %1$d 項</string>
+    <string name="nm_card_auto_approve">%1$d 秒後自動批准</string>
+    <string name="nm_card_approved">已批准</string>
+    <string name="nm_card_auto_paused">自動批准已暫停</string>
+    <string name="nm_card_view_plan">查看計畫</string>
+    <string name="nm_card_approve">批准</string>
+    <string name="nm_card_answers">問題的回答</string>
+    <string name="nm_card_plan_reply">我批准這個計畫：%1$s</string>
+    <string name="nm_card_submitted">已傳送回答</string>
 </resources>

@@ -10886,6 +10886,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
             if (nmFirstConversation.isBoundTo(realSessionId.ifEmpty { sessionId })) {
                 nmFirstConversation.promptAddendum()?.let { append("\n\n").append(it) }
             }
+            // nanoMuse: native question and plan attachments in this fork's chat flow.
+            append("\n\n").append(io.github.nanomuse.ui.chat.NmAgentCardProtocol.promptParagraph())
             // nanoMuse: how approvals work here.
             append("\n\n").append(io.github.nanomuse.guard.RiskPolicy.promptParagraph())
             // nanoMuse: the three models (chat / image / video) and what is not set.

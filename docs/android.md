@@ -123,10 +123,22 @@ dot grid, a readable action title, and source or file pills from the actual tool
 Completed steps dim and stop pulsing. Tapping a step still opens its details; stop and
 long-press actions remain available. The existing appearance setting hides these steps.
 
-Responses reveal complete words as they arrive, with a slow grey-to-white shimmer above
+Each answer shares one continuous rounded bubble across its paragraphs while keeping the
+existing virtual rows and scroll anchors. Responses reveal complete words as they arrive, with a slow grey-to-white shimmer above
 the message background. Completed replies settle to solid text. Markdown, links, code
 copying and text selection keep their existing behavior. Both effects respect the system
 animation scale, and light mode uses the matching black-and-grey treatment.
+
+The agent can attach a monochrome Questions card when it needs a choice: select an option,
+enter another answer when offered, or Skip. Next advances through the questions, and Previous
+keeps earlier selections. The completed answers return through the normal chat send path.
+A Plan card shows three tasks, with the rest expandable through View Plan or the more row.
+Approve continues immediately; an untouched card can approve after its displayed countdown
+(default ten seconds). Interacting with its controls cancels the countdown, and leaving the
+foreground pauses it. Historical cards never auto-approve, and a submitted decision is kept
+locally so reopening the conversation cannot submit it again. Plan approval preserves the
+normal risk checks for every action. Both cards are inline assistant attachments, using
+`nanomuse-question` and `nanomuse-plan` JSON fences; no additional dependencies are required.
 
 The upper scrolling fade is slightly lighter. In dark mode, home and side chats use
 pure black around the navigation pill, including the gap below the composer. Its

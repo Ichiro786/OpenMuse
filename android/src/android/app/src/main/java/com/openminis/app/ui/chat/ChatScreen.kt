@@ -3973,6 +3973,10 @@ fun ChatScreen(
                 val perfFirstLayoutFired = remember(sessionId) { java.util.concurrent.atomic.AtomicBoolean(false) }
                 Box {
                 AlwaysStretchOverscrollBox { sharedEffect ->
+                // nanoMuse: one continuous answer surface, retaining virtual rows and selection shards.
+                val nmAnswerSegments = remember(flatItems, nmHome != null) {
+                    if (nmHome != null) io.github.nanomuse.ui.chat.nmBubbleSegments(flatItems) else emptyMap()
+                }
                 LazyColumn(
                     state = listState,
                     reverseLayout = true,
@@ -4345,7 +4349,15 @@ fun ChatScreen(
                                 messageId = item.messageId,
                                 slotKey = "text:${item.block.id}",
                                 markdown = item.messageMarkdown,
-                            ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content) {
+                            ) { // nanoMuse: scope attachments to this message and the active session.
+                                io.github.nanomuse.ui.chat.NmAgentCardHost(
+                                    sessionId = sessionId,
+                                    messageId = item.messageId,
+                                    active = nmHome != null && !isStreaming && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    streaming = item.isStreaming,
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.sendMessage(answer) } },
+                                ) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -4372,12 +4384,20 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } } // nanoMuse: bubble + streaming foreground
+                            } } } } // nanoMuse: bubble + streaming foreground + attachment host
                             is FlatChatItem.AssistantMarkdownBlock -> BoundsTrackedBlock(
                                 messageId = item.messageId,
                                 slotKey = "mdblock:${item.parentBlockId}:${item.blockIndex}",
                                 markdown = item.messageMarkdown,
-                            ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText) {
+                            ) { // nanoMuse: scope attachments to this message and the active session.
+                                io.github.nanomuse.ui.chat.NmAgentCardHost(
+                                    sessionId = sessionId,
+                                    messageId = item.messageId,
+                                    active = nmHome != null && !isStreaming && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    streaming = item.messageIsStreaming,
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.sendMessage(answer) } },
+                                ) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key]) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.messageIsStreaming,
@@ -4401,7 +4421,7 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } } // nanoMuse: bubble + streaming foreground
+                            } } } } // nanoMuse: bubble + streaming foreground + attachment host
                             is FlatChatItem.AssistantThinking -> {
                                 // T300: hide Deep Thinking block when the user
                                 // currently has thinking turned off — even if
@@ -4563,7 +4583,15 @@ fun ChatScreen(
                                 messageId = item.messageId,
                                 slotKey = "legacy",
                                 markdown = item.messageMarkdown,
-                            ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content) {
+                            ) { // nanoMuse: scope attachments to this message and the active session.
+                                io.github.nanomuse.ui.chat.NmAgentCardHost(
+                                    sessionId = sessionId,
+                                    messageId = item.messageId,
+                                    active = nmHome != null && !isStreaming && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    streaming = item.isStreaming,
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.sendMessage(answer) } },
+                                ) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -4587,7 +4615,7 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } } // nanoMuse: bubble + streaming foreground
+                            } } } } // nanoMuse: bubble + streaming foreground + attachment host
                         }
                         } // Box (alpha wrapper)
                     }

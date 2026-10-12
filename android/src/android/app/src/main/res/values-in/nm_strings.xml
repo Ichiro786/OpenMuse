@@ -1117,4 +1117,23 @@
     <string name="nm_reasoning_failed">Gagal</string>
     <string name="nm_reasoning_timeout">Waktu habis</string>
     <string name="nm_reasoning_stopped">Dihentikan</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Pertanyaan</string>
+    <string name="nm_card_previous">Sebelumnya</string>
+    <string name="nm_card_skip">Lewati</string>
+    <string name="nm_card_next">Berikutnya</string>
+    <string name="nm_card_other_answer">Jawaban Anda</string>
+    <string name="nm_card_skipped">Dilewati</string>
+    <string name="nm_card_todos">Tugas</string>
+    <string name="nm_card_show_less">Tampilkan lebih sedikit</string>
+    <string name="nm_card_more">%1$d lainnya</string>
+    <string name="nm_card_auto_approve">Setujui otomatis dalam %1$d dtk</string>
+    <string name="nm_card_approved">Disetujui</string>
+    <string name="nm_card_auto_paused">Persetujuan otomatis dijeda</string>
+    <string name="nm_card_view_plan">Lihat rencana</string>
+    <string name="nm_card_approve">Setujui</string>
+    <string name="nm_card_answers">Jawaban untuk pertanyaan Anda</string>
+    <string name="nm_card_plan_reply">Saya menyetujui rencana ini: %1$s</string>
+    <string name="nm_card_submitted">Jawaban terkirim</string>
 </resources>

@@ -1117,4 +1117,23 @@
     <string name="nm_reasoning_failed">실패</string>
     <string name="nm_reasoning_timeout">시간 초과</string>
     <string name="nm_reasoning_stopped">중지됨</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">질문</string>
+    <string name="nm_card_previous">이전</string>
+    <string name="nm_card_skip">건너뛰기</string>
+    <string name="nm_card_next">다음</string>
+    <string name="nm_card_other_answer">답변</string>
+    <string name="nm_card_skipped">건너뜀</string>
+    <string name="nm_card_todos">할 일</string>
+    <string name="nm_card_show_less">접기</string>
+    <string name="nm_card_more">%1$d개 더</string>
+    <string name="nm_card_auto_approve">%1$d초 후 자동 승인</string>
+    <string name="nm_card_approved">승인됨</string>
+    <string name="nm_card_auto_paused">자동 승인 일시 중지</string>
+    <string name="nm_card_view_plan">계획 보기</string>
+    <string name="nm_card_approve">승인</string>
+    <string name="nm_card_answers">질문에 대한 답변</string>
+    <string name="nm_card_plan_reply">이 계획을 승인합니다: %1$s</string>
+    <string name="nm_card_submitted">답변 전송됨</string>
 </resources>

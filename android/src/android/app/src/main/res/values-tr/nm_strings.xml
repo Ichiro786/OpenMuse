@@ -1121,4 +1121,23 @@
     <string name="nm_reasoning_failed">Başarısız</string>
     <string name="nm_reasoning_timeout">Zaman aşımı</string>
     <string name="nm_reasoning_stopped">Durduruldu</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Sorular</string>
+    <string name="nm_card_previous">Önceki</string>
+    <string name="nm_card_skip">Atla</string>
+    <string name="nm_card_next">Sonraki</string>
+    <string name="nm_card_other_answer">Yanıtınız</string>
+    <string name="nm_card_skipped">Atlandı</string>
+    <string name="nm_card_todos">Yapılacaklar</string>
+    <string name="nm_card_show_less">Daha az göster</string>
+    <string name="nm_card_more">%1$d tane daha</string>
+    <string name="nm_card_auto_approve">%1$d sn sonra otomatik onay</string>
+    <string name="nm_card_approved">Onaylandı</string>
+    <string name="nm_card_auto_paused">Otomatik onay duraklatıldı</string>
+    <string name="nm_card_view_plan">Planı görüntüle</string>
+    <string name="nm_card_approve">Onayla</string>
+    <string name="nm_card_answers">Sorularınıza yanıtlar</string>
+    <string name="nm_card_plan_reply">Bu planı onaylıyorum: %1$s</string>
+    <string name="nm_card_submitted">Yanıt gönderildi</string>
 </resources>

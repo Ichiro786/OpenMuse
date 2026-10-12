@@ -1121,4 +1121,23 @@
     <string name="nm_reasoning_failed">Nabigo</string>
     <string name="nm_reasoning_timeout">Nag-time out</string>
     <string name="nm_reasoning_stopped">Itinigil</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Mga tanong</string>
+    <string name="nm_card_previous">Nakaraan</string>
+    <string name="nm_card_skip">Laktawan</string>
+    <string name="nm_card_next">Susunod</string>
+    <string name="nm_card_other_answer">Sagot mo</string>
+    <string name="nm_card_skipped">Nilaktawan</string>
+    <string name="nm_card_todos">Mga gawain</string>
+    <string name="nm_card_show_less">Mas kaunti</string>
+    <string name="nm_card_more">%1$d pa</string>
+    <string name="nm_card_auto_approve">Awtomatikong aprubahan sa %1$d s</string>
+    <string name="nm_card_approved">Naaprubahan</string>
+    <string name="nm_card_auto_paused">Naka-pause ang awtomatikong pag-apruba</string>
+    <string name="nm_card_view_plan">Tingnan ang plano</string>
+    <string name="nm_card_approve">Aprubahan</string>
+    <string name="nm_card_answers">Mga sagot sa iyong mga tanong</string>
+    <string name="nm_card_plan_reply">Inaaprubahan ko ang planong ito: %1$s</string>
+    <string name="nm_card_submitted">Naipadala ang sagot</string>
 </resources>

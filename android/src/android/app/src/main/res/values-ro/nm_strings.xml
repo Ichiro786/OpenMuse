@@ -1125,4 +1125,23 @@
     <string name="nm_reasoning_failed">Eșuat</string>
     <string name="nm_reasoning_timeout">Timp expirat</string>
     <string name="nm_reasoning_stopped">Oprit</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Întrebări</string>
+    <string name="nm_card_previous">Înapoi</string>
+    <string name="nm_card_skip">Omite</string>
+    <string name="nm_card_next">Următorul</string>
+    <string name="nm_card_other_answer">Răspunsul tău</string>
+    <string name="nm_card_skipped">Omis</string>
+    <string name="nm_card_todos">Sarcini</string>
+    <string name="nm_card_show_less">Arată mai puțin</string>
+    <string name="nm_card_more">Încă %1$d</string>
+    <string name="nm_card_auto_approve">Aprobare automată în %1$d s</string>
+    <string name="nm_card_approved">Aprobat</string>
+    <string name="nm_card_auto_paused">Aprobarea automată este în pauză</string>
+    <string name="nm_card_view_plan">Vezi planul</string>
+    <string name="nm_card_approve">Aprobă</string>
+    <string name="nm_card_answers">Răspunsuri la întrebările tale</string>
+    <string name="nm_card_plan_reply">Aprob acest plan: %1$s</string>
+    <string name="nm_card_submitted">Răspuns trimis</string>
 </resources>

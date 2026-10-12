@@ -1098,4 +1098,23 @@
     <string name="nm_reasoning_failed">Failed</string>
     <string name="nm_reasoning_timeout">Timed out</string>
     <string name="nm_reasoning_stopped">Stopped</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Questions</string>
+    <string name="nm_card_previous">Previous</string>
+    <string name="nm_card_skip">Skip</string>
+    <string name="nm_card_next">Next</string>
+    <string name="nm_card_other_answer">Your answer</string>
+    <string name="nm_card_skipped">Skipped</string>
+    <string name="nm_card_todos">To-dos</string>
+    <string name="nm_card_show_less">Show less</string>
+    <string name="nm_card_more">%1$d more</string>
+    <string name="nm_card_auto_approve">Auto Approve in %1$ds</string>
+    <string name="nm_card_approved">Approved</string>
+    <string name="nm_card_auto_paused">Auto-approve paused</string>
+    <string name="nm_card_view_plan">View Plan</string>
+    <string name="nm_card_approve">Approve</string>
+    <string name="nm_card_answers">Answers to your questions</string>
+    <string name="nm_card_plan_reply">I approve this plan: %1$s</string>
+    <string name="nm_card_submitted">Response sent</string>
 </resources>
