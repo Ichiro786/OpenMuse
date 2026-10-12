@@ -3442,7 +3442,8 @@ fun ChatScreen(
         val nmComposerShape = RoundedCornerShape(nmComposerCorner)
         val nmComposerHorizontalInset = if (nmPill) 16.dp else 12.dp
         val nmComposerTopPadding = 2.dp
-        val nmComposerBottomPadding = 8.dp
+        // nanoMuse: share the footer gap with the nav surround so no content peeks through.
+        val nmComposerBottomPadding = io.github.nanomuse.ui.chat.NM_CHAT_COMPOSER_BOTTOM_GAP
 
         // nanoMuse: measure the whole footer before the list, while keeping the
         // list full-size behind the pill for Haze. No asynchronous height feedback.

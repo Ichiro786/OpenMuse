@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
+import io.github.nanomuse.ui.chat.NM_CHAT_COMPOSER_BOTTOM_GAP
 
 /**
  * nanoMuse's bottom bar: a floating frosted-glass pill, five glyphs, icons only. The pill blurs
@@ -70,8 +71,12 @@ fun MuseBottomBar(
                 // Paint the dark surround outside the glass, independently of
                 // the recorded scrolling source. Its hole matches this pill.
                 .then(
-                    if (nmDark) Modifier.amoledNavPillSurround(surroundExtent)
-                    else Modifier,
+                    if (nmDark && selected == HomeTab.CHAT) {
+                        Modifier.amoledNavPillSurround(
+                            extent = surroundExtent,
+                            topGap = NM_CHAT_COMPOSER_BOTTOM_GAP,
+                        )
+                    } else Modifier,
                 )
                 // Clip first: it must wrap the haze drawing, otherwise the
                 // blurred rect paints unclipped and the pill's ends look square.
