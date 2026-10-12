@@ -115,6 +115,8 @@ The spacing follows the actual footer height when the composer expands or a tool
 or approval card appears. When reading older messages, the fade above the composer
 continues behind its padding and rounded corners without a gap. It stays hidden while
 the tool step bar, browser panel or browser hand-over controls are visible.
+The composer's fill, content clipping and soft shadow share one rounded outline.
+The fade backing ends at its rounded lower corners, leaving no square edge below the bar.
 
 The web console of the same account is at the relay (`/app`), the desktop app in
 [desktop.md](desktop.md); the phone, the desktop and the web share the design language
