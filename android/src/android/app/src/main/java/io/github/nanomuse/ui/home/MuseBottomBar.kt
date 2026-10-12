@@ -26,11 +26,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeStyle
 import dev.chrisbanes.haze.hazeEffect
+import io.github.nanomuse.ui.chat.NM_CHAT_COMPOSER_BOTTOM_GAP
 
 /**
  * nanoMuse's bottom bar: a floating frosted-glass pill, five glyphs, icons only. The pill blurs
@@ -48,6 +51,14 @@ fun MuseBottomBar(
     // Hoisted out of the hazeEffect block: Haze 1.x's block is not a @Composable scope,
     // so MaterialTheme lookups cannot happen inside it.
     val barBackground = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.55f)
+    // nanoMuse: Meta AI's selected tab — white disc, black glyph in dark theme
+    // (inverted in light). Follows the chat background, not the system setting,
+    // since the app has its own theme override.
+    val nmDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val nmSelectedBg = if (nmDark) Color.White else Color.Black
+    val nmSelectedFg = if (nmDark) Color.Black else Color.White
+    val window = LocalConfiguration.current
+    val surroundExtent = maxOf(window.screenWidthDp, window.screenHeightDp).dp
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -57,6 +68,16 @@ fun MuseBottomBar(
     ) {
         Row(
             modifier = Modifier
+                // Paint the dark surround outside the glass, independently of
+                // the recorded scrolling source. Its hole matches this pill.
+                .then(
+                    if (nmDark && selected == HomeTab.CHAT) {
+                        Modifier.amoledNavPillSurround(
+                            extent = surroundExtent,
+                            topGap = NM_CHAT_COMPOSER_BOTTOM_GAP,
+                        )
+                    } else Modifier,
+                )
                 // Clip first: it must wrap the haze drawing, otherwise the
                 // blurred rect paints unclipped and the pill's ends look square.
                 .clip(CircleShape)
@@ -81,7 +102,7 @@ fun MuseBottomBar(
             HomeTab.entries.forEach { tab ->
                 val isSelected = tab == selected
                 val indicator by animateColorAsState(
-                    targetValue = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                    targetValue = if (isSelected) nmSelectedBg
                     else Color.Transparent,
                     animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
                     label = "nmTabIndicator",
@@ -101,7 +122,7 @@ fun MuseBottomBar(
                     Icon(
                         imageVector = if (isSelected) tab.selectedIcon else tab.icon,
                         contentDescription = stringResource(tab.label),
-                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                        tint = if (isSelected) nmSelectedFg
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(26.dp),
                     )
