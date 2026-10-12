@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeState
@@ -55,6 +56,8 @@ fun MuseBottomBar(
     val nmDark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val nmSelectedBg = if (nmDark) Color.White else Color.Black
     val nmSelectedFg = if (nmDark) Color.Black else Color.White
+    val window = LocalConfiguration.current
+    val surroundExtent = maxOf(window.screenWidthDp, window.screenHeightDp).dp
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -64,6 +67,12 @@ fun MuseBottomBar(
     ) {
         Row(
             modifier = Modifier
+                // Paint the dark surround outside the glass, independently of
+                // the recorded scrolling source. Its hole matches this pill.
+                .then(
+                    if (nmDark) Modifier.amoledNavPillSurround(surroundExtent)
+                    else Modifier,
+                )
                 // Clip first: it must wrap the haze drawing, otherwise the
                 // blurred rect paints unclipped and the pill's ends look square.
                 .clip(CircleShape)

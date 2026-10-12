@@ -49,6 +49,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Lightened the scrolling fade above the chat composer slightly and added a pure-black surround at the sides and below the navigation pill in dark mode. The rounded glass area still shows scrolling content through its live frosted blur.
 - Restored the broad scrolling fade around the chat composer, with a soft rounded outline instead of a rectangular backing or a small drop shadow. Historical browser pills and other tools no longer hide it; live browser controls still do.
 - Removed the square black edges around the chat composer: its fade backing now follows the rounded lower corners, and its fill, clipping and shadow use the same outline.
 - Removed the gap between the chat composer and its fade when scrolling through older messages. The fade now stays hidden while tool or browser controls are visible.

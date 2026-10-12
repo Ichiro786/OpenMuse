@@ -89,8 +89,13 @@ internal fun NmComposerVignette(
                     Rect(left - spreadPx, y2, x1, bottom + spreadPx) to cornerBrush(x1, y2),
                     Rect(x2, y2, right + spreadPx, bottom + spreadPx) to cornerBrush(x2, y2),
                 )
-                val lowerMask = Brush.verticalGradient(
-                    0f to Color.White,
+                // Slightly lighten only the scrim above the input. Blend back
+                // to full coverage across its upper corners, keeping the halo
+                // and the lower fade continuous.
+                val surroundMask = Brush.verticalGradient(
+                    0f to Color.White.copy(alpha = 0.9f),
+                    (top / size.height).coerceIn(0f, 1f) to Color.White.copy(alpha = 0.9f),
+                    ((top + radius) / size.height).coerceIn(0f, 1f) to Color.White,
                     (bottom / size.height).coerceIn(0f, 1f) to Color.White,
                     1f to Color.Transparent,
                 )
@@ -115,7 +120,7 @@ internal fun NmComposerVignette(
                         corners.forEach { (rect, brush) ->
                             drawRect(brush, rect.topLeft, rect.size)
                         }
-                        drawRect(lowerMask, blendMode = BlendMode.DstIn)
+                        drawRect(surroundMask, blendMode = BlendMode.DstIn)
                     }
                 }
             },

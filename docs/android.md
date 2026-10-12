@@ -118,6 +118,9 @@ It fades out below the composer before the navigation pill without a rectangular
 Only live browser controls hide it: the browser step bar, browser panel or browser
 hand-over controls. Older browser pills and other tools do not disable the effect.
 The composer's fill, content clipping and soft shadow share one rounded outline.
+The upper scrolling fade is slightly lighter. In dark mode, the area around the sides
+of the navigation pill and below it is pure black. Its rounded glass area stays open
+to the scrolling content, preserving the live frosted blur.
 
 The web console of the same account is at the relay (`/app`), the desktop app in
 [desktop.md](desktop.md); the phone, the desktop and the web share the design language
