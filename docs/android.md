@@ -131,7 +131,8 @@ animation scale, and light mode uses the matching black-and-grey treatment.
 
 The agent can attach a monochrome Questions card when it needs a choice: select an option,
 enter another answer when offered, or Skip. Next advances through the questions, and Previous
-keeps earlier selections. The completed answers return through the normal chat send path.
+keeps earlier selections. The completed answers return through the normal chat send path without consuming a composer
+draft, its attachments or a message being edited.
 A Plan card shows three tasks, with the rest expandable through View Plan or the more row.
 Approve continues immediately; an untouched card can approve after its displayed countdown
 (default ten seconds). Interacting with its controls cancels the countdown, and leaving the

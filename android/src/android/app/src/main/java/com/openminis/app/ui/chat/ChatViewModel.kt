@@ -3399,6 +3399,7 @@ class ChatViewModel(
      * up. Mirrors iOS `pendingSendText` / `pendingSendAttachments`.
      */
     private var pendingSendText: String? = null
+    private var nmPendingCardReply = false // nanoMuse: card replies do not consume composer drafts.
 
     private val _showCompactBeforeSendPrompt = MutableStateFlow(false)
     val showCompactBeforeSendPrompt: StateFlow<Boolean> = _showCompactBeforeSendPrompt.asStateFlow()
@@ -3413,12 +3414,14 @@ class ChatViewModel(
         _showCompactBeforeSendPrompt.value = false
         val text = pendingSendText ?: return
         pendingSendText = null
+        val cardReply = nmPendingCardReply
+        nmPendingCardReply = false
         viewModelScope.launch {
             val ok = awaitCompaction()
             if (!ok) {
                 AppLogger.warning(TAG, "[Context] pre-send compaction failed — sending anyway")
             }
-            sendMessage(text, skipContextCheck = true)
+            sendMessage(text, skipContextCheck = true, nmCardReply = cardReply)
         }
     }
 
@@ -3427,14 +3430,22 @@ class ChatViewModel(
         _showCompactBeforeSendPrompt.value = false
         val text = pendingSendText ?: return
         pendingSendText = null
-        sendMessage(text, skipContextCheck = true)
+        val cardReply = nmPendingCardReply
+        nmPendingCardReply = false
+        sendMessage(text, skipContextCheck = true, nmCardReply = cardReply)
     }
 
     /** Dialog dismissed — restore the text to the composer so it isn't lost. */
     fun cancelCompactBeforeSend() {
         _showCompactBeforeSendPrompt.value = false
-        pendingSendText?.let { _inputText.value = it }
+        // nanoMuse: keep a cancelled card reply alongside the existing draft, so no answer is lost.
+        pendingSendText?.let { text ->
+            _inputText.value = if (nmPendingCardReply)
+                listOf(_inputText.value, text).filter { it.isNotBlank() }.joinToString("\n\n")
+            else text
+        }
         pendingSendText = null
+        nmPendingCardReply = false
     }
 
     /**
@@ -6445,6 +6456,11 @@ class ChatViewModel(
     /** Whether the turn that just ended was one of the person's; reading it clears it. */
     fun nmTakeCountableTurn(): Boolean = nmCountableTurn.also { nmCountableTurn = false }
 
+    // nanoMuse: same send/context/risk path, with an independent attachment and edit snapshot.
+    fun nmSendCardReply(text: String) {
+        sendMessage(text, skipContextCheck = false, nmCardReply = true)
+    }
+
     fun sendMessage(text: String) {
         // nanoMuse: "change your avatar to …" (and a pick while the options are
         // up) is handled in the app, not by the model.
@@ -6849,7 +6865,7 @@ class ChatViewModel(
      *   chunk) token count and pop the dialog again — iOS guards the identical
      *   re-entry with `skipCompactCheck`.
      */
-    private fun sendMessage(text: String, skipContextCheck: Boolean) {
+    private fun sendMessage(text: String, skipContextCheck: Boolean, nmCardReply: Boolean = false) {
         // [T-android-paste-mediaref] `[Pasted#N]` markers are NOT expanded here
         // any more.
         //
@@ -6869,6 +6885,7 @@ class ChatViewModel(
         val trimmed = text.trim()
         // While streaming, enqueue instead of silently dropping (iOS: send vs enqueuePrompt).
         if (_isStreaming.value) {
+            if (nmCardReply) return // nanoMuse: a stale card cannot enqueue draft attachments.
             enqueuePrompt(text)
             return
         }
@@ -6892,7 +6909,8 @@ class ChatViewModel(
                 PreSendContextAction.PROCEED -> {}
                 PreSendContextAction.COMPACT_THEN_SEND -> {
                     pendingSendText = text
-                    _inputText.value = ""
+                    nmPendingCardReply = nmCardReply // nanoMuse: keep this source through compaction.
+                    if (!nmCardReply) _inputText.value = ""
                     compactAndSendPending()
                     return
                 }
@@ -6900,7 +6918,8 @@ class ChatViewModel(
                     // Park the text on the VM (not the composer) so the dialog
                     // owns it; cancelCompactBeforeSend puts it back.
                     pendingSendText = text
-                    _inputText.value = ""
+                    nmPendingCardReply = nmCardReply // nanoMuse: keep this source through compaction.
+                    if (!nmCardReply) _inputText.value = ""
                     _showCompactBeforeSendPrompt.value = true
                     return
                 }
@@ -6918,7 +6937,7 @@ class ChatViewModel(
         // "image attachment shows up as Move to" symptom in T185. Mirrors
         // iOS AIChatView.swift:2255 (`hasInjectedShareContent = false`
         // inside the send button's tap closure).
-        if (_hasInjectedShareContent.value) _hasInjectedShareContent.value = false
+        if (!nmCardReply && _hasInjectedShareContent.value) _hasInjectedShareContent.value = false // nanoMuse: leave the draft alone.
 
         val initialProvider = currentProvider
         if (initialProvider == null) {
@@ -6929,8 +6948,8 @@ class ChatViewModel(
 
         _error.value = null
 
-        val currentAttachments = _attachments.value
-        clearAttachments()
+        val currentAttachments = if (nmCardReply) emptyList() else _attachments.value // nanoMuse
+        if (!nmCardReply) clearAttachments() // nanoMuse: card answers contain no composer files.
 
         // T145: claim _isStreaming synchronously so a rapid second tap can't
         // slip past the entry guard during DB/OAuth setup. See retryFromMessage.
@@ -6957,7 +6976,7 @@ class ChatViewModel(
         // edited text as a fresh user turn. Snapshot + clear the id here so
         // any error in the truncate path doesn't leave the composer stuck
         // in edit mode.
-        val editingId = _editingMessageId.value
+        val editingId = if (nmCardReply) null else _editingMessageId.value // nanoMuse: card replies do not edit old messages.
         if (editingId != null) _editingMessageId.value = null
 
         viewModelScope.launch {
@@ -6975,7 +6994,7 @@ class ChatViewModel(
             // [T-android-paste-mediaref] Fold `[Pasted#N]` markers out to disk
             // BEFORE persisting, so the stored message carries a mediaRef per
             // paste instead of one huge text part.
-            val pasted = buildPastedParts(trimmed, activeSessionId)
+            val pasted = if (nmCardReply) null else buildPastedParts(trimmed, activeSessionId) // nanoMuse: keep draft paste buffers.
             if (pasted != null) {
                 // Safe to clear now: the content is on disk and the parts JSON
                 // below references it, so nothing depends on the buffer any more.

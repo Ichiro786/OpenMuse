@@ -568,6 +568,7 @@ fun ChatScreen(
     val messages by viewModel.uiMessages.collectAsState()
     val hasOlderMessages by viewModel.hasOlderMessages.collectAsState()
     val isStreaming by viewModel.isStreaming.collectAsState()
+    val nmCardsBusy by viewModel.isCompacting.collectAsState() // nanoMuse: card replies wait for compaction.
     // nanoMuse: the screen stays on while the agent drives the browser or another app's screen.
     io.github.nanomuse.status.KeepAwake.Effect(isStreaming)
     val canResume by viewModel.canResume.collectAsState()
@@ -4353,9 +4354,9 @@ fun ChatScreen(
                                 io.github.nanomuse.ui.chat.NmAgentCardHost(
                                     sessionId = sessionId,
                                     messageId = item.messageId,
-                                    active = nmHome != null && !isStreaming && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    active = nmHome != null && !isStreaming && !nmCardsBusy && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
                                     streaming = item.isStreaming,
-                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.sendMessage(answer) } },
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
                                 io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content) {
                                 // nanoMuse: animate glyphs above the existing message background.
@@ -4393,9 +4394,9 @@ fun ChatScreen(
                                 io.github.nanomuse.ui.chat.NmAgentCardHost(
                                     sessionId = sessionId,
                                     messageId = item.messageId,
-                                    active = nmHome != null && !isStreaming && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    active = nmHome != null && !isStreaming && !nmCardsBusy && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
                                     streaming = item.messageIsStreaming,
-                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.sendMessage(answer) } },
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
                                 io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key]) {
                                 // nanoMuse: animate glyphs above the existing message background.
@@ -4587,9 +4588,9 @@ fun ChatScreen(
                                 io.github.nanomuse.ui.chat.NmAgentCardHost(
                                     sessionId = sessionId,
                                     messageId = item.messageId,
-                                    active = nmHome != null && !isStreaming && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    active = nmHome != null && !isStreaming && !nmCardsBusy && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
                                     streaming = item.isStreaming,
-                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.sendMessage(answer) } },
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
                                 io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content) {
                                 // nanoMuse: animate glyphs above the existing message background.
