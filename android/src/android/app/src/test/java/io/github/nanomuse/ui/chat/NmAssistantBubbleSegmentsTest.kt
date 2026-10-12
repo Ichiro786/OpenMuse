@@ -21,7 +21,7 @@ class NmAssistantBubbleSegmentsTest {
 
     @Test fun `code and tables join but inline app cards retain their own frame`() {
         val rows = listOf(row(0), row(1, "```kotlin\nval n = 1\n```"),
-            row(2, "| A | B |"), row(3, "```nanomuse-question\n{}\n```"), row(4))
+            row(2, "| A | B |"), row(3, "```` nanomuse-question\n{}\n````"), row(4))
         val segments = nmBubbleSegments(rows)
         assertEquals(NmBubbleSegment(false, false), segments[rows[1].key])
         assertEquals(NmBubbleSegment(false, true), segments[rows[2].key])

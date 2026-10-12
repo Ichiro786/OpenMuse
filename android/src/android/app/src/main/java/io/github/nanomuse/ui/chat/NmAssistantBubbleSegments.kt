@@ -5,11 +5,13 @@ import com.openminis.app.ui.chat.FlatChatItem
 // nanoMuse: join virtual Markdown rows into one rounded answer without losing scroll anchors.
 data class NmBubbleSegment(val first: Boolean, val last: Boolean)
 
+private val nmAttachmentFence = Regex("^(`{3,}|~{3,})\\s*nanomuse-")
+
 internal fun nmBubbleSegments(items: List<FlatChatItem>): Map<String, NmBubbleSegment> {
     fun reply(item: FlatChatItem?): FlatChatItem.AssistantMarkdownBlock? =
         (item as? FlatChatItem.AssistantMarkdownBlock)?.takeUnless {
             val raw = it.rawText.trimStart()
-            raw.startsWith("```nanomuse-") || raw.startsWith("~~~nanomuse-")
+            nmAttachmentFence.containsMatchIn(raw)
         }
     return buildMap {
         items.forEachIndexed { index, item ->

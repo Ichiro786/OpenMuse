@@ -27,7 +27,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.openminis.app.R
 import kotlin.math.ceil
@@ -54,27 +54,22 @@ fun NmPlanCard(
     }
     var expanded by rememberSaveable(stateKey) { mutableStateOf(false) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    var resumed by remember(lifecycle) { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
-    DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { _, _ ->
-            resumed = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
-        }
-        lifecycle.addObserver(observer)
-        onDispose { lifecycle.removeObserver(observer) }
-    }
     val approve = rememberUpdatedState(onAutoApprove)
-    LaunchedEffect(stateKey, enabled, timer.cancelled, timer.submitted, resumed) {
-        if (!enabled || timer.cancelled || timer.submitted || !resumed) return@LaunchedEffect
-        var previous = SystemClock.elapsedRealtime()
-        while (timer.remainingMs > 0 && !timer.cancelled && !timer.submitted) {
-            withFrameNanos { }
-            val now = SystemClock.elapsedRealtime()
-            timer = timer.advance(now - previous)
-            previous = now
-        }
-        if (enabled && timer.expired) {
-            timer = timer.submit()
-            approve.value(plan.id)
+    LaunchedEffect(stateKey, enabled, timer.cancelled, timer.submitted, lifecycle) {
+        if (!enabled || timer.cancelled || timer.submitted) return@LaunchedEffect
+        // Cancel the frame loop directly on pause, even if composition is suspended.
+        lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            var previous = SystemClock.elapsedRealtime()
+            while (timer.remainingMs > 0 && !timer.cancelled && !timer.submitted) {
+                withFrameNanos { }
+                val now = SystemClock.elapsedRealtime()
+                timer = timer.advance(now - previous)
+                previous = now
+            }
+            if (enabled && timer.expired) {
+                timer = timer.submit()
+                approve.value(plan.id)
+            }
         }
     }
     val interactive = enabled && !timer.submitted
@@ -149,7 +144,7 @@ fun NmPlanCard(
                 timer = timer.cancel()
                 expanded = true
                 onViewPlan(plan.id)
-            }, enabled = !timer.submitted, border = BorderStroke(1.dp, NmCardOutline),
+            }, border = BorderStroke(1.dp, NmCardOutline),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = NmCardMuted,
                     disabledContentColor = NmCardMuted.copy(alpha = 0.5f))) {
                 Text(stringResource(R.string.nm_card_view_plan))
