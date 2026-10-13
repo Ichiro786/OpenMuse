@@ -912,6 +912,8 @@ fun ChatScreen(
     var showModelPicker by remember { mutableStateOf(false) }
     var nmVoiceSkillsOpen by remember { mutableStateOf(false) } // nanoMuse
     var nmAgentVoiceOpen by remember { mutableStateOf(false) } // nanoMuse
+    var nmInlineVoiceHeight by remember { mutableStateOf(72.dp) } // nanoMuse: retain the background footer's measured size.
+    val nmVoiceDensity = LocalDensity.current
     // [T-android-modelpicker-stuck-ripple] Interaction source for the navbar
     // model-picker row, owned here so the press can be drained when the picker
     // closes. See the clickable's comment for why the release never arrives on
@@ -6373,8 +6375,12 @@ fun ChatScreen(
                     } // nmTextField
                     if (com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
                         // nanoMuse: exactly one speech panel owns capture while the dialog is open.
-                        if (nmAgentVoiceOpen) Spacer(Modifier.height(72.dp))
+                        if (nmAgentVoiceOpen) Spacer(Modifier.height(nmInlineVoiceHeight))
                         else com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
+                            // nanoMuse: opening the dialog must not reflow the underlying conversation.
+                            modifier = Modifier.onGloballyPositioned {
+                                nmInlineVoiceHeight = with(nmVoiceDensity) { it.size.height.toDp() }
+                            },
                             providerRepository = providerRepository,
                             inputText = inputText,
                             onInputTextChange = { text ->
