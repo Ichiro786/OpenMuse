@@ -257,7 +257,9 @@ keytool -genkeypair -keystore ~/.nanomuse-release/nanomuse.jks -alias nanomuse \
 ## 发布 {#releases}
 
 `.github/workflows/android.yml` 在 `android/` 下每有改动就构建 debug APK（「debug APK · arm64-v8a」
-这项检查）。版本由 `scripts/release-apk.sh <version>` 从一个标签做出来：它核对版本号与 `rebrand.py`
+这项检查）。检查会验证 APK 压缩内容和签名，然后直接上传 `app-debug.apk` 构建产物。
+在手机上下载并打开该 APK 即可，无需解压外层 ZIP。检查日志中包含文件的 SHA-256 校验值。
+版本由 `scripts/release-apk.sh <version>` 从一个标签做出来：它核对版本号与 `rebrand.py`
 和 Gradle 是否一致，用 release 密钥构建 `:app:assembleRelease`，写出
 `dist/nanoMuse-<version>-arm64.apk` 和它的 `.sha256`，加 `--publish` 时打上 `v<version>` 标签，
 并把两者连同 `docs/releases/v<version>.md` 里的说明一起附到 GitHub release 上。debug 签名的 APK

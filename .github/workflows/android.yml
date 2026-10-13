@@ -95,14 +95,20 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.ui.chat.*' --console=plain --no-daemon
 
-      - name: Badging
+      # nanoMuse: validate the actual installable file before publishing it.
+      - name: APK integrity, signature and badging
         run: |
           bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
-          "$bt/aapt" dump badging android/src/android/app/build/outputs/apk/debug/app-debug.apk | grep -E "^package:|application-label:|native-code"
+          apk="android/src/android/app/build/outputs/apk/debug/app-debug.apk"
+          unzip -t "$apk" | tail -1
+          "$bt/apksigner" verify --verbose --print-certs "$apk"
+          "$bt/aapt" dump badging "$apk" | grep -E "^package:|application-label:|native-code"
+          sha256sum "$apk"
 
+      # nanoMuse: a direct APK avoids an outer ZIP that phone archive managers may reject.
       - uses: actions/upload-artifact@v7
         with:
-          name: nanoMuse-debug-apk
+          archive: false
           path: android/src/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
           if-no-files-found: error

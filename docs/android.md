@@ -320,7 +320,10 @@ and put its four values in `android/keystore.properties` (git-ignored: `storeFil
 ## Releases
 
 `.github/workflows/android.yml` builds the debug APK on every change under `android/`
-(the "debug APK · arm64-v8a" check). A release is made from a tag by
+(the "debug APK · arm64-v8a" check). The check verifies the APK archive and signature,
+then uploads `app-debug.apk` directly as an artifact. Download and open that APK on the
+phone; no outer ZIP needs to be extracted. The check log includes its SHA-256 checksum.
+A release is made from a tag by
 `scripts/release-apk.sh <version>`: it checks the version against `rebrand.py` and
 Gradle, builds `:app:assembleRelease` with the release key, writes
 `dist/nanoMuse-<version>-arm64.apk` and its `.sha256`, and with `--publish` tags
