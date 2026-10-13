@@ -1169,7 +1169,7 @@
     <string name="nm_menu_open_browser">Tarayıcıyı Aç</string>
     <string name="nm_menu_chat_files">Sohbet Dosyalarına Göz At</string>
     <string name="nm_menu_session_skills">Oturumdaki Beceriler</string>
-    <string name="nm_menu_session_mcps">Oturumdaki MCP\\'ler</string>
+    <string name="nm_menu_session_mcps">Oturumdaki MCP\'ler</string>
     <string name="nm_menu_session_memories">Oturumdaki Hafıza</string>
     <string name="nm_menu_token_usage">Token Kullanımı</string>
     <string name="nm_menu_auto_compact">Otomatik Sıkıştırma</string>
