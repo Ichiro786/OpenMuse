@@ -1136,4 +1136,26 @@
     <string name="nm_card_answers">質問への回答</string>
     <string name="nm_card_plan_reply">この計画を承認します：%1$s</string>
     <string name="nm_card_submitted">回答を送信しました</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">キャンセル</string>
+    <string name="nm_voice_agent">エージェント</string>
+    <string name="nm_voice_start">開始</string>
+    <string name="nm_voice_skills">スキル</string>
+    <string name="nm_voice_no_skills">スキルはまだありません</string>
+    <string name="nm_voice_skills_hint">設定 → スキルで追加してください。</string>
+    <string name="nm_voice_no_models">エージェントの音声入力には、設定でチャットモデルを追加してください。</string>
+    <string name="nm_feed_instructions_title">フィードの指示</string>
+    <string name="nm_feed_instructions_description">フィードは以下の指示に従って作成されます。このプロンプトの変更は、今後のフィード投稿に適用されます。</string>
+    <string name="nm_feed_instructions_save">保存</string>
+    <string name="nm_feed_like">いいね</string>
+    <string name="nm_feed_dislike">よくない</string>
+    <string name="nm_feed_info_title">この投稿について</string>
+    <string name="nm_feed_sample_label">プレビュー</string>
+    <string name="nm_feed_sample_skills_title">繰り返す作業に使うスキル</string>
+    <string name="nm_feed_sample_skills_body">再利用できる指示で調査、執筆、計画の進め方を揃えます。各スキルにガイドと参考資料をまとめ、適切な文脈から繰り返す作業を始められます。</string>
+    <string name="nm_feed_sample_voice_title">考えを伝える音声入力</string>
+    <string name="nm_feed_sample_voice_body">自然に話し、送信前に文字起こしを確認します。この例は短い記事と議論の操作を個人のフィードに配置する方法を示します。</string>
+    <string name="nm_feed_schedule">フィードの予定</string>
+    <string name="nm_feed_today_short">今日</string>
 </resources>

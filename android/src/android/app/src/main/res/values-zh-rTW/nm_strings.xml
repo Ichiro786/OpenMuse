@@ -1106,4 +1106,26 @@
     <string name="nm_card_answers">問題的回答</string>
     <string name="nm_card_plan_reply">我批准這個計畫：%1$s</string>
     <string name="nm_card_submitted">已傳送回答</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">取消</string>
+    <string name="nm_voice_agent">智慧體</string>
+    <string name="nm_voice_start">開始</string>
+    <string name="nm_voice_skills">技能</string>
+    <string name="nm_voice_no_skills">還沒有技能</string>
+    <string name="nm_voice_skills_hint">在設定 → 技能中新增技能。</string>
+    <string name="nm_voice_no_models">先在設定中新增聊天模型，再使用智慧體語音輸入。</string>
+    <string name="nm_feed_instructions_title">動態指令</string>
+    <string name="nm_feed_instructions_description">你的動態由下方指令驅動。對這段提示詞的修改將套用於日後的動態內容。</string>
+    <string name="nm_feed_instructions_save">儲存</string>
+    <string name="nm_feed_like">喜歡</string>
+    <string name="nm_feed_dislike">不喜歡</string>
+    <string name="nm_feed_info_title">關於這則動態</string>
+    <string name="nm_feed_sample_label">範例</string>
+    <string name="nm_feed_sample_skills_title">用技能處理重複任務</string>
+    <string name="nm_feed_sample_skills_body">可重用的指令讓研究、寫作和規劃保持一致。每項技能集中指引與參考資料，讓重複任務從合適的上下文開始。</string>
+    <string name="nm_feed_sample_voice_title">讓口述內容更清晰</string>
+    <string name="nm_feed_sample_voice_body">自然地說話，傳送前檢查轉寫結果。這個範例展示了簡報和討論控制項如何融入你的個人動態。</string>
+    <string name="nm_feed_schedule">動態排程</string>
+    <string name="nm_feed_today_short">今天</string>
 </resources>

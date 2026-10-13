@@ -1136,4 +1136,26 @@
     <string name="nm_card_answers">질문에 대한 답변</string>
     <string name="nm_card_plan_reply">이 계획을 승인합니다: %1$s</string>
     <string name="nm_card_submitted">답변 전송됨</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">취소</string>
+    <string name="nm_voice_agent">에이전트</string>
+    <string name="nm_voice_start">시작</string>
+    <string name="nm_voice_skills">스킬</string>
+    <string name="nm_voice_no_skills">아직 스킬이 없습니다</string>
+    <string name="nm_voice_skills_hint">설정 → 스킬에서 추가하세요.</string>
+    <string name="nm_voice_no_models">에이전트 음성 입력을 사용하려면 설정에서 채팅 모델을 추가하세요.</string>
+    <string name="nm_feed_instructions_title">피드 지침</string>
+    <string name="nm_feed_instructions_description">피드는 아래 지침에 따라 만들어집니다. 이 프롬프트의 변경 사항은 앞으로의 피드 게시물에 적용됩니다.</string>
+    <string name="nm_feed_instructions_save">저장</string>
+    <string name="nm_feed_like">좋아요</string>
+    <string name="nm_feed_dislike">싫어요</string>
+    <string name="nm_feed_info_title">게시물 정보</string>
+    <string name="nm_feed_sample_label">미리보기</string>
+    <string name="nm_feed_sample_skills_title">반복 작업을 위한 에이전트 스킬</string>
+    <string name="nm_feed_sample_skills_body">재사용 가능한 지침으로 조사, 작성, 계획을 일관되게 진행합니다. 각 스킬은 안내와 참고 자료를 모아 반복 작업을 적절한 맥락에서 시작하게 합니다.</string>
+    <string name="nm_feed_sample_voice_title">생각을 또렷하게 전달하는 받아쓰기</string>
+    <string name="nm_feed_sample_voice_body">자연스럽게 말한 뒤 전송 전에 변환된 텍스트를 확인하세요. 이 예시는 요약과 토론 기능이 개인 피드에 배치되는 방식을 보여줍니다.</string>
+    <string name="nm_feed_schedule">피드 일정</string>
+    <string name="nm_feed_today_short">오늘</string>
 </resources>

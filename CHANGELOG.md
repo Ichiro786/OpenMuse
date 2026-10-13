@@ -49,6 +49,9 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Replaced the voice waveform disc with a microphone-reactive monochrome glow, a recognition sweep and a completion fade while retaining the existing labels and capture controls.
+- Added voice skills selection, reused media attachments, and combined agent model selection with voice input in one animated dialog.
+- Restyled Feed as borderless monochrome posts with reaction controls, neutral media and labeled empty-feed previews; added an animated instructions editor while retaining saved prompts and daily routine controls.
 - Joined streamed answer paragraphs into one rounded bubble while preserving virtual rows, Markdown, selection and scroll anchors.
 - Added inline monochrome Question and Plan cards, with choice navigation, optional free-text answers, expandable tasks and a cancellable approval countdown. Card replies used the existing chat flow, and historical or submitted cards could not approve again.
 - Replaced home and side chat tool capsules with monochrome reasoning steps, a gentle dot-grid pulse, readable tool titles and staggered source/file pills. Completed steps dimmed, and tool details, stop and long-press actions remained available.

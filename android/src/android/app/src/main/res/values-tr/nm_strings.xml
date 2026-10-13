@@ -1140,4 +1140,26 @@
     <string name="nm_card_answers">Sorularınıza yanıtlar</string>
     <string name="nm_card_plan_reply">Bu planı onaylıyorum: %1$s</string>
     <string name="nm_card_submitted">Yanıt gönderildi</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">İptal</string>
+    <string name="nm_voice_agent">Ajan</string>
+    <string name="nm_voice_start">Başlat</string>
+    <string name="nm_voice_skills">Beceriler</string>
+    <string name="nm_voice_no_skills">Henüz beceri yok</string>
+    <string name="nm_voice_skills_hint">Ayarlar → Beceriler bölümünden ekleyin.</string>
+    <string name="nm_voice_no_models">Ajan ses girişi için ayarlardan bir sohbet modeli ekleyin.</string>
+    <string name="nm_feed_instructions_title">Akış talimatları</string>
+    <string name="nm_feed_instructions_description">Akışınız aşağıdaki talimatlara göre hazırlanır. Bu istemdeki değişiklikler gelecekteki akış gönderilerine uygulanır.</string>
+    <string name="nm_feed_instructions_save">Kaydet</string>
+    <string name="nm_feed_like">Beğen</string>
+    <string name="nm_feed_dislike">Beğenme</string>
+    <string name="nm_feed_info_title">Bu gönderi hakkında</string>
+    <string name="nm_feed_sample_label">Önizleme</string>
+    <string name="nm_feed_sample_skills_title">Tekrarlanan işler için ajan becerileri</string>
+    <string name="nm_feed_sample_skills_body">Yeniden kullanılabilir talimatlar araştırma, yazma ve planlamayı tutarlı kılar. Her beceri rehberleri ve kaynakları bir araya getirerek tekrarlanan işleri doğru bağlamla başlatır.</string>
+    <string name="nm_feed_sample_voice_title">Düşünceleri anlatmak için dikte</string>
+    <string name="nm_feed_sample_voice_body">Doğal konuşun ve göndermeden önce dökümü inceleyin. Bu örnek, kısa yazıların ve tartışmaların kişisel akışınıza nasıl uyduğunu gösterir.</string>
+    <string name="nm_feed_schedule">Akış programı</string>
+    <string name="nm_feed_today_short">Bugün</string>
 </resources>

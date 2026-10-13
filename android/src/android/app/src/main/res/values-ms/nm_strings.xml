@@ -1136,4 +1136,26 @@
     <string name="nm_card_answers">Jawapan kepada soalan anda</string>
     <string name="nm_card_plan_reply">Saya meluluskan pelan ini: %1$s</string>
     <string name="nm_card_submitted">Jawapan dihantar</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Batal</string>
+    <string name="nm_voice_agent">Ejen</string>
+    <string name="nm_voice_start">Mula</string>
+    <string name="nm_voice_skills">Kemahiran</string>
+    <string name="nm_voice_no_skills">Belum ada kemahiran</string>
+    <string name="nm_voice_skills_hint">Tambah kemahiran di Tetapan → Kemahiran.</string>
+    <string name="nm_voice_no_models">Tambah model sembang di Tetapan untuk input suara ejen.</string>
+    <string name="nm_feed_instructions_title">Arahan suapan</string>
+    <string name="nm_feed_instructions_description">Suapan anda mengikuti arahan di bawah. Perubahan pada prom ini akan digunakan pada siaran suapan akan datang.</string>
+    <string name="nm_feed_instructions_save">Simpan</string>
+    <string name="nm_feed_like">Suka</string>
+    <string name="nm_feed_dislike">Tidak suka</string>
+    <string name="nm_feed_info_title">Tentang siaran ini</string>
+    <string name="nm_feed_sample_label">Pratonton</string>
+    <string name="nm_feed_sample_skills_title">Kemahiran ejen untuk tugas berulang</string>
+    <string name="nm_feed_sample_skills_body">Arahan yang boleh digunakan semula memastikan penyelidikan, penulisan dan perancangan konsisten. Setiap kemahiran menghimpunkan panduan dan rujukan untuk bermula dengan konteks yang betul.</string>
+    <string name="nm_feed_sample_voice_title">Imlak untuk menyampaikan idea</string>
+    <string name="nm_feed_sample_voice_body">Bercakap secara semula jadi dan semak transkrip sebelum menghantar. Contoh ini menunjukkan ringkasan dan perbincangan dalam suapan peribadi anda.</string>
+    <string name="nm_feed_schedule">Jadual suapan</string>
+    <string name="nm_feed_today_short">Hari ini</string>
 </resources>

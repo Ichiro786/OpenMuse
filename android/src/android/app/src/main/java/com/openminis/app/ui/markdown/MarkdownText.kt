@@ -205,7 +205,7 @@ private fun ParagraphBlock(
 @Composable
 private fun CodeBlockView(block: MarkdownParser.Block.CodeBlock) {
     val context = LocalContext.current
-    val codeColor = Color(0xFF4EC9B0) // Green code text
+    val codeColor = if (io.github.nanomuse.ui.components.LocalNmMonochrome.current) Color(0xFFCCCCCC) else Color(0xFF4EC9B0) // nanoMuse: neutral feed code.
     val bgColor = MaterialTheme.colorScheme.surfaceContainerHighest
 
     Column(
@@ -277,7 +277,7 @@ private fun BlockquoteView(
     // blockquote uses the app systemOrange (0xFFFF9500) at full opacity.
     // The previous primary @ 0.5 alpha disappeared into theme purple on the
     // dark palette and didn't read as a quote at all in some compositions.
-    val barColor = Color(0xFFFF9500)
+    val barColor = if (io.github.nanomuse.ui.components.LocalNmMonochrome.current) Color(0xFF777777) else Color(0xFFFF9500) // nanoMuse: neutral feed quotes.
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -750,6 +750,10 @@ private fun MinisImageBlock(block: MarkdownParser.Block.Image) {
         model = block.url,
         contentDescription = block.alt.ifEmpty { filenameFromUrl(block.url) },
         contentScale = ContentScale.Fit,
+        // nanoMuse: additional images in a Feed body remain monochrome too.
+        colorFilter = if (io.github.nanomuse.ui.components.LocalNmMonochrome.current)
+            androidx.compose.ui.graphics.ColorFilter.colorMatrix(androidx.compose.ui.graphics.ColorMatrix().apply { setToSaturation(0f) })
+            else null,
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(max = 360.dp)

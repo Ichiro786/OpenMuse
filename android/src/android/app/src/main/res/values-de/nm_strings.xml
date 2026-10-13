@@ -1140,4 +1140,26 @@
     <string name="nm_card_answers">Antworten auf deine Fragen</string>
     <string name="nm_card_plan_reply">Ich genehmige diesen Plan: %1$s</string>
     <string name="nm_card_submitted">Antwort gesendet</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Abbrechen</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Starten</string>
+    <string name="nm_voice_skills">Skills</string>
+    <string name="nm_voice_no_skills">Noch keine Skills</string>
+    <string name="nm_voice_skills_hint">Füge Skills unter Einstellungen → Skills hinzu.</string>
+    <string name="nm_voice_no_models">Füge in den Einstellungen ein Chatmodell für die Spracheingabe hinzu.</string>
+    <string name="nm_feed_instructions_title">Feed-Anweisungen</string>
+    <string name="nm_feed_instructions_description">Dein Feed wird durch die folgenden Anweisungen gesteuert. Änderungen an diesem Prompt gelten für zukünftige Feed-Beiträge.</string>
+    <string name="nm_feed_instructions_save">Speichern</string>
+    <string name="nm_feed_like">Gefällt mir</string>
+    <string name="nm_feed_dislike">Gefällt mir nicht</string>
+    <string name="nm_feed_info_title">Über diesen Beitrag</string>
+    <string name="nm_feed_sample_label">Vorschau</string>
+    <string name="nm_feed_sample_skills_title">Agent-Skills für wiederkehrende Aufgaben</string>
+    <string name="nm_feed_sample_skills_body">Wiederverwendbare Anweisungen halten Recherche, Schreiben und Planung konsistent. Jeder Skill bündelt Hinweise und Quellen, damit wiederkehrende Arbeit mit dem passenden Kontext beginnt.</string>
+    <string name="nm_feed_sample_voice_title">Gedanken verständlich diktieren</string>
+    <string name="nm_feed_sample_voice_body">Sprich natürlich und prüfe das Transkript vor dem Senden. Dieses Beispiel zeigt, wie kurze Beiträge und Diskussionen in deinen persönlichen Feed passen.</string>
+    <string name="nm_feed_schedule">Feed-Zeitplan</string>
+    <string name="nm_feed_today_short">Heute</string>
 </resources>

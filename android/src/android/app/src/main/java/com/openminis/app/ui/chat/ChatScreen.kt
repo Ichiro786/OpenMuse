@@ -906,6 +906,8 @@ fun ChatScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var showModelPicker by remember { mutableStateOf(false) }
+    var nmVoiceSkillsOpen by remember { mutableStateOf(false) } // nanoMuse
+    var nmAgentVoiceOpen by remember { mutableStateOf(false) } // nanoMuse
     // [T-android-modelpicker-stuck-ripple] Interaction source for the navbar
     // model-picker row, owned here so the press can be drained when the picker
     // closes. See the clickable's comment for why the release never arrives on
@@ -6366,7 +6368,9 @@ fun ChatScreen(
                     }
                     } // nmTextField
                     if (com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
-                        com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
+                        // nanoMuse: exactly one speech panel owns capture while the dialog is open.
+                        if (nmAgentVoiceOpen) Spacer(Modifier.height(72.dp))
+                        else com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
                             providerRepository = providerRepository,
                             inputText = inputText,
                             onInputTextChange = { text ->
@@ -6428,7 +6432,13 @@ fun ChatScreen(
                         // Left: + button (iOS: 34×34 circle, secondary bg)
                         Box {
                             InputCircleButton(
-                                onClick = { showAttachMenu = true },
+                                onClick = {
+                                    // nanoMuse: voice media uses the same picker and attachment thumbnails.
+                                    if (nmHome != null && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive)
+                                        mediaPickerLauncher.launch(androidx.activity.result.PickVisualMediaRequest(
+                                            ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                                    else showAttachMenu = true
+                                },
                                 plain = nmPill, // nanoMuse: a bare glyph inside the pill
                             ) {
                                 Icon(
@@ -6501,11 +6511,16 @@ fun ChatScreen(
                         if (nmPill) {
                             nmTextField(Modifier.weight(1f)) // nanoMuse: the field between the buttons
                         } else {
+                        // nanoMuse: keep voice toolbar controls reachable at narrow widths and large text sizes.
+                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(modifier = Modifier.width(8.dp))
 
                         // Left: "/" slash command button (iOS: italic /, bold)
                         InputCircleButton(onClick = {
-                            if (viewModel.showSlashMenu.value) {
+                            // nanoMuse: the voice slash opens installed skills rather than an inert command control.
+                            if (nmHome != null && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
+                                nmVoiceSkillsOpen = true
+                            } else if (viewModel.showSlashMenu.value) {
                                 viewModel.setInputText(viewModel.dismissSlashMenu(inputText))
                             } else {
                                 viewModel.setInputText(viewModel.showSlashMenuOverInput(inputText))
@@ -6518,6 +6533,13 @@ fun ChatScreen(
                                 fontStyle = FontStyle.Italic,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+
+                        if (nmHome != null && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
+                            TextButton(onClick = {
+                                com.openminis.app.speech.SpeechRecognitionManager.cancelRecording()
+                                nmAgentVoiceOpen = true
+                            }) { Text(stringResource(R.string.nm_voice_agent), color = ChatColors.secondaryText) }
                         }
 
                         // T187: Exit Edit Mode pill, only while editingMessageId
@@ -6545,7 +6567,7 @@ fun ChatScreen(
                         }
 
                         Spacer(modifier = Modifier.weight(1f))
-                        } // nanoMuse: end of the two-row layout's left group
+                        } } // nanoMuse: end of the scrollable two-row layout's left group
 
                         // Right: Mic button — only renders when a speech engine
                         // is actually available on this device (handles the
@@ -7240,6 +7262,49 @@ fun ChatScreen(
             onRevokeRecord = { record -> viewModel.revokeMemoryRecord(record) },
             onSaveRecord = { record, newContent -> viewModel.replaceMemoryRecord(record, newContent) },
         )
+    }
+
+    // nanoMuse: voice skills and agent setup reuse the current session and speech pipeline.
+    if (nmVoiceSkillsOpen) {
+        val skills = if (skillRepository != null) {
+            val installed by skillRepository.skills.collectAsState()
+            installed.filter { it.isEnabled && skillRepository.isEnabledForSession(it.id, sessionId) }.sortedBy { it.name.lowercase() }
+        } else emptyList()
+        io.github.nanomuse.ui.chat.NmVoiceSkillsSheet(skills,
+            onSelect = { skill ->
+                val text = io.github.nanomuse.ui.chat.nmInsertVoiceSkill(inputText, skill.name, skills.map { it.name })
+                viewModel.dismissSlashMenu(inputText)
+                viewModel.setInputText(text)
+                nmVoiceSkillsOpen = false
+            }, onDismiss = { nmVoiceSkillsOpen = false })
+    }
+    if (nmAgentVoiceOpen) {
+        val config by providerRepository.config.collectAsState()
+        val active by viewModel.activeEntryId.collectAsState()
+        val choices = config.modelEntries.filter { entry ->
+            val instance = config.instances.firstOrNull { it.id == entry.providerInstanceId }
+            val output = entry.model.outputModalities.orEmpty().map { it.lowercase() }
+            instance != null && instance.isEnabled && providerRepository.hasAnyCredential(instance) &&
+                (output.isEmpty() || "text" in output)
+        }.map { entry ->
+            io.github.nanomuse.ui.chat.NmVoiceModel(entry.id, entry.model.displayName,
+                config.instances.firstOrNull { it.id == entry.providerInstanceId }?.label.orEmpty())
+        }
+        io.github.nanomuse.ui.chat.NmAgentVoiceDialog(choices, active, inputText,
+            busy = isStreaming || nmCardsBusy,
+            onStart = { id ->
+                if (viewModel.isStreaming.value || viewModel.isCompacting.value) false
+                else { viewModel.selectEntry(id); viewModel.activeEntryId.value == id }
+            }, onDismiss = { nmAgentVoiceOpen = false }, voiceContent = { token, requestCapture ->
+                com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
+                    providerRepository = providerRepository, inputText = inputText,
+                    onInputTextChange = { text -> viewModel.setInputText(text) },
+                    ensureMicPermission = { ensureMicPermissionFlow() },
+                    startCaptureToken = token, onRequestCapture = requestCapture,
+                    conversationContextProvider = {
+                        com.openminis.app.speech.correction.VoiceCorrection.buildConversationContext(context, viewModel.messages.value)
+                    })
+            })
     }
 
     // Session Skills bottom sheet

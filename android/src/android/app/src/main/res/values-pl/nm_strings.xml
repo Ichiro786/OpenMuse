@@ -1148,4 +1148,26 @@
     <string name="nm_card_answers">Odpowiedzi na twoje pytania</string>
     <string name="nm_card_plan_reply">Akceptuję ten plan: %1$s</string>
     <string name="nm_card_submitted">Odpowiedź wysłana</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Anuluj</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Rozpocznij</string>
+    <string name="nm_voice_skills">Umiejętności</string>
+    <string name="nm_voice_no_skills">Brak umiejętności</string>
+    <string name="nm_voice_skills_hint">Dodaj umiejętności w Ustawienia → Umiejętności.</string>
+    <string name="nm_voice_no_models">Dodaj model czatu w ustawieniach, aby używać głosowego wejścia agenta.</string>
+    <string name="nm_feed_instructions_title">Instrukcje aktualności</string>
+    <string name="nm_feed_instructions_description">Aktualności powstają na podstawie poniższych instrukcji. Zmiany tego promptu będą dotyczyć przyszłych wpisów.</string>
+    <string name="nm_feed_instructions_save">Zapisz</string>
+    <string name="nm_feed_like">Lubię</string>
+    <string name="nm_feed_dislike">Nie lubię</string>
+    <string name="nm_feed_info_title">O tym wpisie</string>
+    <string name="nm_feed_sample_label">Podgląd</string>
+    <string name="nm_feed_sample_skills_title">Umiejętności agenta do powtarzalnych zadań</string>
+    <string name="nm_feed_sample_skills_body">Instrukcje wielokrotnego użytku utrzymują spójność badań, pisania i planowania. Każda umiejętność łączy wskazówki i źródła, aby powtarzalna praca zaczynała się we właściwym kontekście.</string>
+    <string name="nm_feed_sample_voice_title">Dyktowanie, które porządkuje myśli</string>
+    <string name="nm_feed_sample_voice_body">Mów naturalnie i sprawdź transkrypcję przed wysłaniem. Ten przykład pokazuje krótkie wpisy i dyskusje w osobistych aktualnościach.</string>
+    <string name="nm_feed_schedule">Harmonogram aktualności</string>
+    <string name="nm_feed_today_short">Dzisiaj</string>
 </resources>

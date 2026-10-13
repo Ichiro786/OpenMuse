@@ -1140,4 +1140,26 @@
     <string name="nm_card_answers">Respostas às suas perguntas</string>
     <string name="nm_card_plan_reply">Aprovo este plano: %1$s</string>
     <string name="nm_card_submitted">Resposta enviada</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Cancelar</string>
+    <string name="nm_voice_agent">Agente</string>
+    <string name="nm_voice_start">Iniciar</string>
+    <string name="nm_voice_skills">Habilidades</string>
+    <string name="nm_voice_no_skills">Ainda não há habilidades</string>
+    <string name="nm_voice_skills_hint">Adicione habilidades em Configurações → Habilidades.</string>
+    <string name="nm_voice_no_models">Adicione um modelo de chat nas configurações para usar a entrada de voz do agente.</string>
+    <string name="nm_feed_instructions_title">Instruções do feed</string>
+    <string name="nm_feed_instructions_description">Seu feed segue as instruções abaixo. As alterações neste prompt serão aplicadas às próximas publicações do feed.</string>
+    <string name="nm_feed_instructions_save">Salvar</string>
+    <string name="nm_feed_like">Curtir</string>
+    <string name="nm_feed_dislike">Não curtir</string>
+    <string name="nm_feed_info_title">Sobre esta publicação</string>
+    <string name="nm_feed_sample_label">Prévia</string>
+    <string name="nm_feed_sample_skills_title">Habilidades do agente para tarefas recorrentes</string>
+    <string name="nm_feed_sample_skills_body">Instruções reutilizáveis mantêm pesquisa, escrita e planejamento consistentes. Cada habilidade reúne orientações e referências para começar tarefas repetidas com o contexto adequado.</string>
+    <string name="nm_feed_sample_voice_title">Ditado para organizar suas ideias</string>
+    <string name="nm_feed_sample_voice_body">Fale naturalmente e revise a transcrição antes de enviar. Este exemplo mostra resumos e discussões no seu feed pessoal.</string>
+    <string name="nm_feed_schedule">Horário do feed</string>
+    <string name="nm_feed_today_short">Hoje</string>
 </resources>

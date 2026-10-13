@@ -176,6 +176,8 @@ fun InlineVoiceInputPanel(
     onInputTextChange: (String) -> Unit,
     ensureMicPermission: suspend () -> Boolean,
     modifier: Modifier = Modifier,
+    startCaptureToken: Int = 0, // nanoMuse: unified agent dialog's explicit Start action.
+    onRequestCapture: (() -> Unit)? = null, // nanoMuse: the dialog's mic confirms the selected model too.
     // [T-android-correction-context-wiring] Supplies the conversation context
     // for AI correction, built from the chat's current messages. Mirrors iOS
     // InlineVoiceInputView's `conversationContext` closure. Defaults to EMPTY so
@@ -366,7 +368,12 @@ fun InlineVoiceInputPanel(
         )
     }
 
-    fun handleMicTap() {
+    fun handleMicTap(fromDialogStart: Boolean = false) {
+        // nanoMuse: both Start and the dialog mic confirm the pending model selection.
+        if (!isRecording && !isTranscribing && !fromDialogStart && onRequestCapture != null) {
+            onRequestCapture()
+            return
+        }
         when {
             isTranscribing -> {
                 // Spinner while idle → X cancels the in-flight transcription.
@@ -433,6 +440,11 @@ fun InlineVoiceInputPanel(
     // Recognized text while compact → expand so the user sees it.
     LaunchedEffect(transcript) {
         if (transcript.isNotEmpty() && !expanded) persistExpanded(true)
+    }
+
+    // nanoMuse: starting from the dialog uses exactly the panel's normal permission/engine path.
+    LaunchedEffect(startCaptureToken) {
+        if (startCaptureToken > 0 && !isRecording && !isTranscribing) handleMicTap(fromDialogStart = true)
     }
 
     // ── Tip cycling (4s), mirrors iOS beginRecordingLabelCycle/ResultTipCycle.
@@ -717,10 +729,10 @@ private fun ExpandedContent(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(Color(0xFFFF9500).copy(alpha = 0.12f))
+                    .background(Color.White.copy(alpha = 0.08f) /* nanoMuse: neutral voice error surface. */)
                     .padding(horizontal = 12.dp, vertical = 5.dp),
             ) {
-                Text("⚠︎", fontSize = 10.sp, color = Color(0xFFFF9500))
+                Text("⚠︎", fontSize = 10.sp, color = ChatColors.secondaryText) // nanoMuse: monochrome voice warning.
                 Spacer(Modifier.width(5.dp))
                 Text(
                     transcribeError,
@@ -739,6 +751,7 @@ private fun ExpandedContent(
             // flow (covers the granted-after-race case).
             MicCircleButton(
                 diameter = ExpandedMic,
+                wideGlow = true, // nanoMuse: let the glow rise along the voice area's bottom edge.
                 isRecording = isRecording,
                 isTranscribing = isTranscribing,
                 levels = levels,
@@ -946,42 +959,11 @@ private fun MicCircleButton(
     levels: List<Float>,
     enabled: Boolean,
     onTap: () -> Unit,
+    wideGlow: Boolean = false,
 ) {
-    Box(
-        modifier = Modifier
-            .size(diameter)
-            // [T-android-voice-mic-shadow] Same white circle and same soft
-            // halo as before; only the downward cast is gone. See
-            // micShadowNoOffset for why this is drawn rather than expressed as
-            // an elevation.
-            .micShadowNoOffset(10.dp)
-            .background(Color.White, CircleShape)
-            .clip(CircleShape)
-            .clickable(enabled = enabled) { onTap() },
-        contentAlignment = Alignment.Center,
-    ) {
-        if (isTranscribing) {
-            TranscribingRing(
-                diameter = diameter,
-                color = MaterialTheme.colorScheme.primary,
-            )
-        }
-        when {
-            isRecording -> InlineMiniWaveform(levels = levels)
-            isTranscribing -> Icon(
-                Icons.Default.Close,
-                contentDescription = stringResource(R.string.voice_panel_cancel_transcription),
-                tint = Color.Black,
-                modifier = Modifier.size(22.dp),
-            )
-            else -> Icon(
-                Icons.Default.Mic,
-                contentDescription = stringResource(R.string.voice_panel_toggle_recording),
-                tint = Color.Black,
-                modifier = Modifier.size(26.dp),
-            )
-        }
-    }
+    // nanoMuse: replace the visual core, retaining recognition state, labels and click behavior.
+    io.github.nanomuse.ui.chat.NmVoiceInputCore(diameter, isRecording, isTranscribing, levels,
+        enabled, onTap, wideGlow)
 }
 
 /**

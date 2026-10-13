@@ -1148,4 +1148,26 @@
     <string name="nm_card_answers">Ответы на ваши вопросы</string>
     <string name="nm_card_plan_reply">Я одобряю этот план: %1$s</string>
     <string name="nm_card_submitted">Ответ отправлен</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Отмена</string>
+    <string name="nm_voice_agent">Агент</string>
+    <string name="nm_voice_start">Начать</string>
+    <string name="nm_voice_skills">Навыки</string>
+    <string name="nm_voice_no_skills">Навыков пока нет</string>
+    <string name="nm_voice_skills_hint">Добавьте навыки в Настройки → Навыки.</string>
+    <string name="nm_voice_no_models">Добавьте модель чата в настройках для голосового ввода агента.</string>
+    <string name="nm_feed_instructions_title">Инструкции ленты</string>
+    <string name="nm_feed_instructions_description">Лента создаётся по инструкциям ниже. Изменения этого промпта будут применены к будущим публикациям.</string>
+    <string name="nm_feed_instructions_save">Сохранить</string>
+    <string name="nm_feed_like">Нравится</string>
+    <string name="nm_feed_dislike">Не нравится</string>
+    <string name="nm_feed_info_title">Об этой публикации</string>
+    <string name="nm_feed_sample_label">Пример</string>
+    <string name="nm_feed_sample_skills_title">Навыки агента для повторяющихся задач</string>
+    <string name="nm_feed_sample_skills_body">Многоразовые инструкции помогают последовательно исследовать, писать и планировать. Каждый навык объединяет рекомендации и источники, чтобы повторяющаяся работа начиналась в подходящем контексте.</string>
+    <string name="nm_feed_sample_voice_title">Диктовка для ясных мыслей</string>
+    <string name="nm_feed_sample_voice_body">Говорите естественно и проверьте расшифровку перед отправкой. Этот пример показывает краткие публикации и обсуждения в личной ленте.</string>
+    <string name="nm_feed_schedule">Расписание ленты</string>
+    <string name="nm_feed_today_short">Сегодня</string>
 </resources>

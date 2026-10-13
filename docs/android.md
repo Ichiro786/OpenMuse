@@ -141,6 +141,24 @@ locally so reopening the conversation cannot submit it again. Plan approval pres
 normal risk checks for every action. Both cards are inline assistant attachments, using
 `nanomuse-question` and `nanomuse-plan` JSON fences; no additional dependencies are required.
 
+Voice input keeps its existing recognition labels and controls, but replaces the waveform disc
+with a monochrome glow driven by the speech pipeline's amplitude. It rises while listening,
+sweeps gently while recognition finishes, then fades as the transcript reaches the composer.
+The animation filters incoming levels on display frames and pauses outside the foreground.
+In voice mode, the slash button lists installed skills and preserves dictated text when inserting
+a trigger; the plus button opens the existing photo/video picker with the same attachment previews.
+Agent opens one animated dialog with configured, usable chat models and voice input. Start confirms
+the pending model and begins the existing microphone permission and recognition flow. Closing the
+dialog cancels its capture, and recognition results remain in the composer.
+
+Feed uses borderless monochrome posts, Today/Yesterday headings, neutral images, thumbs-up/down,
+Discuss and post information. Reactions are mutually exclusive and remain in each post's Markdown
+front matter (`liked` / `disliked`). The header or prompt preview opens Feed instructions in a
+centered animated dialog; saving updates the existing preference file for future posts. Dialog
+state stays in its ViewModel. Feed schedule retains the existing daily routine controls. An empty
+feed shows clearly labeled, local sample posts and an illustration; generating real posts replaces
+these previews without writing sample files or changing existing posts.
+
 The upper scrolling fade is slightly lighter. In dark mode, home and side chats use
 pure black around the navigation pill, including the gap below the composer. Its
 rounded glass area stays open to the scrolling content, preserving the live frosted

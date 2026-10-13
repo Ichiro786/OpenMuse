@@ -1140,4 +1140,26 @@
     <string name="nm_card_answers">Mga sagot sa iyong mga tanong</string>
     <string name="nm_card_plan_reply">Inaaprubahan ko ang planong ito: %1$s</string>
     <string name="nm_card_submitted">Naipadala ang sagot</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Kanselahin</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Simulan</string>
+    <string name="nm_voice_skills">Mga skill</string>
+    <string name="nm_voice_no_skills">Wala pang mga skill</string>
+    <string name="nm_voice_skills_hint">Magdagdag ng mga skill sa Settings → Skills.</string>
+    <string name="nm_voice_no_models">Magdagdag ng chat model sa Settings para sa voice input ng agent.</string>
+    <string name="nm_feed_instructions_title">Mga tagubilin sa feed</string>
+    <string name="nm_feed_instructions_description">Ang feed mo ay pinapatakbo ng mga tagubilin sa ibaba. Ilalapat ang mga pagbabago sa prompt na ito sa mga susunod na post sa feed.</string>
+    <string name="nm_feed_instructions_save">I-save</string>
+    <string name="nm_feed_like">Gusto</string>
+    <string name="nm_feed_dislike">Hindi gusto</string>
+    <string name="nm_feed_info_title">Tungkol sa post</string>
+    <string name="nm_feed_sample_label">Preview</string>
+    <string name="nm_feed_sample_skills_title">Mga skill ng agent para sa paulit-ulit na gawain</string>
+    <string name="nm_feed_sample_skills_body">Pinananatiling pare-pareho ng mga magagamit muli na tagubilin ang pananaliksik, pagsusulat at pagpaplano. Pinagsasama ng bawat skill ang gabay at sanggunian para magsimula sa tamang konteksto.</string>
+    <string name="nm_feed_sample_voice_title">Diktasyon para sa malinaw na ideya</string>
+    <string name="nm_feed_sample_voice_body">Magsalita nang natural at suriin ang transcript bago ipadala. Ipinapakita ng halimbawang ito kung paano akma ang maikling ulat at talakayan sa personal mong feed.</string>
+    <string name="nm_feed_schedule">Iskedyul ng feed</string>
+    <string name="nm_feed_today_short">Ngayon</string>
 </resources>

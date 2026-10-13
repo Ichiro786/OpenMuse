@@ -1136,4 +1136,26 @@
     <string name="nm_card_answers">คำตอบสำหรับคำถามของคุณ</string>
     <string name="nm_card_plan_reply">ฉันอนุมัติแผนนี้: %1$s</string>
     <string name="nm_card_submitted">ส่งคำตอบแล้ว</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">ยกเลิก</string>
+    <string name="nm_voice_agent">เอเจนต์</string>
+    <string name="nm_voice_start">เริ่ม</string>
+    <string name="nm_voice_skills">ทักษะ</string>
+    <string name="nm_voice_no_skills">ยังไม่มีทักษะ</string>
+    <string name="nm_voice_skills_hint">เพิ่มทักษะใน การตั้งค่า → ทักษะ</string>
+    <string name="nm_voice_no_models">เพิ่มโมเดลแชตในการตั้งค่าเพื่อใช้การป้อนเสียงของเอเจนต์</string>
+    <string name="nm_feed_instructions_title">คำสั่งสำหรับฟีด</string>
+    <string name="nm_feed_instructions_description">ฟีดของคุณสร้างตามคำสั่งด้านล่าง การแก้ไขพรอมป์ต์นี้จะมีผลกับโพสต์ในฟีดในอนาคต</string>
+    <string name="nm_feed_instructions_save">บันทึก</string>
+    <string name="nm_feed_like">ชอบ</string>
+    <string name="nm_feed_dislike">ไม่ชอบ</string>
+    <string name="nm_feed_info_title">เกี่ยวกับโพสต์นี้</string>
+    <string name="nm_feed_sample_label">ตัวอย่าง</string>
+    <string name="nm_feed_sample_skills_title">ทักษะเอเจนต์สำหรับงานที่ทำซ้ำ</string>
+    <string name="nm_feed_sample_skills_body">คำสั่งที่ใช้ซ้ำได้ช่วยให้การค้นคว้า การเขียน และการวางแผนสม่ำเสมอ แต่ละทักษะรวบรวมคำแนะนำและข้อมูลอ้างอิงเพื่อเริ่มงานด้วยบริบทที่เหมาะสม</string>
+    <string name="nm_feed_sample_voice_title">พูดเพื่อถ่ายทอดความคิดให้ชัดเจน</string>
+    <string name="nm_feed_sample_voice_body">พูดตามธรรมชาติแล้วตรวจข้อความก่อนส่ง ตัวอย่างนี้แสดงบทสรุปและการสนทนาในฟีดส่วนตัวของคุณ</string>
+    <string name="nm_feed_schedule">กำหนดการฟีด</string>
+    <string name="nm_feed_today_short">วันนี้</string>
 </resources>

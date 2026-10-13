@@ -1144,4 +1144,26 @@
     <string name="nm_card_answers">Răspunsuri la întrebările tale</string>
     <string name="nm_card_plan_reply">Aprob acest plan: %1$s</string>
     <string name="nm_card_submitted">Răspuns trimis</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Anulează</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Începe</string>
+    <string name="nm_voice_skills">Abilități</string>
+    <string name="nm_voice_no_skills">Nu există încă abilități</string>
+    <string name="nm_voice_skills_hint">Adaugă abilități în Setări → Abilități.</string>
+    <string name="nm_voice_no_models">Adaugă un model de chat în setări pentru intrarea vocală a agentului.</string>
+    <string name="nm_feed_instructions_title">Instrucțiuni pentru flux</string>
+    <string name="nm_feed_instructions_description">Fluxul tău urmează instrucțiunile de mai jos. Modificările acestui prompt se aplică postărilor viitoare din flux.</string>
+    <string name="nm_feed_instructions_save">Salvează</string>
+    <string name="nm_feed_like">Îmi place</string>
+    <string name="nm_feed_dislike">Nu îmi place</string>
+    <string name="nm_feed_info_title">Despre această postare</string>
+    <string name="nm_feed_sample_label">Previzualizare</string>
+    <string name="nm_feed_sample_skills_title">Abilități pentru sarcini repetate</string>
+    <string name="nm_feed_sample_skills_body">Instrucțiunile reutilizabile păstrează consecvența cercetării, scrierii și planificării. Fiecare abilitate adună ghiduri și referințe pentru a începe cu contextul potrivit.</string>
+    <string name="nm_feed_sample_voice_title">Dictare pentru idei clare</string>
+    <string name="nm_feed_sample_voice_body">Vorbește natural și verifică transcrierea înainte de trimitere. Acest exemplu arată rezumate și discuții în fluxul personal.</string>
+    <string name="nm_feed_schedule">Programul fluxului</string>
+    <string name="nm_feed_today_short">Astăzi</string>
 </resources>

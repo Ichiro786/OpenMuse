@@ -1136,4 +1136,26 @@
     <string name="nm_card_answers">Jawaban untuk pertanyaan Anda</string>
     <string name="nm_card_plan_reply">Saya menyetujui rencana ini: %1$s</string>
     <string name="nm_card_submitted">Jawaban terkirim</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Batal</string>
+    <string name="nm_voice_agent">Agen</string>
+    <string name="nm_voice_start">Mulai</string>
+    <string name="nm_voice_skills">Keterampilan</string>
+    <string name="nm_voice_no_skills">Belum ada keterampilan</string>
+    <string name="nm_voice_skills_hint">Tambahkan keterampilan di Setelan → Keterampilan.</string>
+    <string name="nm_voice_no_models">Tambahkan model chat di Setelan untuk masukan suara agen.</string>
+    <string name="nm_feed_instructions_title">Instruksi feed</string>
+    <string name="nm_feed_instructions_description">Feed Anda mengikuti instruksi di bawah. Perubahan pada prompt ini akan diterapkan ke postingan feed berikutnya.</string>
+    <string name="nm_feed_instructions_save">Simpan</string>
+    <string name="nm_feed_like">Suka</string>
+    <string name="nm_feed_dislike">Tidak suka</string>
+    <string name="nm_feed_info_title">Tentang postingan ini</string>
+    <string name="nm_feed_sample_label">Pratinjau</string>
+    <string name="nm_feed_sample_skills_title">Keterampilan agen untuk tugas berulang</string>
+    <string name="nm_feed_sample_skills_body">Instruksi yang dapat digunakan ulang menjaga riset, penulisan, dan perencanaan tetap konsisten. Setiap keterampilan mengumpulkan panduan dan referensi agar tugas berulang dimulai dengan konteks yang tepat.</string>
+    <string name="nm_feed_sample_voice_title">Dikte untuk ide yang lebih jelas</string>
+    <string name="nm_feed_sample_voice_body">Bicaralah secara alami lalu periksa transkrip sebelum mengirim. Contoh ini menunjukkan ringkasan dan diskusi dalam feed pribadi Anda.</string>
+    <string name="nm_feed_schedule">Jadwal feed</string>
+    <string name="nm_feed_today_short">Hari ini</string>
 </resources>

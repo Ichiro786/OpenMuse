@@ -1140,4 +1140,26 @@
     <string name="nm_card_answers">Respuestas a tus preguntas</string>
     <string name="nm_card_plan_reply">Apruebo este plan: %1$s</string>
     <string name="nm_card_submitted">Respuesta enviada</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Cancelar</string>
+    <string name="nm_voice_agent">Agente</string>
+    <string name="nm_voice_start">Iniciar</string>
+    <string name="nm_voice_skills">Habilidades</string>
+    <string name="nm_voice_no_skills">Aún no hay habilidades</string>
+    <string name="nm_voice_skills_hint">Añade habilidades en Ajustes → Habilidades.</string>
+    <string name="nm_voice_no_models">Añade un modelo de chat en Ajustes para usar la entrada de voz del agente.</string>
+    <string name="nm_feed_instructions_title">Instrucciones del feed</string>
+    <string name="nm_feed_instructions_description">Tu feed se basa en las instrucciones siguientes. Los cambios en este prompt se aplicarán a las publicaciones futuras del feed.</string>
+    <string name="nm_feed_instructions_save">Guardar</string>
+    <string name="nm_feed_like">Me gusta</string>
+    <string name="nm_feed_dislike">No me gusta</string>
+    <string name="nm_feed_info_title">Acerca de esta publicación</string>
+    <string name="nm_feed_sample_label">Vista previa</string>
+    <string name="nm_feed_sample_skills_title">Habilidades del agente para tareas recurrentes</string>
+    <string name="nm_feed_sample_skills_body">Las instrucciones reutilizables mantienen coherentes la investigación, la escritura y la planificación. Cada habilidad reúne guías y referencias para comenzar las tareas repetidas con el contexto adecuado.</string>
+    <string name="nm_feed_sample_voice_title">Dictado para expresar tus ideas</string>
+    <string name="nm_feed_sample_voice_body">Habla con naturalidad y revisa la transcripción antes de enviarla. Este ejemplo muestra cómo los resúmenes y las discusiones encajan en tu feed personal.</string>
+    <string name="nm_feed_schedule">Horario del feed</string>
+    <string name="nm_feed_today_short">Hoy</string>
 </resources>
