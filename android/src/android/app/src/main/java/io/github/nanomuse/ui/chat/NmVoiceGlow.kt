@@ -30,6 +30,7 @@ internal fun nmSmoothVoiceLevel(current: Float, target: Float, elapsedSeconds: F
 @Composable
 fun NmVoiceGlow(phase: NmVoicePhase, amplitude: Float, modifier: Modifier = Modifier) {
     val motion = nmChatMotionScale()
+    val ink = nmChatInk()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentAmplitude = rememberUpdatedState(amplitude)
     val currentPhase = rememberUpdatedState(phase)
@@ -67,15 +68,16 @@ fun NmVoiceGlow(phase: NmVoicePhase, amplitude: Float, modifier: Modifier = Modi
             val drift = if (motion > 0f) sin(time * (0.65f + layer * 0.21f) + layer * 2.1f) else 0f
             val centerX = size.width * (0.5f + (if (thinking) sweep * 0.22f else drift * 0.14f))
             val reach = if (thinking) 0.22f + layer * 0.035f else 0.16f + level * 0.62f + layer * 0.035f
-            val ellipseWidth = size.width * (0.44f + layer * 0.09f)
+            val ellipseWidth = minOf(size.width * (0.44f + layer * 0.09f),
+                minOf(centerX, size.width - centerX) * 0.96f)
             val ellipseHeight = size.height * reach
             val center = Offset(centerX, size.height * 1.01f)
             val strength = opacity.value * (if (thinking) 0.22f else 0.18f + level * 0.32f) * (1f - layer * 0.17f)
             scale(scaleX = ellipseWidth / ellipseHeight.coerceAtLeast(1f), scaleY = 1f, pivot = center) {
                 drawCircle(brush = Brush.radialGradient(
-                    0f to Color.White.copy(alpha = strength),
-                    0.35f to Color(0xFFDDDDDD).copy(alpha = strength * 0.7f),
-                    0.75f to Color(0xFFAAAAAA).copy(alpha = strength * 0.18f),
+                    0f to ink.copy(alpha = strength),
+                    0.35f to (if (ink == Color.White) Color(0xFFDDDDDD) else Color(0xFF222222)).copy(alpha = strength * 0.7f),
+                    0.75f to (if (ink == Color.White) Color(0xFFAAAAAA) else Color(0xFF777777)).copy(alpha = strength * 0.18f),
                     1f to Color.Transparent, center = center, radius = ellipseHeight.coerceAtLeast(1f)),
                     radius = ellipseHeight, center = center)
             }

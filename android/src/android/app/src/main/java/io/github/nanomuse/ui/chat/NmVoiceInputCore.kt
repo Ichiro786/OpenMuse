@@ -25,6 +25,7 @@ import com.openminis.app.R
 @Composable
 fun NmVoiceInputCore(diameter: Dp, isRecording: Boolean, isTranscribing: Boolean,
     levels: List<Float>, enabled: Boolean, onTap: () -> Unit, wideGlow: Boolean = false) {
+    val ink = nmChatInk()
     var captured by remember { mutableStateOf(false) }
     SideEffect { if (isRecording || isTranscribing) captured = true }
     val phase = when {
@@ -37,15 +38,15 @@ fun NmVoiceInputCore(diameter: Dp, isRecording: Boolean, isTranscribing: Boolean
         contentAlignment = Alignment.Center) {
         NmVoiceGlow(phase, levels.lastOrNull() ?: 0f, Modifier.matchParentSize())
         Box(Modifier.size(diameter).clip(CircleShape)
-            .background(Color.White.copy(alpha = if (isRecording || isTranscribing) 0.025f else 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.15f), CircleShape)
+            .background(ink.copy(alpha = if (isRecording || isTranscribing) 0.025f else 0.06f))
+            .border(1.dp, ink.copy(alpha = 0.15f), CircleShape)
             .clickable(enabled = enabled, onClick = onTap), contentAlignment = Alignment.Center) {
             Icon(when {
                 isTranscribing -> Icons.Outlined.Close
                 isRecording -> Icons.Outlined.Stop
                 else -> Icons.Outlined.Mic
             }, contentDescription = stringResource(if (isTranscribing) R.string.voice_panel_cancel_transcription
-                else R.string.voice_panel_toggle_recording), tint = Color.White, modifier = Modifier.size(24.dp))
+                else R.string.voice_panel_toggle_recording), tint = ink, modifier = Modifier.size(24.dp))
         }
     }
 }
