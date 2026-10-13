@@ -82,9 +82,9 @@ fun NmFeedPost(post: FeedPost, onLike: () -> Unit, onDislike: () -> Unit, onDisc
             }
             body.image?.let { url ->
                 Spacer(Modifier.height(14.dp))
-                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Crop,
+                AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.FillWidth,
                     colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }),
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).clip(RoundedCornerShape(12.dp)))
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp).clip(RoundedCornerShape(12.dp)))
             }
             if (preview && post.type == "brief" && body.image == null) {
                 Spacer(Modifier.height(14.dp))

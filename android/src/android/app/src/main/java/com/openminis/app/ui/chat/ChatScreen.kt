@@ -1,5 +1,9 @@
 package com.openminis.app.ui.chat
 
+// nanoMuse: the voice toolbar's adaptive controls.
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.TextButton
+
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
