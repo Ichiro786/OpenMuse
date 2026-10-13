@@ -2,6 +2,7 @@ package io.github.nanomuse.ui.chat
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -15,6 +16,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlin.math.PI
 import kotlin.math.exp
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 // nanoMuse: microphone-driven, three-layer monochrome glow; no additional audio capture.
 enum class NmVoicePhase { Idle, Listening, Thinking, Done }
@@ -33,7 +35,6 @@ fun NmVoiceGlow(phase: NmVoicePhase, amplitude: Float, modifier: Modifier = Modi
     val ink = nmChatInk()
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val currentAmplitude = rememberUpdatedState(amplitude)
-    val currentPhase = rememberUpdatedState(phase)
     var lastActivePhase by remember { mutableStateOf(NmVoicePhase.Idle) }
     SideEffect {
         if (phase == NmVoicePhase.Listening || phase == NmVoicePhase.Thinking) lastActivePhase = phase
@@ -59,25 +60,37 @@ fun NmVoiceGlow(phase: NmVoicePhase, amplitude: Float, modifier: Modifier = Modi
             }
         }
     }
+    val thinkingTarget = phase == NmVoicePhase.Thinking ||
+        (phase == NmVoicePhase.Done && lastActivePhase == NmVoicePhase.Thinking)
+    val beam by animateFloatAsState(if (thinkingTarget) 1f else 0f,
+        tween(if (motion > 0f) 350 else 0), label = "voiceBeamShape")
     Canvas(modifier) {
         if (opacity.value <= 0f || size.width <= 0f || size.height <= 0f) return@Canvas
-        val thinking = currentPhase.value == NmVoicePhase.Thinking ||
-            (currentPhase.value == NmVoicePhase.Done && lastActivePhase == NmVoicePhase.Thinking)
-        val sweep = if (thinking) sin(time * (2f * PI.toFloat() / 1.5f)) else 0f
+        val sweep = if (motion > 0f) sin(time * (2f * PI.toFloat() / 1.5f)) else 0f
+        // nanoMuse: three broad, independently drifting lobes rise from the entire
+        // composer's bottom edge. A perceptual envelope makes normal speech visible
+        // without amplifying the audio or opening a second microphone.
+        val energy = sqrt(level)
         repeat(3) { layer ->
-            val drift = if (motion > 0f) sin(time * (0.65f + layer * 0.21f) + layer * 2.1f) else 0f
-            val centerX = size.width * (0.5f + (if (thinking) sweep * 0.22f else drift * 0.14f))
-            val reach = if (thinking) 0.22f + layer * 0.035f else 0.16f + level * 0.62f + layer * 0.035f
-            val ellipseWidth = minOf(size.width * (0.44f + layer * 0.09f),
-                minOf(centerX, size.width - centerX) * 0.96f)
+            val drift = if (motion > 0f) sin(time * (0.72f + layer * 0.23f) + layer * 2.1f) else 0f
+            val breath = if (motion > 0f) sin(time * (1.05f + layer * 0.17f) + layer * 1.8f) else 0f
+            val anchor = 0.24f + layer * 0.26f
+            val listenX = anchor + drift * 0.065f
+            val beamX = 0.5f + sweep * 0.23f + (layer - 1) * 0.09f
+            val centerX = size.width * (listenX + (beamX - listenX) * beam)
+            val listenReach = 0.22f + energy * (0.42f + breath * 0.08f)
+            val reach = listenReach + (0.25f + layer * 0.025f - listenReach) * beam
+            val ellipseWidth = size.width * (0.44f - 0.08f * beam)
             val ellipseHeight = size.height * reach
-            val center = Offset(centerX, size.height * 1.01f)
-            val strength = opacity.value * (if (thinking) 0.22f else 0.18f + level * 0.32f) * (1f - layer * 0.17f)
+            val center = Offset(centerX, size.height * 1.015f)
+            val listenStrength = 0.3f + energy * 0.36f
+            val strength = opacity.value * (listenStrength + (0.34f - listenStrength) * beam)
             scale(scaleX = ellipseWidth / ellipseHeight.coerceAtLeast(1f), scaleY = 1f, pivot = center) {
                 drawCircle(brush = Brush.radialGradient(
                     0f to ink.copy(alpha = strength),
-                    0.35f to (if (ink == Color.White) Color(0xFFDDDDDD) else Color(0xFF222222)).copy(alpha = strength * 0.7f),
-                    0.75f to (if (ink == Color.White) Color(0xFFAAAAAA) else Color(0xFF777777)).copy(alpha = strength * 0.18f),
+                    0.18f to ink.copy(alpha = strength * 0.8f),
+                    0.5f to ink.copy(alpha = strength * 0.32f),
+                    0.8f to ink.copy(alpha = strength * 0.055f),
                     1f to Color.Transparent, center = center, radius = ellipseHeight.coerceAtLeast(1f)),
                     radius = ellipseHeight, center = center)
             }

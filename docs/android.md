@@ -141,15 +141,17 @@ locally so reopening the conversation cannot submit it again. Plan approval pres
 normal risk checks for every action. Both cards are inline assistant attachments, using
 `nanomuse-question` and `nanomuse-plan` JSON fences; no additional dependencies are required.
 
-Voice input keeps its existing recognition labels and controls, but replaces the waveform disc
-with a monochrome glow driven by the speech pipeline's amplitude. It rises while listening,
-sweeps gently while recognition finishes, then fades as the transcript reaches the composer.
+Voice input uses a compact dark composer with a transcript above small bottom controls: media,
+Agent, Skills, microphone and close. After capture, send replaces close when there is text or an
+attachment. The monochrome glow spans the full rounded input behind its controls, with three
+independently moving lobes rising from the bottom in response to microphone amplitude. It gathers
+smoothly into a dimmer horizontal sweep while recognition finishes, then fades over 300 ms.
 The animation filters incoming levels on display frames and pauses outside the foreground.
-In voice mode, the slash button lists installed skills and preserves dictated text when inserting
-a trigger; the plus button opens the existing photo/video picker with the same attachment previews.
-Agent opens one animated dialog with configured, usable chat models and voice input. Start confirms
-the pending model and begins the existing microphone permission and recognition flow. Closing the
-dialog cancels its capture, and recognition results remain in the composer.
+Skills lists installed skills and preserves dictated text when inserting a trigger; plus opens
+the existing photo/video picker with the same attachment previews. Agent opens one animated dialog
+with configured, usable chat models, the existing recognition labels/settings and Read replies.
+Start confirms the pending model and begins the existing microphone permission and recognition
+flow. Closing the dialog cancels its capture, and recognition results remain in the composer.
 
 Feed uses borderless monochrome posts, Today/Yesterday headings, neutral images, thumbs-up/down,
 Discuss and post information. Reactions are mutually exclusive and remain in each post's Markdown

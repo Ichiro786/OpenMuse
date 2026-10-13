@@ -49,6 +49,7 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Reworked voice input into a compact composer with adjacent Agent and Skills controls, simple media/mic/close actions, and a speech-reactive glow across its full rounded bottom edge.
 - Replaced the voice waveform disc with a microphone-reactive monochrome glow, a recognition sweep and a completion fade while retaining the existing labels and capture controls.
 - Added voice skills selection, reused media attachments, and combined agent model selection with voice input in one animated dialog.
 - Restyled Feed as borderless monochrome posts with reaction controls, neutral media and labeled empty-feed previews; added an animated instructions editor while retaining saved prompts and daily routine controls.

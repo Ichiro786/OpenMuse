@@ -68,6 +68,20 @@ fun NmAgentVoiceDialog(models: List<NmVoiceModel>, selectedId: String?, inputTex
             }
             HorizontalDivider(Modifier.padding(vertical = 12.dp), color = Color(0xFF333333))
             voiceContent(startToken, ::requestCapture)
+            // nanoMuse: recognition settings and the existing Read replies label stay in Agent.
+            val repliesEnabled by com.openminis.app.speech.VoiceOutputState.isEnabled.collectAsState()
+            val repliesMuted by com.openminis.app.speech.VoiceOutputState.isMuted.collectAsState()
+            TextButton(onClick = {
+                val output = com.openminis.app.speech.VoiceOutputState
+                when {
+                    repliesEnabled && !repliesMuted -> output.setMuted(true)
+                    repliesEnabled && repliesMuted -> output.setEnabled(false)
+                    else -> { output.setMuted(false); output.setEnabled(true) }
+                }
+            }) {
+                Text(stringResource(R.string.voice_panel_read_replies),
+                    color = if (repliesEnabled && !repliesMuted) Color.White else Color(0xFFAAAAAA))
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { close(onDismiss) }) { Text(stringResource(R.string.nm_voice_cancel), color = Color(0xFFAAAAAA)) }
                 Spacer(Modifier.width(8.dp))

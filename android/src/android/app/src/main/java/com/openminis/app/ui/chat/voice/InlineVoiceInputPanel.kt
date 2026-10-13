@@ -176,6 +176,8 @@ fun InlineVoiceInputPanel(
     onInputTextChange: (String) -> Unit,
     ensureMicPermission: suspend () -> Boolean,
     modifier: Modifier = Modifier,
+    nmReferenceStyle: Boolean = false, // nanoMuse: compact transcript with controls in the chat footer.
+    toggleCaptureToken: Int = 0, // nanoMuse: footer mic shares this panel's capture action.
     startCaptureToken: Int = 0, // nanoMuse: unified agent dialog's explicit Start action.
     onRequestCapture: (() -> Unit)? = null, // nanoMuse: the dialog's mic confirms the selected model too.
     // [T-android-correction-context-wiring] Supplies the conversation context
@@ -447,6 +449,11 @@ fun InlineVoiceInputPanel(
         if (startCaptureToken > 0 && !isRecording && !isTranscribing) handleMicTap(fromDialogStart = true)
     }
 
+    // nanoMuse: the reference footer toggles capture without duplicating the ASR pipeline.
+    LaunchedEffect(toggleCaptureToken) {
+        if (toggleCaptureToken > 0) handleMicTap()
+    }
+
     // ── Tip cycling (4s), mirrors iOS beginRecordingLabelCycle/ResultTipCycle.
     LaunchedEffect(isRecording) {
         recordingTipIndex = 0
@@ -482,8 +489,14 @@ fun InlineVoiceInputPanel(
         return
     }
 
+    // nanoMuse: the compact fork layout shares all existing permission, ASR and correction state.
+    if (nmReferenceStyle) {
+        io.github.nanomuse.ui.chat.NmVoiceTranscript(transcript, isRecording, isTranscribing,
+            transcribeError ?: if (permissionDenied) stringResource(R.string.voice_panel_permission_denied) else null,
+            onTextChange = { setTranscript(it) }, modifier = modifier)
+    } else io.github.nanomuse.ui.chat.NmVoiceComposerFrame(active = true, modifier = modifier) {
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = if (expanded) ExpandedBase else CompactHeight, max = maxPanel)
             .animateContentSize(animationSpec = tween(280))
@@ -641,6 +654,8 @@ fun InlineVoiceInputPanel(
             }
         }
     }
+
+    } // nanoMuse: the standalone/dialog glow covers the entire voice panel.
 
     if (showModelSelector) {
         VoiceInputPickerSheet(
