@@ -1170,4 +1170,22 @@
     <string name="nm_feed_sample_voice_body">Mów naturalnie i sprawdź transkrypcję przed wysłaniem. Ten przykład pokazuje krótkie wpisy i dyskusje w osobistych aktualnościach.</string>
     <string name="nm_feed_schedule">Harmonogram aktualności</string>
     <string name="nm_feed_today_short">Dzisiaj</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Nowy czat</string>
+    <string name="nm_menu_open_terminal">Otwórz terminal</string>
+    <string name="nm_menu_open_browser">Otwórz przeglądarkę</string>
+    <string name="nm_menu_chat_files">Przeglądaj pliki czatu</string>
+    <string name="nm_menu_session_skills">Umiejętności w sesji</string>
+    <string name="nm_menu_session_mcps">MCP w sesji</string>
+    <string name="nm_menu_session_memories">Pamięć w sesji</string>
+    <string name="nm_menu_token_usage">Zużycie tokenów</string>
+    <string name="nm_menu_auto_compact">Automatyczne skracanie</string>
+    <string name="nm_menu_clear_chat">Wyczyść czat</string>
+    <string name="nm_menu_title">Menu czatu</string>
+    <string name="nm_plus_photos">Zdjęcia</string>
+    <string name="nm_plus_camera">Aparat</string>
+    <string name="nm_plus_files">Pliki</string>
+    <string name="nm_plus_label">Dodaj do wiadomości</string>
+    <string name="nm_plus_close">Zamknij menu</string>
 </resources>

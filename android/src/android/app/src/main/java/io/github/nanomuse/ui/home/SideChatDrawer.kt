@@ -86,6 +86,7 @@ fun SideChatDrawer(
     onSystemFiles: (() -> Unit)? = null,
     onDevices: (() -> Unit)? = null,
     onCoding: (() -> Unit)? = null,
+    onClearChat: ((String) -> Unit)? = null, // nanoMuse: clear from a deliberate drawer long-press.
 ) {
     val sessions by chatRepository.observeSessions().collectAsState(initial = emptyList())
     // nanoMuse: the account's other devices, for the row under the main chat
@@ -130,6 +131,8 @@ fun SideChatDrawer(
 
         // Main chat row — selected when it is what the chat tab shows.
         val mainSelected = currentSessionId == null || currentSessionId == mainSessionId
+        var mainMenu by remember { mutableStateOf(false) }
+        Box {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -137,7 +140,9 @@ fun SideChatDrawer(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(if (mainSelected) nmRowSelected else Color.Transparent)
-                .clickable(onClick = onOpenMain)
+                .combinedClickable(onClick = onOpenMain, onLongClick = {
+                    if (onClearChat != null && mainSessionId != null) mainMenu = true
+                }) // nanoMuse: main and side chats share the clear-chat gesture.
                 .padding(horizontal = 14.dp, vertical = 13.dp),
         ) {
             Icon(Icons.Outlined.Home, contentDescription = null, modifier = Modifier.size(22.dp), tint = nmInk)
@@ -148,6 +153,12 @@ fun SideChatDrawer(
                 fontWeight = FontWeight.Medium,
                 color = nmInk,
             )
+        }
+
+        DropdownMenu(expanded = mainMenu, onDismissRequest = { mainMenu = false }, containerColor = Color(0xFF1C1C1C)) {
+            DropdownMenuItem(text = { Text(stringResource(R.string.nm_menu_clear_chat), color = Color(0xFFFF7777)) },
+                onClick = { mainMenu = false; mainSessionId?.let { onClearChat?.invoke(it) } })
+        }
         }
 
         // nanoMuse: Devices — the account's other Muses, one tap away like a chat (docs/every-device.md)
@@ -270,6 +281,7 @@ fun SideChatDrawer(
                         muted = nmMuted,
                         onClick = { onOpenSession(session.id) },
                         onSetMain = { onSetMain(session.id) },
+                        onClear = { onClearChat?.invoke(session.id) },
                     )
                 }
             }
@@ -360,6 +372,7 @@ private fun SideChatRow(
     muted: androidx.compose.ui.graphics.Color,
     onClick: () -> Unit,
     onSetMain: () -> Unit,
+    onClear: () -> Unit, // nanoMuse: caller opens this chat's existing clear confirmation.
 ) {
     var menu by remember { mutableStateOf(false) }
     Box {
@@ -389,11 +402,13 @@ private fun SideChatRow(
                 color = muted,
             )
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = Color(0xFF1C1C1C)) {
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.nm_drawer_set_main)) },
+                text = { Text(stringResource(R.string.nm_drawer_set_main), color = Color.White) },
                 onClick = { menu = false; onSetMain() },
             )
+            DropdownMenuItem(text = { Text(stringResource(R.string.nm_menu_clear_chat), color = Color(0xFFFF7777)) },
+                onClick = { menu = false; onClear() }) // nanoMuse: destructive actions stay out of the regular chat menu.
         }
     }
 }

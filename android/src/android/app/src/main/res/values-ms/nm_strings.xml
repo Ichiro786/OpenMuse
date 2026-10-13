@@ -1158,4 +1158,22 @@
     <string name="nm_feed_sample_voice_body">Bercakap secara semula jadi dan semak transkrip sebelum menghantar. Contoh ini menunjukkan ringkasan dan perbincangan dalam suapan peribadi anda.</string>
     <string name="nm_feed_schedule">Jadual suapan</string>
     <string name="nm_feed_today_short">Hari ini</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Sembang Baharu</string>
+    <string name="nm_menu_open_terminal">Buka Terminal</string>
+    <string name="nm_menu_open_browser">Buka Pelayar</string>
+    <string name="nm_menu_chat_files">Layari Fail Sembang</string>
+    <string name="nm_menu_session_skills">Kemahiran dalam Sesi</string>
+    <string name="nm_menu_session_mcps">MCP dalam Sesi</string>
+    <string name="nm_menu_session_memories">Memori dalam Sesi</string>
+    <string name="nm_menu_token_usage">Penggunaan Token</string>
+    <string name="nm_menu_auto_compact">Pemadatan Automatik</string>
+    <string name="nm_menu_clear_chat">Kosongkan Sembang</string>
+    <string name="nm_menu_title">Menu sembang</string>
+    <string name="nm_plus_photos">Foto</string>
+    <string name="nm_plus_camera">Kamera</string>
+    <string name="nm_plus_files">Fail</string>
+    <string name="nm_plus_label">Tambah pada mesej</string>
+    <string name="nm_plus_close">Tutup menu</string>
 </resources>

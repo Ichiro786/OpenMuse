@@ -1162,4 +1162,22 @@
     <string name="nm_feed_sample_voice_body">Fale naturalmente e revise a transcrição antes de enviar. Este exemplo mostra resumos e discussões no seu feed pessoal.</string>
     <string name="nm_feed_schedule">Horário do feed</string>
     <string name="nm_feed_today_short">Hoje</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Nova conversa</string>
+    <string name="nm_menu_open_terminal">Abrir terminal</string>
+    <string name="nm_menu_open_browser">Abrir navegador</string>
+    <string name="nm_menu_chat_files">Navegar pelos arquivos da conversa</string>
+    <string name="nm_menu_session_skills">Habilidades na sessão</string>
+    <string name="nm_menu_session_mcps">MCPs na sessão</string>
+    <string name="nm_menu_session_memories">Memória na sessão</string>
+    <string name="nm_menu_token_usage">Uso de tokens</string>
+    <string name="nm_menu_auto_compact">Compactação automática</string>
+    <string name="nm_menu_clear_chat">Limpar conversa</string>
+    <string name="nm_menu_title">Menu da conversa</string>
+    <string name="nm_plus_photos">Fotos</string>
+    <string name="nm_plus_camera">Câmera</string>
+    <string name="nm_plus_files">Arquivos</string>
+    <string name="nm_plus_label">Adicionar à mensagem</string>
+    <string name="nm_plus_close">Fechar menu</string>
 </resources>

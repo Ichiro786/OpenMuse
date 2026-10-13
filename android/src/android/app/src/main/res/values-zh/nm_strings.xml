@@ -1135,4 +1135,22 @@
     <string name="nm_feed_sample_voice_body">自然地说话，发送前检查转写结果。这个示例展示了简报和讨论控件如何融入你的个人动态。</string>
     <string name="nm_feed_schedule">动态计划</string>
     <string name="nm_feed_today_short">今天</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">新建对话</string>
+    <string name="nm_menu_open_terminal">打开终端</string>
+    <string name="nm_menu_open_browser">打开浏览器</string>
+    <string name="nm_menu_chat_files">浏览对话文件</string>
+    <string name="nm_menu_session_skills">会话中的技能</string>
+    <string name="nm_menu_session_mcps">会话中的 MCP</string>
+    <string name="nm_menu_session_memories">会话中的记忆</string>
+    <string name="nm_menu_token_usage">Token 用量</string>
+    <string name="nm_menu_auto_compact">自动压缩</string>
+    <string name="nm_menu_clear_chat">清空对话</string>
+    <string name="nm_menu_title">聊天菜单</string>
+    <string name="nm_plus_photos">照片</string>
+    <string name="nm_plus_camera">相机</string>
+    <string name="nm_plus_files">文件</string>
+    <string name="nm_plus_label">添加到消息</string>
+    <string name="nm_plus_close">关闭菜单</string>
 </resources>

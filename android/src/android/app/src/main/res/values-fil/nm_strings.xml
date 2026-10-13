@@ -1162,4 +1162,22 @@
     <string name="nm_feed_sample_voice_body">Magsalita nang natural at suriin ang transcript bago ipadala. Ipinapakita ng halimbawang ito kung paano akma ang maikling ulat at talakayan sa personal mong feed.</string>
     <string name="nm_feed_schedule">Iskedyul ng feed</string>
     <string name="nm_feed_today_short">Ngayon</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Bagong Chat</string>
+    <string name="nm_menu_open_terminal">Buksan ang Terminal</string>
+    <string name="nm_menu_open_browser">Buksan ang Browser</string>
+    <string name="nm_menu_chat_files">Tingnan ang Mga File ng Chat</string>
+    <string name="nm_menu_session_skills">Mga Skill sa Session</string>
+    <string name="nm_menu_session_mcps">Mga MCP sa Session</string>
+    <string name="nm_menu_session_memories">Mga Memory sa Session</string>
+    <string name="nm_menu_token_usage">Paggamit ng Token</string>
+    <string name="nm_menu_auto_compact">Awtomatikong Pagpapaikli</string>
+    <string name="nm_menu_clear_chat">I-clear ang Chat</string>
+    <string name="nm_menu_title">Menu ng chat</string>
+    <string name="nm_plus_photos">Mga larawan</string>
+    <string name="nm_plus_camera">Camera</string>
+    <string name="nm_plus_files">Mga file</string>
+    <string name="nm_plus_label">Idagdag sa mensahe</string>
+    <string name="nm_plus_close">Isara ang menu</string>
 </resources>

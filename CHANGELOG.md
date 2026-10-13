@@ -49,6 +49,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Replaced the chat overflow dropdown with a grouped, draggable dark sheet; moved history clearing to confirmed drawer actions and hid the debug crash test behind a gesture.
+- Added an anchored frosted plus menu with rotating glyph, staggered options, retained keyboard focus and an adaptive blur fallback.
 - Made the message bar expand into voice input with one retained editor, matching dark surfaces and icons, and a navigation retreat restored by close or Back.
 - Removed gaps between joined streaming answer rows while retaining spacing around distinct messages and inline cards.
 - Published debug builds as directly installable APK artifacts, with archive integrity, signature and checksum checks before upload.

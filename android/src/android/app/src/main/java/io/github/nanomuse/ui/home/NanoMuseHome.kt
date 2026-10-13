@@ -319,6 +319,7 @@ fun NanoMuseHome(
         }
     }
 
+    var pendingClearChat by remember { mutableStateOf<String?>(null) } // nanoMuse: long-press drawer request.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     fun openDrawer() {
         focusManager.clearFocus(force = true)
@@ -365,6 +366,11 @@ fun NanoMuseHome(
                     onAllChats = { closeDrawer(); navController.safeNavigate(ROUTE_ALL_CHATS) },
                     onSettings = { closeDrawer(); navController.safeNavigate(Routes.SETTINGS) },
                     onSetMain = { id -> MainChat.set(context, id); closeDrawer(); showSession(id) },
+                    onClearChat = { id -> scope.launch {
+                        drawerState.close()
+                        showSession(id)
+                        pendingClearChat = id
+                    } }, // nanoMuse: open the selected chat before showing its clear confirmation.
                     onSystemFiles = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.sysfiles.ROUTE_SYSTEM_FILES) },
                     onDevices = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) },
                     onCoding = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.coding.ROUTE_CODING) },
@@ -445,7 +451,9 @@ fun NanoMuseHome(
                                 navController.safeNavigate(Routes.FILE_PREVIEW)
                             },
                             onModelGroupsClick = { navController.safeNavigate(Routes.MODEL_GROUPS) },
-                            nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }, voiceExpansion = voiceExpansion),
+                            nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }, voiceExpansion = voiceExpansion,
+                                clearChatRequested = pendingClearChat == sid,
+                                onClearChatRequestHandled = { pendingClearChat = null }),
                             // nanoMuse: preserve the full-size blur source, but keep
                             // the chat footer above the bar measured by Scaffold.
                             nmBottomOverlay = chatBottom,

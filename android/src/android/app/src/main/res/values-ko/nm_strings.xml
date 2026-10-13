@@ -1158,4 +1158,22 @@
     <string name="nm_feed_sample_voice_body">자연스럽게 말한 뒤 전송 전에 변환된 텍스트를 확인하세요. 이 예시는 요약과 토론 기능이 개인 피드에 배치되는 방식을 보여줍니다.</string>
     <string name="nm_feed_schedule">피드 일정</string>
     <string name="nm_feed_today_short">오늘</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">새 채팅</string>
+    <string name="nm_menu_open_terminal">터미널 열기</string>
+    <string name="nm_menu_open_browser">브라우저 열기</string>
+    <string name="nm_menu_chat_files">채팅 파일 탐색</string>
+    <string name="nm_menu_session_skills">세션의 스킬</string>
+    <string name="nm_menu_session_mcps">세션의 MCP</string>
+    <string name="nm_menu_session_memories">세션의 메모리</string>
+    <string name="nm_menu_token_usage">토큰 사용량</string>
+    <string name="nm_menu_auto_compact">자동 압축</string>
+    <string name="nm_menu_clear_chat">채팅 지우기</string>
+    <string name="nm_menu_title">채팅 메뉴</string>
+    <string name="nm_plus_photos">사진</string>
+    <string name="nm_plus_camera">카메라</string>
+    <string name="nm_plus_files">파일</string>
+    <string name="nm_plus_label">메시지에 추가</string>
+    <string name="nm_plus_close">메뉴 닫기</string>
 </resources>

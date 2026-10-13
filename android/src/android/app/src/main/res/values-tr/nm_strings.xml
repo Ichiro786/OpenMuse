@@ -1162,4 +1162,22 @@
     <string name="nm_feed_sample_voice_body">Doğal konuşun ve göndermeden önce dökümü inceleyin. Bu örnek, kısa yazıların ve tartışmaların kişisel akışınıza nasıl uyduğunu gösterir.</string>
     <string name="nm_feed_schedule">Akış programı</string>
     <string name="nm_feed_today_short">Bugün</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Yeni Sohbet</string>
+    <string name="nm_menu_open_terminal">Terminali Aç</string>
+    <string name="nm_menu_open_browser">Tarayıcıyı Aç</string>
+    <string name="nm_menu_chat_files">Sohbet Dosyalarına Göz At</string>
+    <string name="nm_menu_session_skills">Oturumdaki Beceriler</string>
+    <string name="nm_menu_session_mcps">Oturumdaki MCP\\'ler</string>
+    <string name="nm_menu_session_memories">Oturumdaki Hafıza</string>
+    <string name="nm_menu_token_usage">Token Kullanımı</string>
+    <string name="nm_menu_auto_compact">Otomatik Sıkıştırma</string>
+    <string name="nm_menu_clear_chat">Sohbeti Temizle</string>
+    <string name="nm_menu_title">Sohbet menüsü</string>
+    <string name="nm_plus_photos">Fotoğraflar</string>
+    <string name="nm_plus_camera">Kamera</string>
+    <string name="nm_plus_files">Dosyalar</string>
+    <string name="nm_plus_label">Mesaja ekle</string>
+    <string name="nm_plus_close">Menüyü kapat</string>
 </resources>

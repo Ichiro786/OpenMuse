@@ -194,6 +194,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import dev.chrisbanes.haze.hazeSource // nanoMuse: menu placement/blur.
+import io.github.nanomuse.ui.chat.nmPlusOutsideTap // nanoMuse: menu placement/blur.
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -950,7 +952,12 @@ fun ChatScreen(
     // (opened by tapping the navbar thinking badge) is presented. Mirrors iOS
     // AIChatView.showThinkingLevelSheet.
     var showThinkingLevelSheet by remember { mutableStateOf(false) }
-    var showAttachMenu by remember { mutableStateOf(false) }
+    // nanoMuse: same-window menu state keeps the current editor and IME focus.
+    val nmPlusState = remember(sessionId) { io.github.nanomuse.ui.chat.NmPlusMenuState() }
+    val nmPlusBlur = io.github.nanomuse.ui.chat.rememberNmMenuBlur(nmPlusState.present)
+    val nmPlusHaze = dev.chrisbanes.haze.rememberHazeState(blurEnabled = nmPlusBlur)
+    val nmPlusRotation by androidx.compose.animation.core.animateFloatAsState(
+        if (nmPlusState.expanded) 45f else 0f, tween(200), label = "nmPlusRotation")
     var showChatMenu by remember { mutableStateOf(false) }
     var showSkillsSheet by remember { mutableStateOf(false) }
     // [T-mcp-integration-android] MCPs-in-Session sheet visibility.
@@ -983,6 +990,14 @@ fun ChatScreen(
         if (clearChatRequested) {
             showClearChatDialog = true
             viewModel.ackClearChatConfirmRequest()
+        }
+    }
+
+    // nanoMuse: clearing moved to a drawer long-press and still requires the existing confirmation.
+    LaunchedEffect(nmHome?.clearChatRequested) {
+        if (nmHome?.clearChatRequested == true) {
+            showClearChatDialog = true
+            nmHome.onClearChatRequestHandled()
         }
     }
 
@@ -2975,7 +2990,7 @@ fun ChatScreen(
                         io.github.nanomuse.ui.home.MuseRoundButton(
                             icon = Icons.Filled.Menu,
                             contentDescription = stringResource(R.string.nm_open_drawer),
-                            onClick = nmHome.onOpenDrawer,
+                            onClick = { nmPlusState.close(); nmHome.onOpenDrawer() }, // nanoMuse: header navigation dismisses the plus menu.
                             modifier = Modifier.padding(start = 12.dp),
                         )
                     } else
@@ -3064,299 +3079,43 @@ fun ChatScreen(
                             io.github.nanomuse.ui.home.MuseRoundButton(
                                 icon = Icons.Filled.MoreHoriz,
                                 contentDescription = stringResource(R.string.nm_more),
-                                onClick = { showChatMenu = true },
+                                onClick = { nmPlusState.close(); showChatMenu = true },
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         } else
-                        IconButton(onClick = { showChatMenu = true }) {
+                        IconButton(onClick = { nmPlusState.close(); showChatMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
                         }
-                        MinisMenu(
-                            expanded = showChatMenu,
-                            onDismissRequest = { showChatMenu = false },
-                        ) {
-                            // [T-android-memory-enabled-minisconfig] Gate the
-                            // "Memories in Session" item below on the session's
-                            // live memoryEnabled — when memory is off the entry
-                            // disappears, consistent with the per-session gating
-                            // of the memory_get / memory_write tools and the
-                            // system-prompt injection.
-                            val menuMemoryEnabled by viewModel.memoryEnabled.collectAsState()
-                            // [T-new-chat-menu-entry] New Chat — first item
-                            // (iOS parity: square.and.pencil at the top of the
-                            // "..." menu). Streaming sessions confirm first.
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_new_chat)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    if (isStreaming) {
-                                        showNewChatStopDialog = true
-                                    } else {
-                                        onNewChat()
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Outlined.Forum, contentDescription = null)
-                                },
-                            )
-                            // nanoMuse: the top-bar pill now carries the agent's
-                            // name, so the session edit sheet (title / emoji)
-                            // moved here from the title tap.
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.nm_chat_menu_rename)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    coroutineScope.launch {
-                                        editingSession = viewModel.loadSessionEntity()
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Edit, contentDescription = null)
-                                },
-                            )
-                            // nanoMuse: with the model rows off the header, the
-                            // picker opens from here.
-                            if (nmHideModelRows) {
-                                DropdownMenuItem(
-                                    text = {
-                                        // the model answering right now, so the menu says what
-                                        // "Model" would change
-                                        Column {
-                                            Text(stringResource(R.string.nm_chat_menu_model))
-                                            if (modelName.isNotBlank()) {
-                                                Text(
-                                                    modelName,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                )
-                                            }
+                        // nanoMuse: broad grouped sheet replaces the long header dropdown.
+                        if (showChatMenu) {
+                            val memoryOn by viewModel.memoryEnabled.collectAsState()
+                            val compactOn by viewModel.autoCompactEnabled.collectAsState()
+                            io.github.nanomuse.ui.chat.NmChatOverflowMenu(
+                                modelName = modelName, autoCompact = compactOn,
+                                skillsAvailable = skillRepository != null, mcpsAvailable = mcpRepository != null,
+                                memoriesAvailable = memoryRepository != null && memoryOn,
+                                onDismiss = { showChatMenu = false },
+                                onAutoCompact = { viewModel.setAutoCompactEnabled(it) },
+                                onHiddenDebug = if (BuildConfig.DEBUG) ({
+                                    throw RuntimeException("Debug crash triggered by hidden menu gesture")
+                                }) else null,
+                                onAction = { action ->
+                                    when (action) {
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.NewChat ->
+                                            if (isStreaming) showNewChatStopDialog = true else onNewChat()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Rename -> coroutineScope.launch {
+                                            editingSession = viewModel.loadSessionEntity()
                                         }
-                                    },
-                                    onClick = {
-                                        showChatMenu = false
-                                        showModelPicker = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Outlined.Tune, contentDescription = null)
-                                    },
-                                )
-                            }
-                            MinisMenuDivider()
-                            // Clear Chat (iOS parity, red)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_clear_chat), color = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    showChatMenu = false
-                                    showClearChatDialog = true
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                },
-                            )
-                            MinisMenuDivider()
-                            // Open Terminal (iOS parity) — session-bound, starts in /var/minis
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_open_terminal)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    onOpenTerminal()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Terminal, contentDescription = null)
-                                },
-                            )
-                            // Open Browser (iOS parity)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_open_browser)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    viewModel.toggleBrowserSheet()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Language, contentDescription = null)
-                                },
-                            )
-                            // Browse Chat Files (iOS parity) — opens file browser at /var/minis
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_browse_chat_files)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    onBrowseChatFiles()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Description, contentDescription = null)
-                                },
-                            )
-                            MinisMenuDivider()
-                            // Session Skills (iOS parity)
-                            if (skillRepository != null) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.session_skills_title)) },
-                                    onClick = {
-                                        showChatMenu = false
-                                        showSkillsSheet = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Build, contentDescription = null)
-                                    },
-                                )
-                            }
-                            // [T-mcp-integration-android] MCPs in Session, next to Skills.
-                            if (mcpRepository != null) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.session_mcps_title)) },
-                                    onClick = {
-                                        showChatMenu = false
-                                        showMcpsSheet = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Extension, contentDescription = null)
-                                    },
-                                )
-                            }
-                            // Session Memory (iOS parity)
-                            if (memoryRepository != null && menuMemoryEnabled) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.session_memory_title)) },
-                                    onClick = {
-                                        showChatMenu = false
-                                        viewModel.toggleMemorySheet()
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Psychology, contentDescription = null)
-                                    },
-                                )
-                            }
-                            MinisMenuDivider()
-                            // Token Usage (iOS parity)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.settings_token_usage)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    showTokenUsageSheet = true
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.DataUsage, contentDescription = null)
-                                },
-                            )
-                            // Enhanced Cache (iOS parity, commit 57aaf122):
-                            // 1-hour Anthropic cache TTL. Only shown for the
-                            // official Anthropic API (not relays / other
-                            // providers) — showEnhancedCacheToggle recomputes on
-                            // model/provider switch. First enable prompts a
-                            // one-time extra-billing confirmation.
-                            val showEnhancedCache by viewModel.showEnhancedCacheToggle.collectAsState()
-                            val enhancedCacheOn by viewModel.enhancedCacheEnabled.collectAsState()
-                            if (showEnhancedCache) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_menu_enhanced_cache)) },
-                                    onClick = {
-                                        if (enhancedCacheOn) {
-                                            viewModel.setEnhancedCacheEnabled(false)
-                                        } else if (viewModel.isEnhancedCacheConfirmed()) {
-                                            viewModel.setEnhancedCacheEnabled(true)
-                                        } else {
-                                            showChatMenu = false
-                                            showEnhancedCacheDialog = true
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Bolt, contentDescription = null)
-                                    },
-                                    trailingIcon = {
-                                        SettingsSwitch(
-                                            checked = enhancedCacheOn,
-                                            onCheckedChange = {
-                                                if (enhancedCacheOn) {
-                                                    viewModel.setEnhancedCacheEnabled(false)
-                                                } else if (viewModel.isEnhancedCacheConfirmed()) {
-                                                    viewModel.setEnhancedCacheEnabled(true)
-                                                } else {
-                                                    showChatMenu = false
-                                                    showEnhancedCacheDialog = true
-                                                }
-                                            },
-                                        )
-                                    },
-                                )
-                            }
-                            // [T-codex-fast-mode] Fast Mode (iOS parity,
-                            // fb671083 + 838ba929): shown when the active model
-                            // is a gpt-family model served through the
-                            // Responses path (useResponsesAPI instance or Codex
-                            // OAuth). App-level persisted toggle; while on, the
-                            // Responses body carries service_tier="priority"
-                            // (≈1.5x faster at 2x credit burn on the ChatGPT
-                            // subscription) and the nav model row shows a ⚡
-                            // badge. Sits next to Enhanced Cache — both are
-                            // model-invocation controls (iOS 09944220 grouping).
-                            val showFastMode by viewModel.showFastModeToggle.collectAsState()
-                            val fastModeOn by viewModel.fastModeEnabled.collectAsState()
-                            if (showFastMode) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_menu_fast_mode)) },
-                                    onClick = { viewModel.setFastModeEnabled(!fastModeOn) },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Bolt, contentDescription = null)
-                                    },
-                                    trailingIcon = {
-                                        SettingsSwitch(
-                                            checked = fastModeOn,
-                                            onCheckedChange = { viewModel.setFastModeEnabled(it) },
-                                        )
-                                    },
-                                )
-                            }
-                            // Auto Compact: app-level persisted toggle mirroring
-                            // iOS `autoCompactEnabled`. On → crossing the
-                            // compact threshold before a send compacts silently
-                            // and sends; off → the user is asked first. Lives
-                            // beside Fast Mode because both are model-invocation
-                            // controls the user flips mid-conversation.
-                            val autoCompactOn by viewModel.autoCompactEnabled.collectAsState()
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_auto_compact)) },
-                                onClick = { viewModel.setAutoCompactEnabled(!autoCompactOn) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Compress, contentDescription = null)
-                                },
-                                trailingIcon = {
-                                    SettingsSwitch(
-                                        checked = autoCompactOn,
-                                        onCheckedChange = { viewModel.setAutoCompactEnabled(it) },
-                                    )
-                                },
-                            )
-                            // T287: debug-only crash trigger so the user can verify
-                            // ACRA/native crash log generation (T283). Throws a
-                            // RuntimeException from the click handler — the
-                            // uncaught-exception handler catches it and writes
-                            // a crash-<stamp>.log under filesDir/logs/.
-                            if (BuildConfig.DEBUG) {
-                                MinisMenuDivider()
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(R.string.debug_trigger_crash_menu),
-                                            color = MaterialTheme.colorScheme.error,
-                                        )
-                                    },
-                                    onClick = {
-                                        showChatMenu = false
-                                        throw RuntimeException(
-                                            "Debug crash triggered by user (T287)",
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.BugReport,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
-                                    },
-                                )
-                            }
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Model -> showModelPicker = true
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Terminal -> onOpenTerminal()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Browser -> viewModel.toggleBrowserSheet()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Files -> onBrowseChatFiles()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Skills -> showSkillsSheet = true
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Mcps -> showMcpsSheet = true
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Memories -> viewModel.toggleMemorySheet()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Tokens -> showTokenUsageSheet = true
+                                    }
+                                })
                         }
                     }
                 },
@@ -3407,7 +3166,11 @@ fun ChatScreen(
                 // header itself is a scrim over the scrolling list.
                 .padding(bottom = padding.calculateBottomPadding())
                 .imePadding()
-                .onGloballyPositioned { chatPaneWidthPx = it.size.width },
+                .onGloballyPositioned {
+                    chatPaneWidthPx = it.size.width
+                    nmPlusState.rootPosition = it.positionInWindow()
+                }
+                .nmPlusOutsideTap(nmPlusState), // nanoMuse: no popup window steals keyboard focus.
         ) {
         // nanoMuse: merge live steps once so the footer and its reserve agree
         // on the same frame, including tools still in the streaming side channel.
@@ -3460,7 +3223,8 @@ fun ChatScreen(
         // nanoMuse: measure the whole footer before the list, while keeping the
         // list full-size behind the pill for Haze. No asynchronous height feedback.
         io.github.nanomuse.ui.chat.NmChatBottomLayout(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(
+                if (nmPlusState.present && nmPlusBlur) Modifier.hazeSource(nmPlusHaze) else Modifier), // nanoMuse: exclude the popup from its own backdrop.
             bottomInset = nmBottomOverlay,
             focusFraction = nmHome?.voiceExpansion ?: 0f, // nanoMuse: cover the old nav area while voice is focused.
             content = { bottomChromeHeight ->
@@ -6455,83 +6219,14 @@ fun ChatScreen(
                             ),
                         verticalAlignment = if (nmPill) Alignment.Bottom else Alignment.CenterVertically,
                     ) {
-                        // Left: + button (iOS: 34×34 circle, secondary bg)
-                        Box {
-                            InputCircleButton(
-                                onClick = {
-                                    // nanoMuse: voice media uses the same picker and attachment thumbnails.
-                                    if (nmHome != null && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive)
-                                        mediaPickerLauncher.launch(androidx.activity.result.PickVisualMediaRequest(
-                                            ActivityResultContracts.PickVisualMedia.ImageAndVideo))
-                                    else showAttachMenu = true
-                                },
-                                plain = nmPill || nmReferenceVoice,
-                                fresh = nmHome != null, // nanoMuse: shared neutral media control in text and voice.
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Attach",
-                                    tint = if (nmHome != null) Color(0xFFDDDDDD) else MaterialTheme.colorScheme.onSurfaceVariant, // nanoMuse: neutral composer glyph.
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                            MinisMenu(
-                                expanded = showAttachMenu,
-                                onDismissRequest = { showAttachMenu = false },
-                            ) {
-                                // nanoMuse: the "/" button has no seat in the pill,
-                                // so the slash commands open from here (typing "/"
-                                // still opens them inline).
-                                if (nmPill) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.nm_attach_commands)) },
-                                        leadingIcon = { Icon(Icons.Default.Terminal, contentDescription = null) },
-                                        onClick = {
-                                            showAttachMenu = false
-                                            viewModel.setInputText(viewModel.showSlashMenuOverInput(inputText))
-                                            try { inputFocusRequester.requestFocus() } catch (_: IllegalStateException) {}
-                                        },
-                                    )
-                                }
-                                // iOS parity: Take Photo / Choose Photos & Videos / Add File
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_attach_take_photo)) },
-                                    leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
-                                    onClick = {
-                                        showAttachMenu = false
-                                        val granted = ContextCompat.checkSelfPermission(
-                                            context,
-                                            android.Manifest.permission.CAMERA,
-                                        ) == PackageManager.PERMISSION_GRANTED
-                                        if (granted) {
-                                            launchCamera()
-                                        } else {
-                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                        }
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_attach_choose_photos_videos)) },
-                                    leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
-                                    onClick = {
-                                        showAttachMenu = false
-                                        mediaPickerLauncher.launch(
-                                            androidx.activity.result.PickVisualMediaRequest(
-                                                ActivityResultContracts.PickVisualMedia.ImageAndVideo,
-                                            ),
-                                        )
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_attach_add_file)) },
-                                    leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
-                                    onClick = {
-                                        showAttachMenu = false
-                                        // OpenMultipleDocuments takes a mime-
-                                        // type array; "*/*" stays the wildcard.
-                                        filePickerLauncher.launch(arrayOf("*/*"))
-                                    },
-                                )
+                        // nanoMuse: preserve the current plus design; only its glyph rotates.
+                        Box(Modifier.onGloballyPositioned { nmPlusState.anchorBounds = it.boundsInWindow() }) {
+                            InputCircleButton(onClick = { nmPlusState.toggle() },
+                                plain = nmPill || nmReferenceVoice, fresh = nmHome != null) {
+                                Icon(Icons.Default.Add,
+                                    contentDescription = stringResource(if (nmPlusState.expanded) R.string.nm_plus_close else R.string.nm_plus_label),
+                                    tint = if (nmHome != null) Color(0xFFDDDDDD) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = nmPlusRotation })
                             }
                         }
 
@@ -7207,7 +6902,7 @@ fun ChatScreen(
             if (showClearChatDialog) {
                 MinisAlertDialog(
                     onDismissRequest = { showClearChatDialog = false },
-                    title = stringResource(R.string.chat_menu_clear_chat),
+                    title = stringResource(R.string.nm_menu_clear_chat),
                     text = stringResource(R.string.chat_clear_dialog_body),
                     confirmText = stringResource(R.string.chat_clear_dialog_confirm),
                     isDestructive = true,
@@ -7279,6 +6974,21 @@ fun ChatScreen(
             }
             },
         )
+        // nanoMuse: overlay after the backdrop/footer, anchored in this IME-adjusted chat viewport.
+        io.github.nanomuse.ui.chat.NmPlusMenu(nmPlusState, nmPlusHaze, nmPlusBlur,
+            modifier = Modifier.matchParentSize(), onAction = { action ->
+                when (action) {
+                    io.github.nanomuse.ui.chat.NmPlusAction.Photos -> mediaPickerLauncher.launch(
+                        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    io.github.nanomuse.ui.chat.NmPlusAction.Camera -> {
+                        val granted = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                        if (granted) launchCamera() else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    }
+                    io.github.nanomuse.ui.chat.NmPlusAction.Files -> filePickerLauncher.launch(arrayOf("*/*"))
+                    io.github.nanomuse.ui.chat.NmPlusAction.Skills -> nmVoiceSkillsOpen = true
+                }
+            })
+
         // Top gradient fade: messages fade into the Scaffold background.
         Box(
             modifier = Modifier

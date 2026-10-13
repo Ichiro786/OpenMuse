@@ -143,6 +143,21 @@ normal risk checks for every action. Both cards are inline assistant attachments
 Streamed Markdown rows join without list gaps inside an answer. Separate messages and inline
 cards retain their spacing; virtual row keys, Markdown and text selection remain intact.
 
+The chat header's three-dot button opens a grouped dark bottom sheet for new chat, rename,
+model selection, terminal/browser/files, session tools, token usage and Auto Compact. Drag down,
+tap the scrim or press Back to dismiss it. Long-press the main or a side chat in the drawer to
+clear its history with confirmation; chat files remain. Debug builds retain the crash-log test
+behind seven quick taps on the menu's drag handle, with no debug row in the ordinary menu.
+
+The composer plus keeps its existing appearance and rotates to an X while a rounded frosted
+menu opens above it. Photos, Camera, Files and Skills use the existing attachment and skill
+flows. Opening or closing this menu preserves the current editor and keyboard; the popup shares
+the chat window and stays inside its keyboard-adjusted viewport. It scales from the plus corner,
+staggers its rows on entry and closes them together. Haze blurs the captured chat content only
+while the menu is present. Unsupported/low-memory devices use a translucent background, and
+repeated missed frame budgets switch this menu to the same fallback without losing its motion.
+Native blur and gesture smoothness still need validation on a real ARM64 phone.
+
 Text and voice input share one dark composer, editor and neutral icon style. Tapping the mic
 smoothly expands that message bar into the floating navigation pill's space; the pill retreats
 completely while voice is active. Closing voice or pressing Back restores the bar. System

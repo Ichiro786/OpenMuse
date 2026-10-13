@@ -1158,4 +1158,22 @@
     <string name="nm_feed_sample_voice_body">自然に話し、送信前に文字起こしを確認します。この例は短い記事と議論の操作を個人のフィードに配置する方法を示します。</string>
     <string name="nm_feed_schedule">フィードの予定</string>
     <string name="nm_feed_today_short">今日</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">新しいチャット</string>
+    <string name="nm_menu_open_terminal">ターミナルを開く</string>
+    <string name="nm_menu_open_browser">ブラウザを開く</string>
+    <string name="nm_menu_chat_files">チャットファイルを閲覧</string>
+    <string name="nm_menu_session_skills">セッション内のスキル</string>
+    <string name="nm_menu_session_mcps">セッション内の MCP</string>
+    <string name="nm_menu_session_memories">セッション内のメモリ</string>
+    <string name="nm_menu_token_usage">トークン使用量</string>
+    <string name="nm_menu_auto_compact">自動圧縮</string>
+    <string name="nm_menu_clear_chat">チャットをクリア</string>
+    <string name="nm_menu_title">チャットメニュー</string>
+    <string name="nm_plus_photos">写真</string>
+    <string name="nm_plus_camera">カメラ</string>
+    <string name="nm_plus_files">ファイル</string>
+    <string name="nm_plus_label">メッセージに追加</string>
+    <string name="nm_plus_close">メニューを閉じる</string>
 </resources>

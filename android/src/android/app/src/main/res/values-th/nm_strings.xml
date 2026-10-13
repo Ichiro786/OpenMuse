@@ -1158,4 +1158,22 @@
     <string name="nm_feed_sample_voice_body">พูดตามธรรมชาติแล้วตรวจข้อความก่อนส่ง ตัวอย่างนี้แสดงบทสรุปและการสนทนาในฟีดส่วนตัวของคุณ</string>
     <string name="nm_feed_schedule">กำหนดการฟีด</string>
     <string name="nm_feed_today_short">วันนี้</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">แชทใหม่</string>
+    <string name="nm_menu_open_terminal">เปิดเทอร์มินัล</string>
+    <string name="nm_menu_open_browser">เปิดเบราว์เซอร์</string>
+    <string name="nm_menu_chat_files">เรียกดูไฟล์ของแชท</string>
+    <string name="nm_menu_session_skills">ทักษะในเซสชัน</string>
+    <string name="nm_menu_session_mcps">MCP ในเซสชัน</string>
+    <string name="nm_menu_session_memories">หน่วยความจำในเซสชัน</string>
+    <string name="nm_menu_token_usage">การใช้งานโทเค็น</string>
+    <string name="nm_menu_auto_compact">ย่อบริบทอัตโนมัติ</string>
+    <string name="nm_menu_clear_chat">ล้างแชท</string>
+    <string name="nm_menu_title">เมนูแชต</string>
+    <string name="nm_plus_photos">รูปภาพ</string>
+    <string name="nm_plus_camera">กล้อง</string>
+    <string name="nm_plus_files">ไฟล์</string>
+    <string name="nm_plus_label">เพิ่มในข้อความ</string>
+    <string name="nm_plus_close">ปิดเมนู</string>
 </resources>
