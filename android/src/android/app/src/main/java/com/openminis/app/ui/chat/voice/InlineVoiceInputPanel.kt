@@ -176,6 +176,7 @@ fun InlineVoiceInputPanel(
     onInputTextChange: (String) -> Unit,
     ensureMicPermission: suspend () -> Boolean,
     modifier: Modifier = Modifier,
+    nmComposerEditor: (@Composable () -> Unit)? = null, // nanoMuse: retain the chat's existing editor in voice mode.
     nmReferenceStyle: Boolean = false, // nanoMuse: compact transcript with controls in the chat footer.
     toggleCaptureToken: Int = 0, // nanoMuse: footer mic shares this panel's capture action.
     startCaptureToken: Int = 0, // nanoMuse: unified agent dialog's explicit Start action.
@@ -493,7 +494,7 @@ fun InlineVoiceInputPanel(
     if (nmReferenceStyle) {
         io.github.nanomuse.ui.chat.NmVoiceTranscript(transcript, isRecording, isTranscribing,
             transcribeError ?: if (permissionDenied) stringResource(R.string.voice_panel_permission_denied) else null,
-            onTextChange = { setTranscript(it) }, modifier = modifier)
+            onTextChange = { setTranscript(it) }, modifier = modifier, editor = nmComposerEditor)
     } else io.github.nanomuse.ui.chat.NmVoiceComposerFrame(active = true, modifier = modifier) {
     Column(
         modifier = Modifier

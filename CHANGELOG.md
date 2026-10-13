@@ -49,6 +49,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Made the message bar expand into voice input with one retained editor, matching dark surfaces and icons, and a navigation retreat restored by close or Back.
+- Removed gaps between joined streaming answer rows while retaining spacing around distinct messages and inline cards.
 - Published debug builds as directly installable APK artifacts, with archive integrity, signature and checksum checks before upload.
 - Reworked voice input into a compact composer with adjacent Agent and Skills controls, simple media/mic/close actions, and a speech-reactive glow across its full rounded bottom edge.
 - Replaced the voice waveform disc with a microphone-reactive monochrome glow, a recognition sweep and a completion fade while retaining the existing labels and capture controls.

@@ -140,9 +140,14 @@ foreground pauses it. Historical cards never auto-approve, and a submitted decis
 locally so reopening the conversation cannot submit it again. Plan approval preserves the
 normal risk checks for every action. Both cards are inline assistant attachments, using
 `nanomuse-question` and `nanomuse-plan` JSON fences; no additional dependencies are required.
+Streamed Markdown rows join without list gaps inside an answer. Separate messages and inline
+cards retain their spacing; virtual row keys, Markdown and text selection remain intact.
 
-Voice input uses a compact dark composer with a transcript above small bottom controls: media,
-Agent, Skills, microphone and close. After capture, send replaces close when there is text or an
+Text and voice input share one dark composer, editor and neutral icon style. Tapping the mic
+smoothly expands that message bar into the floating navigation pill's space; the pill retreats
+completely while voice is active. Closing voice or pressing Back restores the bar. System
+navigation and keyboard insets remain reserved, and the other tabs keep their navigation.
+The expanded composer places the transcript above media, Agent, Skills, microphone and close. After capture, send replaces close when there is text or an
 attachment. The monochrome glow spans the full rounded input behind its controls, with three
 independently moving lobes rising from the bottom in response to microphone amplitude. It gathers
 smoothly into a dimmer horizontal sweep while recognition finishes, then fades over 300 ms.

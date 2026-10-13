@@ -1,5 +1,6 @@
 package io.github.nanomuse.ui.chat
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -31,37 +32,39 @@ import io.github.nanomuse.ui.components.NmMonochrome
 
 // nanoMuse: one bottom-edge glow behind the whole input, never inside the mic hit target.
 @Composable
-fun NmVoiceComposerFrame(active: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    if (!active) {
-        Box(modifier) { content() }
-        return
-    }
-    NmMonochrome {
+fun NmVoiceComposerFrame(active: Boolean, modifier: Modifier = Modifier,
+    monochrome: Boolean = false, animate: Boolean = false, content: @Composable () -> Unit) {
+    val frame: @Composable () -> Unit = {
         val state by SpeechRecognitionManager.state.collectAsState()
         val levels by SpeechRecognitionManager.audioLevels.collectAsState()
         var captured by remember { mutableStateOf(false) }
-        val working = state != RecognitionState.IDLE
+        val working = active && state != RecognitionState.IDLE
         SideEffect { if (working) captured = true }
-        val phase = when (state) {
-            RecognitionState.STARTING, RecognitionState.RECORDING -> NmVoicePhase.Listening
-            RecognitionState.FINISHING -> NmVoicePhase.Thinking
-            else -> if (captured) NmVoicePhase.Done else NmVoicePhase.Idle
+        val phase = when {
+            !active -> NmVoicePhase.Idle
+            state == RecognitionState.STARTING || state == RecognitionState.RECORDING -> NmVoicePhase.Listening
+            state == RecognitionState.FINISHING -> NmVoicePhase.Thinking
+            captured -> NmVoicePhase.Done
+            else -> NmVoicePhase.Idle
         }
-        Box(modifier) {
+        // nanoMuse: bottom anchoring keeps the controls in place as the same surface grows.
+        Box(modifier.then(if (animate) Modifier.animateContentSize(nmComposerSpring(),
+            alignment = Alignment.BottomCenter) else Modifier)) {
             NmVoiceGlow(phase, levels.lastOrNull() ?: 0f, Modifier.matchParentSize())
             content()
         }
     }
+    if (monochrome || active) NmMonochrome(frame) else frame()
 }
 
 // nanoMuse: reference-style transcript stage; existing ASR callbacks still own the text.
 @Composable
 fun NmVoiceTranscript(text: String, recording: Boolean, processing: Boolean, error: String?,
-    onTextChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    onTextChange: (String) -> Unit, modifier: Modifier = Modifier, editor: (@Composable () -> Unit)? = null) {
     Column(modifier.fillMaxWidth().heightIn(min = 100.dp, max = 220.dp)
         .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.Center) {
-        BasicTextField(value = text, onValueChange = onTextChange, readOnly = recording || processing,
+        if (editor != null) editor() else BasicTextField(value = text, onValueChange = onTextChange, readOnly = recording || processing,
             textStyle = TextStyle(color = Color.White, fontSize = 16.sp, lineHeight = 23.sp),
             cursorBrush = SolidColor(Color.White), modifier = Modifier.fillMaxWidth()
                 .weight(1f, fill = false).verticalScroll(rememberScrollState()),

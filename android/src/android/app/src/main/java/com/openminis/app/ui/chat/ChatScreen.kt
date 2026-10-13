@@ -3462,6 +3462,7 @@ fun ChatScreen(
         io.github.nanomuse.ui.chat.NmChatBottomLayout(
             modifier = Modifier.fillMaxSize(),
             bottomInset = nmBottomOverlay,
+            focusFraction = nmHome?.voiceExpansion ?: 0f, // nanoMuse: cover the old nav area while voice is focused.
             content = { bottomChromeHeight ->
             // Dismiss keyboard when the USER scrolls the messages. Gated on
             // `isUserDragging` (a real finger drag) rather than
@@ -4087,7 +4088,8 @@ fun ChatScreen(
                     // hits ~1300 px while listState still reports
                     // firstVisible=0, firstOffset=0 (logged as the "tool on
                     // screen but not pushed into view" repro on Pixel 4a).
-                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Bottom),
+                    // nanoMuse: joined answer rows have no list gap; other row spacing is explicit below.
+                    verticalArrangement = if (nmHome != null) Arrangement.Bottom else Arrangement.spacedBy(2.dp, Alignment.Bottom),
                     overscrollEffect = sharedEffect,
                 ) {
                     // T13 Resume banner — placed BEFORE items() so reverseLayout
@@ -4224,6 +4226,8 @@ fun ChatScreen(
                         Box(
                             modifier = Modifier
                                 .alpha(rowAlpha)
+                                // nanoMuse: preserve the old gap only at a real message/card boundary.
+                                .padding(bottom = if (nmHome != null && io.github.nanomuse.ui.chat.nmBubbleBoundary(nmAnswerSegments[item.key])) 2.dp else 0.dp)
                                 .then(
                                     if (isNewestItem) {
                                         Modifier.onPlaced {
@@ -4369,7 +4373,7 @@ fun ChatScreen(
                                     streaming = item.isStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content, segment = nmAnswerSegments[item.key]) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -5605,7 +5609,7 @@ fun ChatScreen(
                     },
                 ) {
                 // nanoMuse: the glow spans the full rounded composer, behind transcript and toolbar.
-                io.github.nanomuse.ui.chat.NmVoiceComposerFrame(active = nmReferenceVoice,
+                io.github.nanomuse.ui.chat.NmVoiceComposerFrame(active = nmReferenceVoice, monochrome = nmHome != null, animate = nmHome != null,
                     modifier = Modifier
                         .fillMaxWidth()
                         // nanoMuse: draw the shadow outside the shared rounded
@@ -5619,12 +5623,11 @@ fun ChatScreen(
                         )
                         .clip(nmComposerShape)
                         .background(
-                            if (nmReferenceVoice) Color(0xFF141414)
-                            else if (nmPill) io.github.nanomuse.ui.home.MuseTones.bubble
+                            if (nmHome != null) io.github.nanomuse.ui.chat.NmComposerSurface
                             else ChatColors.inputBg,
                             shape = nmComposerShape,
                         )
-                        .padding(top = if (attachments.isNotEmpty()) 8.dp else if (nmPill) 0.dp else 4.dp), // nanoMuse: pill composer
+                        .padding(top = if (attachments.isNotEmpty()) 8.dp else if (nmHome != null) 0.dp else 4.dp), // nanoMuse: pill composer
                 ) {
                 Column(Modifier.fillMaxWidth()) {
                     // T185: Move-to capsule lives INSIDE the composer card,
@@ -6005,6 +6008,7 @@ fun ChatScreen(
                         }
                         BasicTextField(
                             value = inputFieldValue,
+                            readOnly = nmReferenceVoice && nmRecording, // nanoMuse: ASR owns text until capture completes.
                             onValueChange = { tfv ->
                                 // T217-2: drop IME residue commits in 300ms post-send window.
                                 // finishComposingText (fired by clearFocus on send) makes
@@ -6338,11 +6342,12 @@ fun ChatScreen(
                                             label = "composerPlaceholder",
                                         ) { idx ->
                                             Text(
-                                                if (nmChoosingName) stringResource(R.string.nm_naming_placeholder)
+                                                if (nmReferenceVoice) stringResource(R.string.voice_panel_tip_tap_to_transcribe) // nanoMuse: same editor in voice mode.
+                                                else if (nmChoosingName) stringResource(R.string.nm_naming_placeholder)
                                                 // nanoMuse: Muse's pill says just "Message".
                                                 else if (nmPill) stringResource(R.string.nm_composer_placeholder)
                                                 else composerPlaceholderText(idx, soulName.name),
-                                                color = if (nmPill) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                color = if (nmHome != null) Color(0xFFAAAAAA) // nanoMuse: shared composer placeholder.
                                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                                                 fontSize = 16.5.sp * chatInputFontScale,
                                                 maxLines = 1,
@@ -6379,6 +6384,8 @@ fun ChatScreen(
                         )
                     }
                     } // nmTextField
+                    // nanoMuse: move this editor into the expanded surface rather than creating a second input.
+                    val nmSharedEditor = io.github.nanomuse.ui.chat.rememberNmComposerEditor(nmTextField)
                     if (com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
                         // nanoMuse: exactly one speech panel owns capture while the dialog is open.
                         if (nmAgentVoiceOpen) Spacer(Modifier.height(nmInlineVoiceHeight))
@@ -6388,6 +6395,7 @@ fun ChatScreen(
                                 nmInlineVoiceHeight = with(nmVoiceDensity) { it.size.height.toDp() }
                             },
                             nmReferenceStyle = nmReferenceVoice, // nanoMuse: transcript above the reference toolbar.
+                            nmComposerEditor = if (nmReferenceVoice) ({ nmSharedEditor(Modifier.fillMaxWidth()) }) else null,
                             toggleCaptureToken = nmVoiceCaptureToken,
                             providerRepository = providerRepository,
                             inputText = inputText,
@@ -6431,7 +6439,7 @@ fun ChatScreen(
                                 )
                             }
                         }
-                    } else if (!nmPill) nmTextField(Modifier.fillMaxWidth())
+                    } else if (!nmPill) nmSharedEditor(Modifier.fillMaxWidth())
 
                     // Button row below text field (iOS layout: + / ... mic send)
                     // nanoMuse: in the pill this is THE row — "+", the field, mic/send.
@@ -6457,13 +6465,14 @@ fun ChatScreen(
                                             ActivityResultContracts.PickVisualMedia.ImageAndVideo))
                                     else showAttachMenu = true
                                 },
-                                plain = nmPill || nmReferenceVoice, // nanoMuse: simple media glyph in voice mode.
+                                plain = nmPill || nmReferenceVoice,
+                                fresh = nmHome != null, // nanoMuse: shared neutral media control in text and voice.
                             ) {
                                 Icon(
                                     Icons.Default.Add,
                                     contentDescription = "Attach",
-                                    tint = if (nmPill) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(if (nmPill) 24.dp else 20.dp),
+                                    tint = if (nmHome != null) Color(0xFFDDDDDD) else MaterialTheme.colorScheme.onSurfaceVariant, // nanoMuse: neutral composer glyph.
+                                    modifier = Modifier.size(20.dp),
                                 )
                             }
                             MinisMenu(
@@ -6527,7 +6536,7 @@ fun ChatScreen(
                         }
 
                         if (nmPill) {
-                            nmTextField(Modifier.weight(1f)) // nanoMuse: the field between the buttons
+                            nmSharedEditor(Modifier.weight(1f)) // nanoMuse: the same editor between the buttons.
                         } else {
                         // nanoMuse: keep voice toolbar controls reachable at narrow widths and large text sizes.
                         Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
@@ -6666,6 +6675,8 @@ fun ChatScreen(
                                     .clearDegradationAndRefresh()
                                 voiceUsedSinceClear = true
                                 com.openminis.app.ui.chat.voice.VoiceModePrefs.enteredFromText = true
+                                // nanoMuse: release the keyboard before the existing editor grows into voice mode.
+                                if (nmHome != null) { focusManager.clearFocus(force = true); keyboardController?.hide() }
                                 com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive = true
                                 if (nmHome != null) nmVoiceCaptureToken += 1 // nanoMuse: entering voice starts capture.
                             }
@@ -7029,7 +7040,8 @@ fun ChatScreen(
                                 onClick = { triggerVoiceInput() },
                                 onLongClick = { showLangSheet = true },
                                 isVoiceActive = com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive,
-                                plain = nmPill, // nanoMuse
+                                plain = nmPill,
+                                fresh = nmHome != null, // nanoMuse: match the expanded voice mic control.
                             )
                         }
 
@@ -7056,7 +7068,7 @@ fun ChatScreen(
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
-                                    .background(if (nmReferenceVoice) Color.White else Color(0xFFFF3B30), CircleShape) // nanoMuse: monochrome voice stop.
+                                    .background(if (nmHome != null) Color.White else Color(0xFFFF3B30), CircleShape) // nanoMuse: monochrome voice stop.
                                     .clip(CircleShape)
                                     .clickable { viewModel.cancelStream() },
                                 contentAlignment = Alignment.Center,
@@ -7064,7 +7076,7 @@ fun ChatScreen(
                                 Icon(
                                     Icons.Default.Stop,
                                     contentDescription = "Stop",
-                                    tint = if (nmReferenceVoice) Color.Black else Color.White, // nanoMuse: contrast on neutral stop.
+                                    tint = if (nmHome != null) Color.Black else Color.White, // nanoMuse: shared neutral stop contrast.
                                     modifier = Modifier.size(20.dp),
                                 )
                             }

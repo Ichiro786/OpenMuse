@@ -1,5 +1,9 @@
 package io.github.nanomuse.ui.chat
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
@@ -28,6 +32,7 @@ private enum class BottomSlot { Footer, Content }
 fun NmChatBottomLayout(
     bottomInset: Dp,
     modifier: Modifier = Modifier,
+    focusFraction: Float = 0f, // nanoMuse: hide scrolling content below the focused voice composer.
     content: @Composable BoxScope.(bottomChromeHeight: Dp) -> Unit,
     bottomContent: @Composable ColumnScope.() -> Unit,
 ) {
@@ -47,7 +52,12 @@ fun NmChatBottomLayout(
         val bottomChromeHeight = footer.height + inset
         val bottomChromeHeightDp = bottomChromeHeight.toDp()
         val body = subcompose(BottomSlot.Content) {
-            Box(Modifier.fillMaxSize()) { content(bottomChromeHeightDp) }
+            Box(Modifier.fillMaxSize()) {
+                content(bottomChromeHeightDp)
+                if (focusFraction > 0f) Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                    .height(bottomInset + NM_CHAT_COMPOSER_BOTTOM_GAP)
+                    .background(Color.Black.copy(alpha = focusFraction.coerceIn(0f, 1f))))
+            }
         }.single().measure(Constraints.fixed(width, height))
 
         layout(width, height) {

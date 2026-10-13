@@ -1,6 +1,7 @@
 package io.github.nanomuse.ui.chat
 
 import com.openminis.app.ui.chat.FlatChatItem
+import com.openminis.app.ui.chat.AssistantBlock
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -17,6 +18,10 @@ class NmAssistantBubbleSegmentsTest {
         assertEquals(NmBubbleSegment(false, true), segments[rows[2].key])
         assertEquals(NmBubbleSegment(true, true), nmBubbleSegments(rows.take(1))[rows[0].key])
         assertEquals(rows.map { it.key }.toSet(), segments.keys)
+        assertFalse(nmBubbleBoundary(segments[rows[0].key]))
+        assertFalse(nmBubbleBoundary(segments[rows[1].key]))
+        assertTrue(nmBubbleBoundary(segments[rows[2].key]))
+        assertTrue(nmBubbleBoundary(null))
     }
 
     @Test fun `code and tables join but inline app cards retain their own frame`() {
@@ -33,4 +38,14 @@ class NmAssistantBubbleSegmentsTest {
         val rows = listOf(row(0), row(1, message = "another"))
         assertTrue(nmBubbleSegments(rows).values.all { it == NmBubbleSegment(true, true) })
     }
+    @Test fun `legacy text and virtual markdown rows share a seamless answer boundary`() {
+        val first = FlatChatItem.AssistantText("reply", AssistantBlock("intro", "text", "Opening"), true, "Opening")
+        val last = row(0)
+        val segments = nmBubbleSegments(listOf(first, last))
+        assertEquals(NmBubbleSegment(true, false), segments[first.key])
+        assertEquals(NmBubbleSegment(false, true), segments[last.key])
+        assertFalse(nmBubbleBoundary(segments[first.key]))
+        assertTrue(nmBubbleBoundary(segments[last.key]))
+    }
+
 }

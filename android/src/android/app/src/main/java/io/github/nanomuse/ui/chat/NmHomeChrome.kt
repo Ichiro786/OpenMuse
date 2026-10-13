@@ -35,6 +35,7 @@ import io.github.nanomuse.ui.home.MuseTones
 data class NmHomeChrome(
     val isMainChat: Boolean,
     val onOpenDrawer: () -> Unit,
+    val voiceExpansion: Float = 0f, // nanoMuse: shared with the shell's navigation retreat.
 )
 
 /**
