@@ -6982,7 +6982,7 @@ fun ChatScreen(
                             // +59px on a 1080px screen). Matching weights on both
                             // sides centre it between the leading (+, /) and
                             // trailing (keyboard, mic/send) button groups.
-                            Spacer(modifier = Modifier.weight(1f))
+                            if (!nmReferenceVoice) Spacer(modifier = Modifier.weight(1f)) // nanoMuse: reserve width for Agent and Skills.
                         }
 
                         // [T-android-voice-entry-always-available] The voice /
