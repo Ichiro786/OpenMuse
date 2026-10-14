@@ -4194,11 +4194,8 @@ fun ChatScreen(
                             is FlatChatItem.UserBubble -> Column { // nanoMuse: a column, for the sync caption over the bubble
                                 // nanoMuse: "From Pixel 8" when the line was written on another device (C8)
                                 io.github.nanomuse.ui.chat.NmSyncCaption(item.message.id.substringBefore('#'), end = true)
-                                // User bubbles intentionally don't register
-                                // MinisTextKit shards — long-press on a user
-                                // bubble shows its own action menu (Copy /
-                                // Retry / Edit) instead of starting text
-                                // selection, matching iOS UX.
+                                // nanoMuse: the home menu enters selection explicitly; legacy
+                                // hosts retain the original user-message actions.
                                 UserMessageBubble(
                                 message = item.message,
                                 // nanoMuse: user bubbles share the screen-level menu.

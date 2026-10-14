@@ -96,7 +96,10 @@ fun NmAssistantBubble(
 ) {
     val bare = !enabled || (segment == null && isBareBlock(rawText))
     if (bare) {
-        content()
+        // nanoMuse: older code/table messages keep their frame and still expose message actions.
+        if (enabled && onBounds != null) {
+            Box(Modifier.onGloballyPositioned { onBounds(it) }) { content() }
+        } else content()
         return
     }
     val first = segment?.first ?: true
