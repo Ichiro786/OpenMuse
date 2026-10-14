@@ -122,12 +122,26 @@ Home and side chats show tool activity as monochrome reasoning steps: a gently p
 dot grid, a readable action title, and source or file pills from the actual tool metadata.
 Completed steps dim and stop pulsing. Tapping a step still opens its details; stop and
 long-press actions remain available. The existing appearance setting hides these steps.
+When the answer follows the steps, they fold into a step count. Tap the summary to show
+or hide the steps again; each message keeps its own expansion choice while you leave and
+return to the chat. Tool details, source and file pills remain available when expanded.
 
 Each answer shares one continuous rounded bubble across its paragraphs while keeping the
 existing virtual rows and scroll anchors. Responses reveal complete words as they arrive, with a slow grey-to-white shimmer above
 the message background. Completed replies settle to solid text. Markdown, links, code
 copying and text selection keep their existing behavior. Both effects respect the system
 animation scale, and light mode uses the matching black-and-grey treatment.
+The answer bubble grows and shrinks with its visible text and blocks, including when
+reasoning steps fold or expand.
+
+Long-press a message to reply, copy, select text or choose an emoji reaction. A reply shows
+the selected message above the composer; sending keeps a quoted excerpt with your new
+message and gives the model the original message reference. Cancel reply clears the preview.
+Queued sends retain their quotes, and reopening the conversation on this phone restores
+the sent quotes. Quotes are local to this phone and are not included in conversation sync.
+Emoji reactions show a count and your selected reactions; tapping the same emoji again
+removes your reaction. More reactions opens the larger picker. Reactions last for the current
+app session and are not synced to other devices.
 
 The agent can attach a monochrome Questions card when it needs a choice: select an option,
 enter another answer when offered, or Skip. Next advances through the questions, and Previous

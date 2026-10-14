@@ -1184,4 +1184,23 @@
     <string name="nm_plus_files">Fișiere</string>
     <string name="nm_plus_label">Adaugă la mesaj</string>
     <string name="nm_plus_close">Închide meniul</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d pas</item>
+        <item quantity="few">%1$d pași</item>
+        <item quantity="other">%1$d de pași</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Afișează pașii</string>
+    <string name="nm_reasoning_collapse">Ascunde pașii</string>
+    <string name="nm_message_reply">Răspunde</string>
+    <string name="nm_message_copy">Copiază</string>
+    <string name="nm_message_select">Selectează</string>
+    <string name="nm_message_copied">Copiat</string>
+    <string name="nm_message_you">Tu</string>
+    <string name="nm_replying_to">Răspuns către %1$s</string>
+    <string name="nm_reply_cancel">Anulează răspunsul</string>
+    <string name="nm_reaction_more">Mai multe reacții</string>
+    <string name="nm_reaction_toggle">Comută reacția %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Răspuns către %1$s</string>
 </resources>

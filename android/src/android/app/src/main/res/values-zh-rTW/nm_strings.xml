@@ -1146,4 +1146,21 @@
     <string name="nm_plus_files">檔案</string>
     <string name="nm_plus_label">新增至訊息</string>
     <string name="nm_plus_close">關閉選單</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d 個步驟</item>
+    </plurals>
+    <string name="nm_reasoning_expand">顯示步驟</string>
+    <string name="nm_reasoning_collapse">隱藏步驟</string>
+    <string name="nm_message_reply">回覆</string>
+    <string name="nm_message_copy">複製</string>
+    <string name="nm_message_select">選取</string>
+    <string name="nm_message_copied">已複製</string>
+    <string name="nm_message_you">你</string>
+    <string name="nm_replying_to">正在回覆 %1$s</string>
+    <string name="nm_reply_cancel">取消回覆</string>
+    <string name="nm_reaction_more">更多表情</string>
+    <string name="nm_reaction_toggle">切換 %1$s 表情回應（%2$d）</string>
+    <string name="nm_reply_quote">回覆 %1$s</string>
 </resources>

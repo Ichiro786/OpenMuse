@@ -86,6 +86,14 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.yield
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
+// nanoMuse: local message actions and reply snapshots use the existing message-parts storage.
+import io.github.nanomuse.ui.chat.NmMessageInteractions
+import io.github.nanomuse.ui.chat.NmReplyReference
+import io.github.nanomuse.ui.chat.nmReplyFromPart
+import io.github.nanomuse.ui.chat.nmReplyModelText
+import io.github.nanomuse.ui.chat.nmReplyPartJson
+import io.github.nanomuse.ui.chat.nmResolveReplyReferences
+import io.github.nanomuse.ui.chat.nmQueuedBodyParts
 
 // [T-android-split-chat] StreamingDelta / ChatMessage / QueuedPrompt /
 // ToolBlockStatus / SlashCommand / AssistantBlock moved verbatim to ChatModels.kt.
@@ -712,6 +720,29 @@ class ChatViewModel(
      */
     private val _inputText = MutableStateFlow("")
     val inputText: StateFlow<String> = _inputText.asStateFlow()
+
+    // nanoMuse: these actions belong to the session ViewModel, outside the streaming text flow.
+    private val nmMessageInteractions = NmMessageInteractions()
+    val replyingTo = nmMessageInteractions.replyingTo
+    val reactionsById = nmMessageInteractions.reactionsById
+    val reasoningExpandedIds = nmMessageInteractions.reasoningExpandedIds
+
+    fun nmReplyToMessage(messageId: String) {
+        val id = messageId.substringBefore('#')
+        val message = _messages.value.firstOrNull { it.id == id || id in it.sourceDbIds } ?: return
+        if (message.role !in setOf("user", "assistant")) return
+        val text = (_streamingById.value[message.id]?.content ?: message.content)
+            .ifBlank { message.attachmentNames.joinToString(", ") }
+        val originalId = message.sourceDbIds.lastOrNull() ?: message.id
+        nmMessageInteractions.replyTo(NmReplyReference(originalId, message.role, text.take(600)))
+        _editingMessageId.value = null
+    }
+
+    fun nmCancelReply() = nmMessageInteractions.cancelReply()
+    fun nmToggleReaction(messageId: String, emoji: String) =
+        nmMessageInteractions.toggleReaction(messageId.substringBefore('#'), emoji)
+    fun nmToggleReasoning(messageId: String) =
+        nmMessageInteractions.toggleReasoning(messageId.substringBefore('#'))
 
     /**
      * [T-android-slash-menu-align-ios-prepend] One-shot caret position the
@@ -3400,6 +3431,7 @@ class ChatViewModel(
      */
     private var pendingSendText: String? = null
     private var nmPendingCardReply = false // nanoMuse: card replies do not consume composer drafts.
+    private var nmPendingReplies: List<NmReplyReference> = emptyList() // nanoMuse: retain the held send's quote.
 
     private val _showCompactBeforeSendPrompt = MutableStateFlow(false)
     val showCompactBeforeSendPrompt: StateFlow<Boolean> = _showCompactBeforeSendPrompt.asStateFlow()
@@ -3416,12 +3448,14 @@ class ChatViewModel(
         pendingSendText = null
         val cardReply = nmPendingCardReply
         nmPendingCardReply = false
+        val replies = nmPendingReplies // nanoMuse
+        nmPendingReplies = emptyList()
         viewModelScope.launch {
             val ok = awaitCompaction()
             if (!ok) {
                 AppLogger.warning(TAG, "[Context] pre-send compaction failed — sending anyway")
             }
-            sendMessage(text, skipContextCheck = true, nmCardReply = cardReply)
+            sendMessage(text, skipContextCheck = true, nmCardReply = cardReply, nmReplies = replies) // nanoMuse
         }
     }
 
@@ -3432,7 +3466,9 @@ class ChatViewModel(
         pendingSendText = null
         val cardReply = nmPendingCardReply
         nmPendingCardReply = false
-        sendMessage(text, skipContextCheck = true, nmCardReply = cardReply)
+        val replies = nmPendingReplies // nanoMuse
+        nmPendingReplies = emptyList()
+        sendMessage(text, skipContextCheck = true, nmCardReply = cardReply, nmReplies = replies)
     }
 
     /** Dialog dismissed — restore the text to the composer so it isn't lost. */
@@ -3446,6 +3482,7 @@ class ChatViewModel(
         }
         pendingSendText = null
         nmPendingCardReply = false
+        nmPendingReplies = emptyList() // nanoMuse: the composer still owns the unsent quote.
     }
 
     /**
@@ -5152,6 +5189,8 @@ class ChatViewModel(
         _streamingById.value = emptyMap()
         // Memory state — match iOS clearChat() field list one-for-one.
         _messages.value = emptyList()
+        nmMessageInteractions.clear() // nanoMuse: cleared chats have no stale quote, reaction or expansion.
+        nmPendingReplies = emptyList()
         agentHistory.clear()
         _error.value = null
         _cachedLatestMarker = null
@@ -5887,6 +5926,7 @@ class ChatViewModel(
         if (_isStreaming.value) return null
         val msg = _messages.value.firstOrNull { it.id == messageId } ?: return null
         if (msg.role != "user") return null
+        nmCancelReply() // nanoMuse: editing a prior turn is separate from replying to one.
         var text = msg.content
         val startIdx = text.indexOf("<user-attached-files>")
         if (startIdx >= 0) {
@@ -6096,15 +6136,18 @@ class ChatViewModel(
      * current agent loop finishes, drainQueuedPrompts() consumes the queue.
      * Mirrors iOS AIChatViewModel.enqueuePrompt().
      */
-    fun enqueuePrompt(text: String) {
+    fun enqueuePrompt(text: String, nmReplies: List<NmReplyReference>? = null) { // nanoMuse: held sends retain their quote.
         val trimmed = text.trim()
         val pendingAttachments = _attachments.value
         if ((trimmed.isBlank() && pendingAttachments.isEmpty()) || !_isStreaming.value) return
+        val pendingReplies = nmReplies ?: listOfNotNull(replyingTo.value) // nanoMuse
+        val replies = nmResolveReplyReferences(pendingReplies, _messages.value)
 
         val prompt = QueuedPrompt(
             id = "queued_${System.currentTimeMillis()}_${(Math.random() * 1_000_000).toInt()}",
             text = trimmed,
             attachments = pendingAttachments,
+            nmReplies = replies, // nanoMuse
         )
         _promptQueue.value = _promptQueue.value + prompt
 
@@ -6120,8 +6163,10 @@ class ChatViewModel(
             attachmentUris = attachmentUris,
             isQueued = true,
             queuedPromptId = prompt.id,
+            nmReplies = replies, // nanoMuse
         )
         _messages.value = _messages.value + chatMsg
+        nmMessageInteractions.consumeReply(pendingReplies) // nanoMuse: enqueue was accepted.
         clearAttachments()
         Log.i(TAG, "Enqueued prompt (${trimmed.length}ch, ${pendingAttachments.size} attachments), queue=${_promptQueue.value.size}")
     }
@@ -6173,6 +6218,7 @@ class ChatViewModel(
         if (_promptQueue.value.isEmpty()) return null
         val queued = _promptQueue.value
         _promptQueue.value = emptyList()
+        val replies = nmResolveReplyReferences(queued.flatMap { it.nmReplies }, _messages.value) // nanoMuse: resolve a target first selected while streaming.
 
         // [T-android-queued-message-duplicated-on-inject] REMOVE the queued
         // placeholder bubbles (the ones enqueuePrompt added with
@@ -6255,27 +6301,21 @@ class ChatViewModel(
             prepared.mediaRefPartsJson,
             prepared.attachedFilesXml,
             bodyPartsJson = queuedPaste?.partsJson,
+            nmReplies = replies, // nanoMuse
         )
         val userEntity = chatRepository.appendMessage(sid, "user", userPartsJson)
         io.github.nanomuse.sync.ConversationSync.sent(sid) // nanoMuse: pushed at send (C8), then "working" (C9)
+        val queuedModelBody = nmReplyModelText(replies, queuedPaste?.modelText ?: userText) // nanoMuse
         agentHistory.add(
             LLMMessage(
                 role = LLMMessage.Role.USER,
                 // Expanded for the model; the persisted row above stays small.
-                content = queuedPaste?.modelText ?: userText,
+                content = queuedModelBody, // nanoMuse
                 imageParts = prepared.imageParts,
-                contentParts = queuedPaste?.let { p ->
-                    // Replace the whole LEADING RUN of text parts with the one
-                    // expanded body, then keep everything after it.
-                    //
-                    // Not "index 0": each queued prompt contributes its own text
-                    // part, and combinedText joined them with blank lines —
-                    // p.modelText is the expansion of that join, so it stands
-                    // for all of them. The image and <user-attached-files> parts
-                    // that follow must survive untouched.
-                    val bodyCount = combinedParts.takeWhile { it is AgentContentPart.Text }.size
-                    listOf(AgentContentPart.Text(p.modelText)) + combinedParts.drop(bodyCount)
-                } ?: combinedParts,
+                contentParts = if (queuedPaste != null || replies.isNotEmpty()) { // nanoMuse
+                    // nanoMuse: replace captions only; attachment-path text follows them.
+                    nmQueuedBodyParts(queuedModelBody, queued, combinedParts) // nanoMuse: preserve image-path and file-inventory parts.
+                } else combinedParts,
                 dbMessageId = userEntity.id,
             ),
         )
@@ -6307,6 +6347,7 @@ class ChatViewModel(
                 imageUris = prepared.imageUris,
                 attachmentNames = prepared.attachmentNames,
                 attachmentUris = prepared.nonImageUris,
+                nmReplies = replies, // nanoMuse
             )
             val nextAssistantMsg = ChatMessage(
                 id = newAssistantId,
@@ -6348,6 +6389,7 @@ class ChatViewModel(
         while (_promptQueue.value.isNotEmpty()) {
             val queued = _promptQueue.value
             _promptQueue.value = emptyList()
+            val replies = nmResolveReplyReferences(queued.flatMap { it.nmReplies }, _messages.value) // nanoMuse
             Log.i(TAG, "📨[DRAIN] Draining ${queued.size} queued prompt(s): " +
                 queued.joinToString(", ") { "${it.id}=\"${it.text.take(20)}...\"" })
 
@@ -6358,7 +6400,8 @@ class ChatViewModel(
             val queuedIds = queued.map { it.id }.toSet()
             _messages.value = _messages.value.map { m ->
                 if (m.queuedPromptId != null && queuedIds.contains(m.queuedPromptId)) {
-                    m.copy(isQueued = false, queuedPromptId = null)
+                    m.copy(isQueued = false, queuedPromptId = null,
+                        nmReplies = nmResolveReplyReferences(m.nmReplies, _messages.value)) // nanoMuse
                 } else m
             }
 
@@ -6402,18 +6445,19 @@ class ChatViewModel(
                 prepared.mediaRefPartsJson,
                 prepared.attachedFilesXml,
                 bodyPartsJson = drainPaste?.partsJson,
+                nmReplies = replies, // nanoMuse
             )
             chatRepository.appendMessage(sid, "user", userPartsJson)
             io.github.nanomuse.sync.ConversationSync.sent(sid) // nanoMuse: pushed at send (C8), then "working" (C9)
+            val queuedModelBody = nmReplyModelText(replies, drainPaste?.modelText ?: userText) // nanoMuse
 
             agentHistory.add(LLMMessage(
                 role = LLMMessage.Role.USER,
-                content = drainPaste?.modelText ?: userText,
+                content = queuedModelBody, // nanoMuse
                 imageParts = prepared.imageParts,
-                contentParts = drainPaste?.let { p ->
-                    val bodyCount = combinedParts.takeWhile { it is AgentContentPart.Text }.size
-                    listOf(AgentContentPart.Text(p.modelText)) + combinedParts.drop(bodyCount)
-                } ?: combinedParts,
+                contentParts = if (drainPaste != null || replies.isNotEmpty()) { // nanoMuse
+                    nmQueuedBodyParts(queuedModelBody, queued, combinedParts)
+                } else combinedParts,
             ))
 
             try {
@@ -6464,7 +6508,7 @@ class ChatViewModel(
     fun sendMessage(text: String) {
         // nanoMuse: "change your avatar to …" (and a pick while the options are
         // up) is handled in the app, not by the model.
-        if (nmInterceptAvatar(text)) { nmCountableTurn = false; return }
+        if (replyingTo.value == null && nmInterceptAvatar(text)) { nmCountableTurn = false; return } // nanoMuse: contextual replies follow the ordinary send path.
         // nanoMuse: "@Mac …" opens a turn for that device — the mention comes out of the text,
         // a one-turn note sends the work there through nanomuse-pc (contract C7, rule 8).
         val nmText = io.github.nanomuse.sync.DeviceMention.apply(context, realSessionId.ifEmpty { sessionId }, text)
@@ -6865,7 +6909,13 @@ class ChatViewModel(
      *   chunk) token count and pop the dialog again — iOS guards the identical
      *   re-entry with `skipCompactCheck`.
      */
-    private fun sendMessage(text: String, skipContextCheck: Boolean, nmCardReply: Boolean = false) {
+    // nanoMuse: an explicit snapshot lets compaction resume the same reply without consuming cards' drafts.
+    private fun sendMessage(
+        text: String,
+        skipContextCheck: Boolean,
+        nmCardReply: Boolean = false,
+        nmReplies: List<NmReplyReference>? = null,
+    ) {
         // [T-android-paste-mediaref] `[Pasted#N]` markers are NOT expanded here
         // any more.
         //
@@ -6883,10 +6933,12 @@ class ChatViewModel(
         // here — clearing at this point would strip the content out from under
         // a send that then bails on the context-check paths below.
         val trimmed = text.trim()
+        val pendingReplies = if (nmCardReply) emptyList() else nmReplies ?: listOfNotNull(replyingTo.value) // nanoMuse
+        val replies = nmResolveReplyReferences(pendingReplies, _messages.value)
         // While streaming, enqueue instead of silently dropping (iOS: send vs enqueuePrompt).
         if (_isStreaming.value) {
             if (nmCardReply) return // nanoMuse: a stale card cannot enqueue draft attachments.
-            enqueuePrompt(text)
+            enqueuePrompt(text, pendingReplies) // nanoMuse
             return
         }
         // T180: allow attachments-only sends (no caption). Mirrors iOS, where
@@ -6910,6 +6962,7 @@ class ChatViewModel(
                 PreSendContextAction.COMPACT_THEN_SEND -> {
                     pendingSendText = text
                     nmPendingCardReply = nmCardReply // nanoMuse: keep this source through compaction.
+                    nmPendingReplies = pendingReplies // nanoMuse
                     if (!nmCardReply) _inputText.value = ""
                     compactAndSendPending()
                     return
@@ -6919,6 +6972,7 @@ class ChatViewModel(
                     // owns it; cancelCompactBeforeSend puts it back.
                     pendingSendText = text
                     nmPendingCardReply = nmCardReply // nanoMuse: keep this source through compaction.
+                    nmPendingReplies = pendingReplies // nanoMuse
                     if (!nmCardReply) _inputText.value = ""
                     _showCompactBeforeSendPrompt.value = true
                     return
@@ -7009,8 +7063,10 @@ class ChatViewModel(
                 prepared.mediaRefPartsJson,
                 prepared.attachedFilesXml,
                 bodyPartsJson = pasted?.partsJson,
+                nmReplies = replies, // nanoMuse
             )
             val persistedUser = chatRepository.appendMessage(activeSessionId, "user", userPartsJson)
+            nmMessageInteractions.consumeReply(pendingReplies) // nanoMuse: failed persistence leaves the composer quote intact.
             io.github.nanomuse.sync.ConversationSync.sent(activeSessionId) // nanoMuse: the person's line reaches the other devices at send (C8), then "working" (C9)
 
             val userMsg = ChatMessage(
@@ -7034,6 +7090,7 @@ class ChatViewModel(
                 // ChatMessage.attachmentNames depends on.
                 attachmentNames = prepared.attachmentNames + (pasted?.uiNames ?: emptyList()),
                 attachmentUris = prepared.nonImageUris + (pasted?.uiUris ?: emptyList()),
+                nmReplies = replies, // nanoMuse
             )
             _messages.value = _messages.value + userMsg
             val imageParts = prepared.imageParts
@@ -7054,7 +7111,7 @@ class ChatViewModel(
             // On later turns the same expansion is rebuilt from disk by
             // toLLMMessage's mediaRef branch, so history replay (retry, rerun,
             // session reload, compaction) sees the identical text.
-            val modelBody = pasted?.modelText ?: trimmed
+            val modelBody = nmReplyModelText(replies, pasted?.modelText ?: trimmed) // nanoMuse: reference reaches the agent, not the bubble caption.
 
             val userContentParts = mutableListOf<AgentContentPart>()
             if (modelBody.isNotEmpty()) userContentParts.add(AgentContentPart.Text(modelBody))
@@ -9131,7 +9188,7 @@ class ChatViewModel(
                 }
                 val turnParts = buildTurnParts(allToolBlocks, turnStartBlockIndex, toolInputMap)
                 val blockMeta = allToolBlocks.filter { it.kind == "tool_use" }.associateBy { it.id }
-                persistAssistantTurn(turnParts, lastUsage, turnReasoningContent, blockMeta)
+                persistAssistantTurn(assistantId, turnParts, lastUsage, turnReasoningContent, blockMeta) // nanoMuse: map the visible answer to its stored row.
                 // [T-error-persist-android] Empty-response hint: the model ended a
                 // turn (finish=stop/end_turn) with no visible text anywhere in the
                 // reply and no tool blocks — the user just sees a blank bubble.
@@ -9571,7 +9628,7 @@ class ChatViewModel(
             // assistant entry — compact-marker boundary resolution depends on it.
             val turnParts = buildTurnParts(allToolBlocks, turnStartBlockIndex, toolInputMap)
             val blockMeta = allToolBlocks.filter { it.kind == "tool_use" }.associateBy { it.id }
-            val assistantDbId = persistAssistantTurn(turnParts, lastUsage, turnReasoningContent, blockMeta)
+            val assistantDbId = persistAssistantTurn(assistantId, turnParts, lastUsage, turnReasoningContent, blockMeta) // nanoMuse
             if (assistantDbId != null) {
                 val lastIdx = agentHistory.indexOfLast { it.role == LLMMessage.Role.ASSISTANT && it.dbMessageId == null }
                 if (lastIdx >= 0) {
@@ -10592,6 +10649,7 @@ class ChatViewModel(
     }
 
     private suspend fun persistAssistantTurn(
+        messageId: String, // nanoMuse: reply references use this bubble's persisted source rows.
         parts: List<AgentContentPart>,
         usage: LLMUsage?,
         reasoningContent: String? = null,
@@ -10609,7 +10667,18 @@ class ChatViewModel(
             // the session row — see currentModelSnapshot().
             modelSnapshot = currentModelSnapshot(),
         )
+        nmRecordAssistantRow(messageId, entity.id) // nanoMuse
         return entity.id
+    }
+
+    private suspend fun nmRecordAssistantRow(messageId: String, rowId: String) {
+        // nanoMuse: publish a DB reference only after insertion; cancellation cannot strand a written row.
+        withContext(Dispatchers.Main + NonCancellable) {
+            _messages.value = _messages.value.map { message ->
+                if (message.id == messageId) message.copy(sourceDbIds = message.sourceDbIds + rowId)
+                else message
+            }
+        }
     }
 
     @Deprecated("Use persistAssistantTurn(parts, ...) for per-turn delta persistence")
@@ -11449,6 +11518,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
          * where the user put it, between the words around it.
          */
         bodyPartsJson: List<String>? = null,
+        nmReplies: List<NmReplyReference> = emptyList(), // nanoMuse: old clients ignore the custom snapshot parts.
     ): String {
         val parts = mutableListOf<String>()
         if (bodyPartsJson != null) {
@@ -11458,6 +11528,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         }
         parts.addAll(mediaRefPartsJson)
         attachedFilesXml?.let { parts.add("""{"type":"text","value":${escapeJson(it)}}""") }
+        parts.addAll(nmReplies.map(::nmReplyPartJson)) // nanoMuse: keep the visible body and media parts intact.
         return parts.joinToString(prefix = "[", postfix = "]", separator = ",")
     }
 
@@ -12253,7 +12324,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
             )
             viewModelScope.launch(Dispatchers.IO) {
                 val partsJson = buildAssistantPartsJson(parts)
-                chatRepository.appendMessage(activeSessionId, "assistant", partsJson)
+                val persisted = chatRepository.appendMessage(activeSessionId, "assistant", partsJson)
+                nmRecordAssistantRow(last.id, persisted.id) // nanoMuse: stopped partial replies also have a stable reference.
             }
             // [T-android-group-pause-badge-restamp] A LIVE interruption just
             // happened: this is a real entry into the paused state, so the
@@ -12568,6 +12640,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         return mapNotNull { entity ->
             var text = ""
             val blocks = mutableListOf<AssistantBlock>()
+            val replies = mutableListOf<NmReplyReference>() // nanoMuse: custom parts are quotes, not bubble text.
             // T128: media attachments persisted under user messages as `mediaRef`
             // parts. Restored to file:// URIs (stable across app restarts) and
             // their original filenames so UserAttachmentList renders the same
@@ -12608,6 +12681,9 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
                     when (obj.optString("type")) {
+                        "nanomuse-reply" -> if (entity.role == "user") { // nanoMuse
+                            nmReplyFromPart(obj)?.let { replies.add(it) }
+                        }
                         "text" -> {
                             val raw = obj.optString("value", "")
                             // Strip <system-reminder>...</system-reminder> blocks
@@ -12728,7 +12804,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
             // or messages that were entirely a system-reminder). A user message that is
             // *only* an image attachment (no caption) still has visible content and must
             // not be skipped — restoredImageUris carries it.
-            if (entity.role == "user" && text.isBlank() && restoredImageUris.isEmpty()) return@mapNotNull null
+            // nanoMuse: an attachment-only reply still has a visible file tile after reload.
+            if (entity.role == "user" && text.isBlank() && restoredImageUris.isEmpty() && restoredAttachmentUris.isEmpty()) return@mapNotNull null
             // Skip assistant messages that became empty after stripping system-reminders
             // and have no tool / thinking blocks to fall back on — would otherwise
             // render as a phantom blank assistant bubble.
@@ -12744,6 +12821,7 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
                 attachmentUris = restoredAttachmentUris,
                 toolBlocks = blocks,
                 sourceDbIds = listOf(entity.id),
+                nmReplies = replies, // nanoMuse
                 // [T-error-persist-android] Restore the persisted terminal error
                 // so the inline error banner + Retry button survive a reload.
                 // Coalesce a blank value to null: the UI gate is `error?.let`, so
@@ -12804,12 +12882,16 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         val contentParts = mutableListOf<AgentContentPart>()
         val imageParts = mutableListOf<LLMMessage.ImagePart>()
         var textContent = ""
+        val replies = mutableListOf<NmReplyReference>() // nanoMuse: reconstruct reply context for reload/retry.
 
         try {
             val array = org.json.JSONArray(partsJson)
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
                 when (obj.optString("type")) {
+                    "nanomuse-reply" -> if (role == "user") { // nanoMuse
+                        nmReplyFromPart(obj)?.let { replies.add(it) }
+                    }
                     "text" -> {
                         val value = obj.optString("value", "")
                         // [T-android-retry-attachment-loss] The persisted
@@ -12934,6 +13016,13 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         } catch (_: Exception) {
             textContent = partsJson
             contentParts.add(AgentContentPart.Text(partsJson))
+        }
+
+        // nanoMuse: the same snapshot prefix reaches providers that use content or contentParts.
+        if (replies.isNotEmpty()) {
+            val prefix = nmReplyModelText(replies, "")
+            textContent = prefix + textContent
+            contentParts.add(0, AgentContentPart.Text(prefix))
         }
 
         return LLMMessage(

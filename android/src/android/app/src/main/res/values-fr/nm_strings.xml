@@ -1180,4 +1180,22 @@
     <string name="nm_plus_files">Fichiers</string>
     <string name="nm_plus_label">Ajouter au message</string>
     <string name="nm_plus_close">Fermer le menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d étape</item>
+        <item quantity="other">%1$d étapes</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Afficher les étapes</string>
+    <string name="nm_reasoning_collapse">Masquer les étapes</string>
+    <string name="nm_message_reply">Répondre</string>
+    <string name="nm_message_copy">Copier</string>
+    <string name="nm_message_select">Sélectionner</string>
+    <string name="nm_message_copied">Copié</string>
+    <string name="nm_message_you">Vous</string>
+    <string name="nm_replying_to">En réponse à %1$s</string>
+    <string name="nm_reply_cancel">Annuler la réponse</string>
+    <string name="nm_reaction_more">Plus de réactions</string>
+    <string name="nm_reaction_toggle">Activer ou désactiver la réaction %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Réponse à %1$s</string>
 </resources>

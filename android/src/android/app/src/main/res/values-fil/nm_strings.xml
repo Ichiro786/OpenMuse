@@ -1180,4 +1180,22 @@
     <string name="nm_plus_files">Mga file</string>
     <string name="nm_plus_label">Idagdag sa mensahe</string>
     <string name="nm_plus_close">Isara ang menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d hakbang</item>
+        <item quantity="other">%1$d hakbang</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Ipakita ang mga hakbang</string>
+    <string name="nm_reasoning_collapse">Itago ang mga hakbang</string>
+    <string name="nm_message_reply">Tumugon</string>
+    <string name="nm_message_copy">Kopyahin</string>
+    <string name="nm_message_select">Piliin</string>
+    <string name="nm_message_copied">Nakopya</string>
+    <string name="nm_message_you">Ikaw</string>
+    <string name="nm_replying_to">Tumutugon kay %1$s</string>
+    <string name="nm_reply_cancel">Kanselahin ang tugon</string>
+    <string name="nm_reaction_more">Higit pang reaksyon</string>
+    <string name="nm_reaction_toggle">Palitan ang reaksyon na %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Tugon kay %1$s</string>
 </resources>

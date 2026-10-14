@@ -1180,4 +1180,22 @@
     <string name="nm_plus_files">Dosyalar</string>
     <string name="nm_plus_label">Mesaja ekle</string>
     <string name="nm_plus_close">Menüyü kapat</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d adım</item>
+        <item quantity="other">%1$d adım</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Adımları göster</string>
+    <string name="nm_reasoning_collapse">Adımları gizle</string>
+    <string name="nm_message_reply">Yanıtla</string>
+    <string name="nm_message_copy">Kopyala</string>
+    <string name="nm_message_select">Seç</string>
+    <string name="nm_message_copied">Kopyalandı</string>
+    <string name="nm_message_you">Siz</string>
+    <string name="nm_replying_to">%1$s kişisine yanıt</string>
+    <string name="nm_reply_cancel">Yanıtı iptal et</string>
+    <string name="nm_reaction_more">Daha fazla tepki</string>
+    <string name="nm_reaction_toggle">%1$s tepkisini değiştir (%2$d)</string>
+    <string name="nm_reply_quote">%1$s kişisine yanıt</string>
 </resources>

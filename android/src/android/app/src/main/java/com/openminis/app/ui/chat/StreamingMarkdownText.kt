@@ -352,7 +352,7 @@ private fun MdText(
     // default (LocalAppendOnlyFade=false) so cold-loaded history and
     // completed messages render fully opaque without per-frame work.
     // nanoMuse: word reveal and shimmer operate after parsing, preserving all annotations.
-    val nmText = io.github.nanomuse.ui.chat.rememberNmStreamingText(text, layoutResult?.size?.width ?: 0)
+    val nmText = io.github.nanomuse.ui.chat.rememberNmStreamingText(text, layoutResult)
     val fadeEnabled = LocalAppendOnlyFade.current && nmText == null
     val fadeController = if (fadeEnabled) rememberFadeController() else null
     if (fadeController != null) {
@@ -611,9 +611,9 @@ private fun StreamingMarkdownTextBody(
                 if (isStreaming && idx == lastIdx) {
                     androidx.compose.runtime.CompositionLocalProvider(
                         LocalAppendOnlyFade provides true,
-                    ) { RenderBlock(block) }
+                    ) { RenderBlock(block, isLastBlock = true) } // nanoMuse: keep one bottom inset.
                 } else {
-                    RenderBlock(block)
+                    RenderBlock(block, isLastBlock = idx == lastIdx) // nanoMuse: final paragraph only.
                 }
             }
         }
@@ -902,7 +902,10 @@ private fun MarkdownBlockBody(
         // rows) stay synchronous and flicker-free.
         if (cached != null) {
             Column(modifier = modifier) {
-                cached.forEach { RenderBlock(it) }
+                // nanoMuse: paragraph spacing stays internal to the bubble's outer insets.
+                cached.forEachIndexed { index, block ->
+                    RenderBlock(block, isLastBlock = index == cached.lastIndex)
+                }
             }
             return
         }
@@ -935,7 +938,10 @@ private fun MarkdownBlockBody(
                     color = currentMdColors().text,
                 )
             } else {
-                blocks.forEach { RenderBlock(it) }
+                // nanoMuse: remove only the final paragraph's extra bottom spacer.
+                blocks.forEachIndexed { index, block ->
+                    RenderBlock(block, isLastBlock = index == blocks.lastIndex)
+                }
             }
         }
         return
@@ -1044,9 +1050,9 @@ private fun MarkdownBlockBody(
                 androidx.compose.runtime.CompositionLocalProvider(
                     LocalAppendOnlyFade provides true,
                     LocalLiveIncremental provides true,
-                ) { RenderBlock(block) }
+                ) { RenderBlock(block, isLastBlock = true) } // nanoMuse: keep one bottom inset.
             } else {
-                RenderBlock(block)
+                RenderBlock(block) // nanoMuse: internal paragraph spacing stays unchanged.
             }
         }
     }
@@ -1670,7 +1676,7 @@ private fun parseTable(lines: List<String>): Pair<List<String>, List<List<String
 // ─── Block renderers ────────────────────────────────────────────────────────
 
 @Composable
-private fun RenderBlock(block: MdBlock) {
+private fun RenderBlock(block: MdBlock, isLastBlock: Boolean = false) { // nanoMuse: outer inset ownership.
     val colors = currentMdColors()
     // [T-android-streaming-incremental-inline] The live streaming tail block
     // re-parses its growing paragraph every throttle tick; route it through the
@@ -1685,7 +1691,10 @@ private fun RenderBlock(block: MdBlock) {
                 fontSize = BaseFontSize,
                 lineHeight = BaseLineHeight,
                 color = colors.text,
-                modifier = Modifier.padding(bottom = 4.dp),
+                // nanoMuse: the bubble already owns its final 16dp bottom inset.
+                modifier = Modifier.padding(bottom = if (isLastBlock &&
+                    io.github.nanomuse.ui.chat.LocalNmAssistantBubbleLastSegment.current
+                ) 0.dp else 4.dp),
                 inlineContent = rememberKatexInlineContent(
                     BaseFontSize,
                     if (liveIncremental) MarkdownParseCaches.mathLatexIncremental(block.raw)
@@ -1720,9 +1729,11 @@ private fun RenderBlock(block: MdBlock) {
             val clipboardManager = LocalClipboardManager.current
             // nanoMuse: code keeps its scroll/copy controls while its foreground streams.
             val nmPresentation = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
-            var nmCodeWidth by remember { mutableStateOf(0) }
+            var nmCodeLayout by remember { // nanoMuse: use glyph-line geometry, not the code frame.
+                mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+            }
             val nmCodeText = io.github.nanomuse.ui.chat.rememberNmStreamingText(
-                AnnotatedString(block.code), nmCodeWidth,
+                AnnotatedString(block.code), nmCodeLayout,
             )
             var copied by remember { mutableStateOf(false) }
             if (copied) {
@@ -1789,7 +1800,7 @@ private fun RenderBlock(block: MdBlock) {
                     ) {
                         Text(
                             text = nmCodeText ?: AnnotatedString(block.code), // nanoMuse
-                            onTextLayout = { nmCodeWidth = it.size.width }, // nanoMuse: shader width
+                            onTextLayout = { nmCodeLayout = it }, // nanoMuse: shader follows glyph-line edges
                             fontSize = BaseFontSize * 0.85f,
                             fontFamily = FontFamily.Monospace,
                             color = colors.codeText,

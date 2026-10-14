@@ -1,6 +1,8 @@
 package io.github.nanomuse.ui.chat
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -11,6 +13,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -18,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,6 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -47,6 +53,8 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -240,5 +248,49 @@ fun NmReasoningSteps(
                 }
             }
         }
+    }
+}
+
+// nanoMuse: the same carrier animates from live steps to a compact answer summary.
+@Composable
+internal fun NmReasoningSummary(
+    group: NmReasoningGroup,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val ink = nmChatInk()
+    val toggleLabel = stringResource(
+        if (expanded) R.string.nm_reasoning_collapse else R.string.nm_reasoning_expand,
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .animateContentSize(tween(250, easing = LinearOutSlowInEasing)),
+    ) {
+        if (group.answered) {
+            Row(
+                modifier = Modifier.fillMaxWidth().height(36.dp)
+                    .clickable(role = Role.Button, onClickLabel = toggleLabel, onClick = onToggle),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                NmReasoningDots(active = false)
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = pluralStringResource(R.plurals.nm_reasoning_summary_steps, group.steps.size, group.steps.size),
+                    fontSize = 13.sp,
+                    color = ink.copy(alpha = 0.58f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = ink.copy(alpha = 0.45f),
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        if (!group.answered || expanded) content()
     }
 }

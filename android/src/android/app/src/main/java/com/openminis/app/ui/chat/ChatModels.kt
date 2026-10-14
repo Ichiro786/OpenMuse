@@ -147,6 +147,8 @@ data class ChatMessage(
     // ChatMessage.sourceSortOrder, which serves the same UI↔raw mapping
     // role (AIChatViewModel.swift:3411, 3421).
     val sourceDbIds: List<String> = emptyList(),
+    // nanoMuse: quoted message snapshots survive reload without changing the Room schema.
+    val nmReplies: List<io.github.nanomuse.ui.chat.NmReplyReference> = emptyList(),
 ) {
     /**
      * [T-bridge-message-ui-leak-android] True when this UI message is the
@@ -203,6 +205,8 @@ data class QueuedPrompt(
     val id: String,
     val text: String,
     val attachments: List<InputAttachment> = emptyList(),
+    // nanoMuse: retain the original reply when queued prompts become a new turn.
+    val nmReplies: List<io.github.nanomuse.ui.chat.NmReplyReference> = emptyList(),
 )
 
 /**

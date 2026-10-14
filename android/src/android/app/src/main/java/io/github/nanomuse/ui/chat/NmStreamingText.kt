@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 
 internal data class NmStreamingPresentation(
@@ -63,7 +64,10 @@ fun NmStreamingText(
 
 /** Adds foreground spans only, leaving annotations, fonts, line breaks and hit testing intact. */
 @Composable
-internal fun rememberNmStreamingText(text: AnnotatedString, widthPx: Int): AnnotatedString? {
+internal fun rememberNmStreamingText(
+    text: AnnotatedString,
+    layoutResult: TextLayoutResult?,
+): AnnotatedString? {
     val presentation = LocalNmStreamingPresentation.current ?: return null
     val canReveal = presentation.streaming && presentation.revealWords && presentation.motionScale > 0f
     val interval = (16L * presentation.motionScale).toLong().coerceAtLeast(1L)
@@ -82,11 +86,19 @@ internal fun rememberNmStreamingText(text: AnnotatedString, widthPx: Int): Annot
     // Observe reveal changes independently of parse/layout updates.
     val end = if (canReveal) maxOf(frontier, visible).coerceAtMost(text.length) else text.length
     val ink = presentation.ink
+    // nanoMuse: line edges include bidi/alignment offsets, unlike the container's measured width.
+    val extent = remember(layoutResult) {
+        layoutResult?.let { result ->
+            nmStreamingTextExtent(List(result.lineCount) { line ->
+                result.getLineLeft(line)..result.getLineRight(line)
+            })
+        } ?: (0f..1f)
+    }
     val phase = presentation.phase?.value
     val brush = if (presentation.streaming && phase != null) {
-        val width = widthPx.coerceAtLeast(1).toFloat()
+        val width = (extent.endInclusive - extent.start).coerceAtLeast(1f)
         val band = width * 0.35f
-        val center = phase * width
+        val center = extent.start + phase * width
         Brush.linearGradient(
             0f to ink.copy(alpha = 0.55f),
             0.25f to ink.copy(alpha = 0.68f),
@@ -98,6 +110,15 @@ internal fun rememberNmStreamingText(text: AnnotatedString, widthPx: Int): Annot
         )
     } else null
     return nmStreamingForeground(text, ink, brush, end)
+}
+
+// nanoMuse: blank lines have no glyphs and must not widen an aligned text band.
+internal fun nmStreamingTextExtent(
+    lines: List<ClosedFloatingPointRange<Float>>,
+): ClosedFloatingPointRange<Float> {
+    val visible = lines.filter { it.endInclusive > it.start }
+    if (visible.isEmpty()) return 0f..1f
+    return visible.minOf { it.start }..visible.maxOf { it.endInclusive }
 }
 
 /** Pure foreground transformation, shared with annotation/selection regression tests. */

@@ -1188,4 +1188,24 @@
     <string name="nm_plus_files">Файлы</string>
     <string name="nm_plus_label">Добавить к сообщению</string>
     <string name="nm_plus_close">Закрыть меню</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d шаг</item>
+        <item quantity="few">%1$d шага</item>
+        <item quantity="many">%1$d шагов</item>
+        <item quantity="other">%1$d шага</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Показать шаги</string>
+    <string name="nm_reasoning_collapse">Скрыть шаги</string>
+    <string name="nm_message_reply">Ответить</string>
+    <string name="nm_message_copy">Копировать</string>
+    <string name="nm_message_select">Выбрать</string>
+    <string name="nm_message_copied">Скопировано</string>
+    <string name="nm_message_you">Вы</string>
+    <string name="nm_replying_to">Ответ на %1$s</string>
+    <string name="nm_reply_cancel">Отменить ответ</string>
+    <string name="nm_reaction_more">Другие реакции</string>
+    <string name="nm_reaction_toggle">Переключить реакцию %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Ответ на %1$s</string>
 </resources>

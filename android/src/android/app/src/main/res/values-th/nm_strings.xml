@@ -1176,4 +1176,21 @@
     <string name="nm_plus_files">ไฟล์</string>
     <string name="nm_plus_label">เพิ่มในข้อความ</string>
     <string name="nm_plus_close">ปิดเมนู</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d ขั้นตอน</item>
+    </plurals>
+    <string name="nm_reasoning_expand">แสดงขั้นตอน</string>
+    <string name="nm_reasoning_collapse">ซ่อนขั้นตอน</string>
+    <string name="nm_message_reply">ตอบกลับ</string>
+    <string name="nm_message_copy">คัดลอก</string>
+    <string name="nm_message_select">เลือก</string>
+    <string name="nm_message_copied">คัดลอกแล้ว</string>
+    <string name="nm_message_you">คุณ</string>
+    <string name="nm_replying_to">กำลังตอบกลับ %1$s</string>
+    <string name="nm_reply_cancel">ยกเลิกการตอบกลับ</string>
+    <string name="nm_reaction_more">การแสดงความรู้สึกเพิ่มเติม</string>
+    <string name="nm_reaction_toggle">สลับการแสดงความรู้สึก %1$s (%2$d)</string>
+    <string name="nm_reply_quote">ตอบกลับ %1$s</string>
 </resources>

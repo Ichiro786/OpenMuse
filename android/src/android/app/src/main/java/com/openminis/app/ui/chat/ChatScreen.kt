@@ -195,6 +195,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import dev.chrisbanes.haze.hazeSource // nanoMuse: menu placement/blur.
+import androidx.compose.runtime.key // nanoMuse: retain each reasoning step's composition identity.
+import io.github.nanomuse.ui.chat.* // nanoMuse: message actions, reply metadata and reasoning projection.
 import io.github.nanomuse.ui.chat.nmPlusOutsideTap // nanoMuse: menu placement/blur.
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -574,6 +576,15 @@ fun ChatScreen(
     val messages by viewModel.uiMessages.collectAsState()
     val hasOlderMessages by viewModel.hasOlderMessages.collectAsState()
     val isStreaming by viewModel.isStreaming.collectAsState()
+    // nanoMuse: interaction state belongs to the conversation, independent of recycled rows.
+    val nmReplyingTo by viewModel.replyingTo.collectAsState()
+    val nmReactions by viewModel.reactionsById.collectAsState()
+    val nmReasoningExpanded by viewModel.reasoningExpandedIds.collectAsState()
+    val nmThinkingLevel by viewModel.thinkingLevel.collectAsState() // nanoMuse: restored thinking uses the current visibility setting.
+    val nmSoul by com.openminis.app.agent.SoulStore.cachedMetadata.collectAsState()
+    val nmAgentName = nmSoul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    var nmMenuSelection by remember(sessionId) { mutableStateOf<TextPosition?>(null) } // nanoMuse: capture selection before popup focus changes layout.
+    var nmMessageMenu by remember(sessionId) { mutableStateOf<NmMessageMenuTarget?>(null) }
     val nmCardsBusy by viewModel.isCompacting.collectAsState() // nanoMuse: card replies wait for compaction.
     // nanoMuse: the screen stays on while the agent drives the browser or another app's screen.
     io.github.nanomuse.status.KeepAwake.Effect(isStreaming)
@@ -3309,7 +3320,7 @@ fun ChatScreen(
                 // frame's list while the next one computes. Keyed on `sessionId` so a
                 // chat-switch resets the cache; LaunchedEffect(messages) reruns the
                 // computation on every new emission.
-                var flatItems by remember(sessionId) {
+                var nmRawFlatItems by remember(sessionId) {
                     mutableStateOf<List<FlatChatItem>>(emptyList())
                 }
                 // [T-android-coldload-offmain-parse] Composition-snapshot
@@ -3398,7 +3409,7 @@ fun ChatScreen(
                             val frozenReused = splitIdx == frozenSplitIdx
                             if (!frozenReused) {
                                 val tBuildStart = System.nanoTime()
-                                val wasEmptyPre = flatItems.isEmpty()
+                                val wasEmptyPre = nmRawFlatItems.isEmpty()
                                 // [T-android-perf-logging] Mark the start of a
                                 // full (first / non-streaming) build so the
                                 // gap to buildFlatChatItems.firstBuild bounds
@@ -3433,7 +3444,7 @@ fun ChatScreen(
                                 // the newest (viewport-candidate) markdown
                                 // fragments off-main so the first frame's rows
                                 // compose as cache HITs. Deliberately launched
-                                // in PARALLEL with the flatItems publish, not
+                                // in PARALLEL with the nmRawFlatItems publish, not
                                 // before it — blocking the publish would add
                                 // the parse latency to time-to-first-frame,
                                 // the exact thing this task removes; rows the
@@ -3501,7 +3512,7 @@ fun ChatScreen(
                                     buildFlatChatItems(merged, null, fromIndex = splitIdx, seedKeys = frozenKeys, showSteps = nmShowSteps) // nanoMuse
                                 }
                             }
-                            flatItems = if (liveRows.isEmpty()) frozenRows else frozenRows + liveRows
+                            nmRawFlatItems = if (liveRows.isEmpty()) frozenRows else frozenRows + liveRows
                             com.openminis.app.diagnostics.StreamPerfMonitor.tick(
                                 flattenNanos = System.nanoTime() - tickStartNs,
                                 frozenReused = frozenReused,
@@ -3521,6 +3532,12 @@ fun ChatScreen(
                         }
                     }
                 }
+                // nanoMuse: one stable reasoning carrier animates its whole group at the answer edge.
+                val nmReasoning = remember(nmRawFlatItems, nmHome != null, nmThinkingLevel) {
+                    if (nmHome != null) nmReasoningPresentation(nmRawFlatItems, nmThinkingLevel.isEnabled)
+                    else NmReasoningPresentation(nmRawFlatItems, emptyMap())
+                }
+                val flatItems = nmReasoning.items
                 // T304: when a new tool-use item appears at the trailing
                 // edge (head of flatItems with reverseLayout=true), pin
                 // back to the bottom so the just-arrived tool card is
@@ -3657,6 +3674,9 @@ fun ChatScreen(
                 // scrolling back in re-registers the shard and the highlight
                 // redraws automatically.
                 val selectionController = remember { SelectionController() }
+                // nanoMuse: ordinary coordinate holders avoid recomposing every message on scroll.
+                val nmRowBounds = remember(sessionId) { mutableMapOf<String, androidx.compose.ui.layout.LayoutCoordinates>() }
+
                 // [T-android-selection-readaloud] Player backing the selection
                 // toolbar's "Read Aloud". Screen-scoped and independent of the
                 // voice panel's own player (that one only exists while voice
@@ -3754,6 +3774,98 @@ fun ChatScreen(
                 val nmAnswerSegments = remember(flatItems, nmHome != null) {
                     if (nmHome != null) io.github.nanomuse.ui.chat.nmBubbleSegments(flatItems) else emptyMap()
                 }
+                val nmReactionCarriers = remember(flatItems) {
+                    flatItems.mapNotNull { row ->
+                        val id = when (row) {
+                            is FlatChatItem.AssistantText -> row.messageId
+                            is FlatChatItem.AssistantMarkdownBlock -> row.messageId
+                            is FlatChatItem.AssistantLegacyContent -> row.messageId
+                            is FlatChatItem.AssistantToolUse -> row.messageId
+                            else -> null
+                        }
+                        id?.substringBefore('#')?.let { it to row.key }
+                    }.toMap().entries.associate { it.value to it.key }
+                }
+                // nanoMuse: expanded groups reuse the existing tool actions and thinking visibility.
+                @Composable
+                fun NmRenderReasoningStep(step: FlatChatItem) {
+                    when (step) {
+                            is FlatChatItem.AssistantThinking -> {
+                                // T300: hide Deep Thinking block when the user
+                                // currently has thinking turned off — even if
+                                // a forced-reasoning model (e.g. xAI Grok 4.x
+                                // via OpenRouter) still streams reasoning_-
+                                // content. Snapshot on the message wins so
+                                // toggling the level after a turn finishes
+                                // doesn't retro-hide an already-visible block;
+                                // legacy DB-restored messages (snapshot=null)
+                                // follow the chat's current level.
+                                val effectiveLevel = step.messageThinkingLevel
+                                    ?: viewModel.thinkingLevel.value
+                                if (effectiveLevel.isEnabled) {
+                                    // [T-android-thinking-auto-collapse] Use
+                                    // `isLastBlockOverall` (not `isLast` =
+                                    // last-thinking-only) so the block flips
+                                    // to !isStreaming the moment a sibling
+                                    // text/tool_use arrives — that's the
+                                    // edge ThinkingBlock's LaunchedEffect
+                                    // hooks for auto-collapse, matching iOS
+                                    // ThinkingBlockView semantics.
+                                    ThinkingBlock(
+                                        block = step.block,
+                                        isStreaming = step.isLastBlockOverall && step.messageIsStreaming,
+                                        isLast = step.isLast,
+                                    )
+                                }
+                            }
+                            is FlatChatItem.AssistantToolUse -> ToolCallPill(
+                                nmReasoning = nmHome != null, // nanoMuse: real progress steps
+                                block = step.block,
+                                allToolBlocks = step.allToolBlocks,
+                                onRetry = if (step.isLastCancelled && !isStreaming && !canResume) ({ safeMutate { viewModel.retryLast() } }) else null,
+                                // T14: route per-card stop to the global
+                                // cancelStream(). The button only renders
+                                // when the block is RUNNING/STREAMING — see
+                                // ToolCallPill `isRunning && onStop != null`
+                                // — so passing it unconditionally is safe.
+                                onStop = { viewModel.cancelStream() },
+                                onOpenTerminalWithCommand = onOpenTerminalWithCommand,
+                                // T261: route detail open through ViewModel so
+                                // the sheet is hoisted out of LazyColumn item
+                                // scope (otherwise the sheet snaps shut when
+                                // the pill scrolls off-screen and Compose
+                                // disposes the item).
+                                onOpenDetail = { viewModel.openToolDetail(it) },
+                                // [T-android-rerun-from-tool-block-position]
+                                // Re-run cuts at THIS tool_use block: keep the
+                                // blocks before it in the same turn, drop it +
+                                // everything after, then regenerate. The block
+                                // id (== tool_use id for a tool_use block) is
+                                // the stable anchor. Gated off while streaming
+                                // (mutating an in-flight turn corrupts agent
+                                // state, same rule as Retry on the user bubble).
+                                // safeMutate tears down the selection toolbar
+                                // before the truncation reshuffles the list.
+                                onRerunFromHere = if (!isStreaming) ({
+                                    coroutineScope.launch {
+                                        tracedScrollToItem("RERUN-FROM-TOOL", 0, 0)
+                                    }
+                                    safeMutate { viewModel.rerunFromToolBlock(step.messageId, step.block.id) }
+                                }) else null,
+                                onCopyDetails = {
+                                    val text = formatToolDetailsForClipboard(step.block)
+                                    val cb = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    cb.setPrimaryClip(android.content.ClipData.newPlainText("tool", text))
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.tool_longpress_copied_toast),
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
+                            )
+                        else -> Unit
+                    }
+                }
                 LazyColumn(
                     state = listState,
                     reverseLayout = true,
@@ -3817,6 +3929,40 @@ fun ChatScreen(
                             // the bottom edge reveals NEWER messages (lower
                             // index) rather than jumping backward.
                             reverseLayout = true,
+                            // nanoMuse: no competing pointer detector in each virtual Markdown row.
+                            onMessageLongPress = { point ->
+                                val entry = nmRowBounds.entries.firstOrNull { (_, coords) ->
+                                    coords.isAttached && androidx.compose.ui.geometry.Rect(coords.positionInWindow(),
+                                        androidx.compose.ui.geometry.Size(coords.size.width.toFloat(), coords.size.height.toFloat())).contains(point)
+                                }
+                                val row = flatItems.firstOrNull { it.key == entry?.key }
+                                val rowMessageId = when (row) {
+                                    is FlatChatItem.UserBubble -> row.message.id
+                                    is FlatChatItem.AssistantText -> row.messageId
+                                    is FlatChatItem.AssistantMarkdownBlock -> row.messageId
+                                    is FlatChatItem.AssistantLegacyContent -> row.messageId
+                                    else -> null
+                                }
+                                val id = rowMessageId?.substringBefore('#')
+                                val message = messages.firstOrNull { originalMessageId(it.id) == id }
+                                val coords = entry?.value
+                                if (nmHome != null && message != null && coords != null &&
+                                    selectionController.selection.value == null) {
+                                    val bounds = androidx.compose.ui.geometry.Rect(coords.positionInWindow(),
+                                        androidx.compose.ui.geometry.Size(coords.size.width.toFloat(), coords.size.height.toFloat()))
+                                    val hit = selectionController.hitTestStrict(point)?.takeIf {
+                                        originalMessageId(it.shard.messageId) == id
+                                    } ?: selectionController.currentShards().values.firstOrNull {
+                                        originalMessageId(it.id.messageId) == id
+                                    }?.let { TextPosition(it.id, 0) }
+                                    nmMenuSelection = hit
+                                    nmPlusState.close()
+                                    nmMessageMenu = NmMessageMenuTarget(message.id,
+                                        if (message.role == "user") message.content.ifBlank { message.attachmentNames.joinToString(", ") }
+                                        else messageBounds.markdownFor(rowMessageId ?: message.id) ?: message.content, point, bounds)
+                                    true
+                                } else false
+                            },
                         )
                         // T29 dismiss-on-tap spy. Only active while the slash
                         // popup is showing. awaitFirstDown(requireUnconsumed=false,
@@ -3987,7 +4133,9 @@ fun ChatScreen(
                             }
                         }
                         val isNewestItem = item == flatItems.lastOrNull()
-                        Box(
+                        // nanoMuse: dispose stale row coordinates before a recycled item can be hit.
+                        DisposableEffect(item.key) { onDispose { nmRowBounds.remove(item.key) } }
+                        Column(
                             modifier = Modifier
                                 .alpha(rowAlpha)
                                 // nanoMuse: preserve the old gap only at a real message/card boundary.
@@ -4036,7 +4184,13 @@ fun ChatScreen(
                                     },
                                 ),
                         ) {
-                        when (item) {
+                        val nmGroup = nmReasoning.groups[item.key]
+                        if (nmGroup != null) {
+                            NmReasoningSummary(nmGroup, nmGroup.messageId in nmReasoningExpanded,
+                                onToggle = { viewModel.nmToggleReasoning(nmGroup.messageId) }) {
+                                nmGroup.steps.forEach { step -> key(step.key) { NmRenderReasoningStep(step) } }
+                            }
+                        } else when (item) {
                             is FlatChatItem.UserBubble -> Column { // nanoMuse: a column, for the sync caption over the bubble
                                 // nanoMuse: "From Pixel 8" when the line was written on another device (C8)
                                 io.github.nanomuse.ui.chat.NmSyncCaption(item.message.id.substringBefore('#'), end = true)
@@ -4047,6 +4201,12 @@ fun ChatScreen(
                                 // selection, matching iOS UX.
                                 UserMessageBubble(
                                 message = item.message,
+                                // nanoMuse: user bubbles share the screen-level menu.
+                                nmMenuEnabled = nmHome != null,
+                                nmOnBounds = { nmRowBounds[item.key] = it },
+                                nmReactions = nmReactions[originalMessageId(item.message.id)] ?: NmReactionState(),
+                                nmAgentName = nmAgentName,
+                                nmOnReaction = { viewModel.nmToggleReaction(item.message.id, it) },
                                 // [T-android-candidate-bubble-gap] extra top
                                 // gap when this bubble directly follows another
                                 // user bubble (back-to-back candidate sends).
@@ -4137,7 +4297,7 @@ fun ChatScreen(
                                     streaming = item.isStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content, segment = nmAnswerSegments[item.key]) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -4177,7 +4337,7 @@ fun ChatScreen(
                                     streaming = item.messageIsStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key]) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.messageIsStreaming,
@@ -4202,79 +4362,8 @@ fun ChatScreen(
                                     )
                                 }
                             } } } } // nanoMuse: bubble + streaming foreground + attachment host
-                            is FlatChatItem.AssistantThinking -> {
-                                // T300: hide Deep Thinking block when the user
-                                // currently has thinking turned off — even if
-                                // a forced-reasoning model (e.g. xAI Grok 4.x
-                                // via OpenRouter) still streams reasoning_-
-                                // content. Snapshot on the message wins so
-                                // toggling the level after a turn finishes
-                                // doesn't retro-hide an already-visible block;
-                                // legacy DB-restored messages (snapshot=null)
-                                // follow the chat's current level.
-                                val effectiveLevel = item.messageThinkingLevel
-                                    ?: viewModel.thinkingLevel.value
-                                if (effectiveLevel.isEnabled) {
-                                    // [T-android-thinking-auto-collapse] Use
-                                    // `isLastBlockOverall` (not `isLast` =
-                                    // last-thinking-only) so the block flips
-                                    // to !isStreaming the moment a sibling
-                                    // text/tool_use arrives — that's the
-                                    // edge ThinkingBlock's LaunchedEffect
-                                    // hooks for auto-collapse, matching iOS
-                                    // ThinkingBlockView semantics.
-                                    ThinkingBlock(
-                                        block = item.block,
-                                        isStreaming = item.isLastBlockOverall && item.messageIsStreaming,
-                                        isLast = item.isLast,
-                                    )
-                                }
-                            }
-                            is FlatChatItem.AssistantToolUse -> ToolCallPill(
-                                nmReasoning = nmHome != null, // nanoMuse: real progress steps
-                                block = item.block,
-                                allToolBlocks = item.allToolBlocks,
-                                onRetry = if (item.isLastCancelled && !isStreaming && !canResume) ({ safeMutate { viewModel.retryLast() } }) else null,
-                                // T14: route per-card stop to the global
-                                // cancelStream(). The button only renders
-                                // when the block is RUNNING/STREAMING — see
-                                // ToolCallPill `isRunning && onStop != null`
-                                // — so passing it unconditionally is safe.
-                                onStop = { viewModel.cancelStream() },
-                                onOpenTerminalWithCommand = onOpenTerminalWithCommand,
-                                // T261: route detail open through ViewModel so
-                                // the sheet is hoisted out of LazyColumn item
-                                // scope (otherwise the sheet snaps shut when
-                                // the pill scrolls off-screen and Compose
-                                // disposes the item).
-                                onOpenDetail = { viewModel.openToolDetail(it) },
-                                // [T-android-rerun-from-tool-block-position]
-                                // Re-run cuts at THIS tool_use block: keep the
-                                // blocks before it in the same turn, drop it +
-                                // everything after, then regenerate. The block
-                                // id (== tool_use id for a tool_use block) is
-                                // the stable anchor. Gated off while streaming
-                                // (mutating an in-flight turn corrupts agent
-                                // state, same rule as Retry on the user bubble).
-                                // safeMutate tears down the selection toolbar
-                                // before the truncation reshuffles the list.
-                                onRerunFromHere = if (!isStreaming) ({
-                                    coroutineScope.launch {
-                                        tracedScrollToItem("RERUN-FROM-TOOL", 0, 0)
-                                    }
-                                    safeMutate { viewModel.rerunFromToolBlock(item.messageId, item.block.id) }
-                                }) else null,
-                                onCopyDetails = {
-                                    val text = formatToolDetailsForClipboard(item.block)
-                                    val cb = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    cb.setPrimaryClip(android.content.ClipData.newPlainText("tool", text))
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        context.getString(R.string.tool_longpress_copied_toast),
-                                        android.widget.Toast.LENGTH_SHORT,
-                                    ).show()
-                                },
-                            )
+                            is FlatChatItem.AssistantThinking, is FlatChatItem.AssistantToolUse ->
+                                NmRenderReasoningStep(item)
                             is FlatChatItem.AssistantInfo -> FallbackInfoBlock(
                                 block = item.block,
                                 // Only the compact-divider info block should
@@ -4371,7 +4460,7 @@ fun ChatScreen(
                                     streaming = item.isStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content, onBounds = { nmRowBounds[item.key] = it }) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -4397,7 +4486,13 @@ fun ChatScreen(
                                 }
                             } } } } // nanoMuse: bubble + streaming foreground + attachment host
                         }
-                        } // Box (alpha wrapper)
+                        // nanoMuse: one reaction row follows the final visible piece of a message.
+                        val nmReactionId = nmReactionCarriers[item.key]
+                        if (nmHome != null && nmReactionId != null) NmMessageReactions(
+                            nmReactions[nmReactionId] ?: NmReactionState(),
+                            onToggle = { viewModel.nmToggleReaction(nmReactionId, it) })
+                        } // Column (alpha wrapper)
+
                     }
                     // [T-android-larky-longsession-followup] "Load older
                     // messages" header — placed AFTER items() so under
@@ -4504,6 +4599,29 @@ fun ChatScreen(
                         },
                     ),
                 )
+                // nanoMuse: popup actions reuse clipboard and selection; reply leaves the draft intact.
+                nmMessageMenu?.let { target ->
+                    NmMessageLongPressMenu(target,
+                        onDismiss = { nmMessageMenu = null },
+                        onReact = { viewModel.nmToggleReaction(target.messageId, it) },
+                        onReply = {
+                            viewModel.nmReplyToMessage(target.messageId)
+                            try { inputFocusRequester.requestFocus() } catch (_: IllegalStateException) {}
+                            keyboardController?.show()
+                        },
+                        onCopy = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("message", target.text))
+                            android.widget.Toast.makeText(context, R.string.nm_message_copied, android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        canSelect = nmMenuSelection != null,
+                        onSelect = {
+                            nmMenuSelection?.let { hit ->
+                                selectionController.selectionFromMouse.value = false
+                                selectionController.beginSelectionWord(hit)
+                            }
+                        })
+                }
                 // iOS-style selection handle dots, one at each endpoint.
                 MinisSelectionHandlesHost(
                     controller = selectionController,
@@ -5275,6 +5393,9 @@ fun ChatScreen(
                         }
                     }
                 }
+
+                // nanoMuse: reserve the animated reply preview above either composer mode.
+                if (nmHome != null) NmReplyPreview(nmReplyingTo, nmAgentName, viewModel::nmCancelReply)
 
                 // T185: Move-to-session capsule mirrors iOS
                 // AIChatView.swift:1816 (.overlay(alignment: .topTrailing))

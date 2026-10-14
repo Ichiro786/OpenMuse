@@ -1176,4 +1176,21 @@
     <string name="nm_plus_files">File</string>
     <string name="nm_plus_label">Tambahkan ke pesan</string>
     <string name="nm_plus_close">Tutup menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d langkah</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Tampilkan langkah</string>
+    <string name="nm_reasoning_collapse">Sembunyikan langkah</string>
+    <string name="nm_message_reply">Balas</string>
+    <string name="nm_message_copy">Salin</string>
+    <string name="nm_message_select">Pilih</string>
+    <string name="nm_message_copied">Disalin</string>
+    <string name="nm_message_you">Anda</string>
+    <string name="nm_replying_to">Membalas %1$s</string>
+    <string name="nm_reply_cancel">Batalkan balasan</string>
+    <string name="nm_reaction_more">Reaksi lainnya</string>
+    <string name="nm_reaction_toggle">Aktifkan atau nonaktifkan reaksi %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Balasan untuk %1$s</string>
 </resources>

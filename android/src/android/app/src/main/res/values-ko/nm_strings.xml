@@ -1176,4 +1176,21 @@
     <string name="nm_plus_files">파일</string>
     <string name="nm_plus_label">메시지에 추가</string>
     <string name="nm_plus_close">메뉴 닫기</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d단계</item>
+    </plurals>
+    <string name="nm_reasoning_expand">단계 표시</string>
+    <string name="nm_reasoning_collapse">단계 숨기기</string>
+    <string name="nm_message_reply">답장</string>
+    <string name="nm_message_copy">복사</string>
+    <string name="nm_message_select">선택</string>
+    <string name="nm_message_copied">복사됨</string>
+    <string name="nm_message_you">나</string>
+    <string name="nm_replying_to">%1$s에게 답장 중</string>
+    <string name="nm_reply_cancel">답장 취소</string>
+    <string name="nm_reaction_more">더 많은 반응</string>
+    <string name="nm_reaction_toggle">%1$s 반응 전환 (%2$d)</string>
+    <string name="nm_reply_quote">%1$s에게 답장</string>
 </resources>

@@ -49,6 +49,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Folded reasoning steps into a count when the answer appeared, with per-message expand/collapse, and kept answer bubbles sized to their visible content.
+- Added message reply previews and persisted quoted references, plus local emoji reaction counts and toggles; message menus retained copying and text selection.
 - Replaced the chat overflow dropdown with a grouped, draggable dark sheet; moved history clearing to confirmed drawer actions and hid the debug crash test behind a gesture.
 - Added an anchored frosted plus menu with rotating glyph, staggered options, retained keyboard focus and an adaptive blur fallback.
 - Made the message bar expand into voice input with one retained editor, matching dark surfaces and icons, and a navigation retreat restored by close or Back.
