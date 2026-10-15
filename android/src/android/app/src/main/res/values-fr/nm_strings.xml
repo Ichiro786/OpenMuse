@@ -1106,4 +1106,96 @@
     <string name="nm_models_search">Rechercher des modèles</string>
     <string name="nm_models_search_clear">Effacer la recherche</string>
     <string name="nm_models_no_match">Aucun modèle ne correspond</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Préparation de la réponse</string>
+    <string name="nm_reasoning_search">Recherche sur le Web</string>
+    <string name="nm_reasoning_code">Exécution du code</string>
+    <string name="nm_reasoning_read">Lecture du fichier</string>
+    <string name="nm_reasoning_write">Écriture du fichier</string>
+    <string name="nm_reasoning_edit">Modification du fichier</string>
+    <string name="nm_reasoning_image">Affichage de l’image</string>
+    <string name="nm_reasoning_memory_read">Consultation de la mémoire</string>
+    <string name="nm_reasoning_memory_write">Enregistrement en mémoire</string>
+    <string name="nm_reasoning_tool">Utilisation d’un outil</string>
+    <string name="nm_reasoning_failed">Échec</string>
+    <string name="nm_reasoning_timeout">Délai dépassé</string>
+    <string name="nm_reasoning_stopped">Arrêté</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Questions</string>
+    <string name="nm_card_previous">Précédent</string>
+    <string name="nm_card_skip">Passer</string>
+    <string name="nm_card_next">Suivant</string>
+    <string name="nm_card_other_answer">Votre réponse</string>
+    <string name="nm_card_skipped">Passée</string>
+    <string name="nm_card_todos">Tâches</string>
+    <string name="nm_card_show_less">Afficher moins</string>
+    <string name="nm_card_more">%1$d de plus</string>
+    <string name="nm_card_auto_approve">Approbation automatique dans %1$d s</string>
+    <string name="nm_card_approved">Approuvé</string>
+    <string name="nm_card_auto_paused">Approbation automatique en pause</string>
+    <string name="nm_card_view_plan">Voir le plan</string>
+    <string name="nm_card_approve">Approuver</string>
+    <string name="nm_card_answers">Réponses à vos questions</string>
+    <string name="nm_card_plan_reply">J’approuve ce plan : %1$s</string>
+    <string name="nm_card_submitted">Réponse envoyée</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Annuler</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Démarrer</string>
+    <string name="nm_voice_skills">Compétences</string>
+    <string name="nm_voice_no_skills">Aucune compétence</string>
+    <string name="nm_voice_skills_hint">Ajoutez des compétences dans Paramètres → Compétences.</string>
+    <string name="nm_voice_no_models">Ajoutez un modèle de discussion dans les paramètres pour utiliser la saisie vocale.</string>
+    <string name="nm_feed_instructions_title">Instructions du fil</string>
+    <string name="nm_feed_instructions_description">Votre fil suit les instructions ci-dessous. Les modifications de cette consigne s’appliqueront aux prochaines publications du fil.</string>
+    <string name="nm_feed_instructions_save">Enregistrer</string>
+    <string name="nm_feed_like">J’aime</string>
+    <string name="nm_feed_dislike">Je n’aime pas</string>
+    <string name="nm_feed_info_title">À propos de cette publication</string>
+    <string name="nm_feed_sample_label">Aperçu</string>
+    <string name="nm_feed_sample_skills_title">Des compétences pour les tâches récurrentes</string>
+    <string name="nm_feed_sample_skills_body">Des instructions réutilisables rendent la recherche, la rédaction et la planification cohérentes. Chaque compétence rassemble ses conseils et références pour démarrer avec le bon contexte.</string>
+    <string name="nm_feed_sample_voice_title">Dicter ses idées clairement</string>
+    <string name="nm_feed_sample_voice_body">Parlez naturellement, puis relisez la transcription avant l’envoi. Cet exemple montre comment les résumés et les discussions s’intègrent à votre fil personnel.</string>
+    <string name="nm_feed_schedule">Horaire du fil</string>
+    <string name="nm_feed_today_short">Aujourd’hui</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Nouveau chat</string>
+    <string name="nm_menu_open_terminal">Ouvrir le terminal</string>
+    <string name="nm_menu_open_browser">Ouvrir le navigateur</string>
+    <string name="nm_menu_chat_files">Parcourir les fichiers du chat</string>
+    <string name="nm_menu_session_skills">Compétences de la session</string>
+    <string name="nm_menu_session_mcps">MCP de la session</string>
+    <string name="nm_menu_session_memories">Mémoires de la session</string>
+    <string name="nm_menu_token_usage">Consommation de tokens</string>
+    <string name="nm_menu_auto_compact">Compactage automatique</string>
+    <string name="nm_menu_clear_chat">Effacer le chat</string>
+    <string name="nm_menu_title">Menu de discussion</string>
+    <string name="nm_plus_photos">Photos</string>
+    <string name="nm_plus_camera">Appareil photo</string>
+    <string name="nm_plus_files">Fichiers</string>
+    <string name="nm_plus_label">Ajouter au message</string>
+    <string name="nm_plus_close">Fermer le menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d étape</item>
+        <item quantity="other">%1$d étapes</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Afficher les étapes</string>
+    <string name="nm_reasoning_collapse">Masquer les étapes</string>
+    <string name="nm_message_reply">Répondre</string>
+    <string name="nm_message_copy">Copier</string>
+    <string name="nm_message_select">Sélectionner</string>
+    <string name="nm_message_copied">Copié</string>
+    <string name="nm_message_you">Vous</string>
+    <string name="nm_replying_to">En réponse à %1$s</string>
+    <string name="nm_reply_cancel">Annuler la réponse</string>
+    <string name="nm_reaction_more">Plus de réactions</string>
+    <string name="nm_reaction_toggle">Activer ou désactiver la réaction %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Réponse à %1$s</string>
 </resources>

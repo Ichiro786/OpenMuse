@@ -1072,4 +1072,95 @@
     <string name="nm_models_search">搜尋模型</string>
     <string name="nm_models_search_clear">清除搜尋</string>
     <string name="nm_models_no_match">沒有符合的模型</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">正在準備回覆</string>
+    <string name="nm_reasoning_search">正在搜尋網頁</string>
+    <string name="nm_reasoning_code">正在執行程式碼</string>
+    <string name="nm_reasoning_read">正在讀取檔案</string>
+    <string name="nm_reasoning_write">正在寫入檔案</string>
+    <string name="nm_reasoning_edit">正在編輯檔案</string>
+    <string name="nm_reasoning_image">正在查看圖片</string>
+    <string name="nm_reasoning_memory_read">正在查看記憶</string>
+    <string name="nm_reasoning_memory_write">正在儲存記憶</string>
+    <string name="nm_reasoning_tool">正在使用工具</string>
+    <string name="nm_reasoning_failed">失敗</string>
+    <string name="nm_reasoning_timeout">已逾時</string>
+    <string name="nm_reasoning_stopped">已停止</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">問題</string>
+    <string name="nm_card_previous">上一個</string>
+    <string name="nm_card_skip">略過</string>
+    <string name="nm_card_next">下一個</string>
+    <string name="nm_card_other_answer">你的回答</string>
+    <string name="nm_card_skipped">已略過</string>
+    <string name="nm_card_todos">待辦事項</string>
+    <string name="nm_card_show_less">收起</string>
+    <string name="nm_card_more">還有 %1$d 項</string>
+    <string name="nm_card_auto_approve">%1$d 秒後自動批准</string>
+    <string name="nm_card_approved">已批准</string>
+    <string name="nm_card_auto_paused">自動批准已暫停</string>
+    <string name="nm_card_view_plan">查看計畫</string>
+    <string name="nm_card_approve">批准</string>
+    <string name="nm_card_answers">問題的回答</string>
+    <string name="nm_card_plan_reply">我批准這個計畫：%1$s</string>
+    <string name="nm_card_submitted">已傳送回答</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">取消</string>
+    <string name="nm_voice_agent">智慧體</string>
+    <string name="nm_voice_start">開始</string>
+    <string name="nm_voice_skills">技能</string>
+    <string name="nm_voice_no_skills">還沒有技能</string>
+    <string name="nm_voice_skills_hint">在設定 → 技能中新增技能。</string>
+    <string name="nm_voice_no_models">先在設定中新增聊天模型，再使用智慧體語音輸入。</string>
+    <string name="nm_feed_instructions_title">動態指令</string>
+    <string name="nm_feed_instructions_description">你的動態由下方指令驅動。對這段提示詞的修改將套用於日後的動態內容。</string>
+    <string name="nm_feed_instructions_save">儲存</string>
+    <string name="nm_feed_like">喜歡</string>
+    <string name="nm_feed_dislike">不喜歡</string>
+    <string name="nm_feed_info_title">關於這則動態</string>
+    <string name="nm_feed_sample_label">範例</string>
+    <string name="nm_feed_sample_skills_title">用技能處理重複任務</string>
+    <string name="nm_feed_sample_skills_body">可重用的指令讓研究、寫作和規劃保持一致。每項技能集中指引與參考資料，讓重複任務從合適的上下文開始。</string>
+    <string name="nm_feed_sample_voice_title">讓口述內容更清晰</string>
+    <string name="nm_feed_sample_voice_body">自然地說話，傳送前檢查轉寫結果。這個範例展示了簡報和討論控制項如何融入你的個人動態。</string>
+    <string name="nm_feed_schedule">動態排程</string>
+    <string name="nm_feed_today_short">今天</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">新建對話</string>
+    <string name="nm_menu_open_terminal">打開終端</string>
+    <string name="nm_menu_open_browser">打開瀏覽器</string>
+    <string name="nm_menu_chat_files">瀏覽對話文件</string>
+    <string name="nm_menu_session_skills">會話中的技能</string>
+    <string name="nm_menu_session_mcps">工作階段中的 MCP</string>
+    <string name="nm_menu_session_memories">工作階段中的記憶</string>
+    <string name="nm_menu_token_usage">Token 用量</string>
+    <string name="nm_menu_auto_compact">自動壓縮</string>
+    <string name="nm_menu_clear_chat">清空對話</string>
+    <string name="nm_menu_title">聊天選單</string>
+    <string name="nm_plus_photos">照片</string>
+    <string name="nm_plus_camera">相機</string>
+    <string name="nm_plus_files">檔案</string>
+    <string name="nm_plus_label">新增至訊息</string>
+    <string name="nm_plus_close">關閉選單</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d 個步驟</item>
+    </plurals>
+    <string name="nm_reasoning_expand">顯示步驟</string>
+    <string name="nm_reasoning_collapse">隱藏步驟</string>
+    <string name="nm_message_reply">回覆</string>
+    <string name="nm_message_copy">複製</string>
+    <string name="nm_message_select">選取</string>
+    <string name="nm_message_copied">已複製</string>
+    <string name="nm_message_you">你</string>
+    <string name="nm_replying_to">正在回覆 %1$s</string>
+    <string name="nm_reply_cancel">取消回覆</string>
+    <string name="nm_reaction_more">更多表情</string>
+    <string name="nm_reaction_toggle">切換 %1$s 表情回應（%2$d）</string>
+    <string name="nm_reply_quote">回覆 %1$s</string>
 </resources>

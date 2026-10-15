@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
 project(minis_native CXX C)
 
+# nanoMuse: every app-owned library supports both 4 KB and 16 KB devices.
+add_link_options("-Wl,-z,max-page-size=16384" "-Wl,-z,common-page-size=16384")
+
 add_library(pty_bridge SHARED pty_bridge.c)
 
 # T283: NDK signal handler for native crashes (SIGSEGV/SIGABRT/...).

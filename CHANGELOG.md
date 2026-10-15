@@ -49,6 +49,24 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Anchored message menus beside the pressed bubble, added swipe-right replies, and restored full-color reaction emoji.
+- Linked app-built native code for 16 KB pages with NDK r30 and added APK alignment checks; documented the remaining upstream ARM32 PRoot-loader limitation.
+
+- Folded reasoning steps into a count when the answer appeared, with per-message expand/collapse, and kept answer bubbles sized to their visible content.
+- Added message reply previews and persisted quoted references, plus local emoji reaction counts and toggles; message menus retained copying and text selection.
+- Replaced the chat overflow dropdown with a grouped, draggable dark sheet; moved history clearing to confirmed drawer actions and hid the debug crash test behind a gesture.
+- Added an anchored frosted plus menu with rotating glyph, staggered options, retained keyboard focus and an adaptive blur fallback.
+- Made the message bar expand into voice input with one retained editor, matching dark surfaces and icons, and a navigation retreat restored by close or Back.
+- Removed gaps between joined streaming answer rows while retaining spacing around distinct messages and inline cards.
+- Published debug builds as directly installable APK artifacts, with archive integrity, signature and checksum checks before upload.
+- Reworked voice input into a compact composer with adjacent Agent and Skills controls, simple media/mic/close actions, and a speech-reactive glow across its full rounded bottom edge.
+- Replaced the voice waveform disc with a microphone-reactive monochrome glow, a recognition sweep and a completion fade while retaining the existing labels and capture controls.
+- Added voice skills selection, reused media attachments, and combined agent model selection with voice input in one animated dialog.
+- Restyled Feed as borderless monochrome posts with reaction controls, neutral media and labeled empty-feed previews; added an animated instructions editor while retaining saved prompts and daily routine controls.
+- Joined streamed answer paragraphs into one rounded bubble while preserving virtual rows, Markdown, selection and scroll anchors.
+- Added inline monochrome Question and Plan cards, with choice navigation, optional free-text answers, expandable tasks and a cancellable approval countdown. Card replies used the existing chat flow, and historical or submitted cards could not approve again.
+- Replaced home and side chat tool capsules with monochrome reasoning steps, a gentle dot-grid pulse, readable tool titles and staggered source/file pills. Completed steps dimmed, and tool details, stop and long-press actions remained available.
+- Added complete-word response reveals and a slow monochrome text shimmer above the existing message bubbles. Finished replies became solid text, with Markdown, links, code copying and selection preserved.
 - Limited the AMOLED navigation surround to home and side chats, restored the original treatment in Feed, Ideas, Goals and Library, and filled the gap below the composer while keeping the glass blur visible.
 - Lightened the scrolling fade above the chat composer slightly and added a pure-black surround at the sides and below the navigation pill in dark mode. The rounded glass area still shows scrolling content through its live frosted blur.
 - Restored the broad scrolling fade around the chat composer, with a soft rounded outline instead of a rectangular backing or a small drop shadow. Historical browser pills and other tools no longer hide it; live browser controls still do.

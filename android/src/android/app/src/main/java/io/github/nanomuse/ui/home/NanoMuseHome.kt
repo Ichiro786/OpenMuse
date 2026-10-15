@@ -43,6 +43,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.asPaddingValues // nanoMuse
+import androidx.compose.foundation.layout.navigationBars // nanoMuse
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -72,6 +74,7 @@ import com.openminis.app.ui.navigation.Routes
 import com.openminis.app.ui.navigation.safeNavigate
 import com.openminis.app.ui.theme.ChatColors
 import io.github.nanomuse.ui.chat.NmHomeChrome
+import io.github.nanomuse.ui.chat.nmVoiceNavigationRetreat // nanoMuse: synchronized composer/nav motion.
 import io.github.nanomuse.goals.GoalCategory
 import io.github.nanomuse.goals.GoalFlow
 import io.github.nanomuse.home.MainChat
@@ -316,6 +319,7 @@ fun NanoMuseHome(
         }
     }
 
+    var pendingClearChat by remember { mutableStateOf<String?>(null) } // nanoMuse: long-press drawer request.
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     fun openDrawer() {
         focusManager.clearFocus(force = true)
@@ -334,6 +338,14 @@ fun NanoMuseHome(
     // nanoMuse: the frosted pill bar blurs this shell's content — the shell is the haze source.
     val hazeState = rememberHazeState()
     val homeShell: @Composable () -> Unit = {
+    // nanoMuse: only active chats focus voice; the other tabs retain their navigation.
+    val voiceFocused = tab == HomeTab.CHAT && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive
+    val voiceExpansion by io.github.nanomuse.ui.chat.rememberNmVoiceExpansion(voiceFocused)
+    BackHandler(enabled = homeShown && voiceFocused && !drawerState.isOpen) {
+        com.openminis.app.speech.SpeechRecognitionManager.cancelRecording()
+        com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive = false
+        com.openminis.app.ui.chat.ComposerInputModePrefs.save(context, voice = false)
+    }
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = drawerState.isOpen || tab == HomeTab.CHAT,
@@ -354,6 +366,11 @@ fun NanoMuseHome(
                     onAllChats = { closeDrawer(); navController.safeNavigate(ROUTE_ALL_CHATS) },
                     onSettings = { closeDrawer(); navController.safeNavigate(Routes.SETTINGS) },
                     onSetMain = { id -> MainChat.set(context, id); closeDrawer(); showSession(id) },
+                    onClearChat = { id -> scope.launch {
+                        drawerState.close()
+                        showSession(id)
+                        pendingClearChat = id
+                    } }, // nanoMuse: open the selected chat before showing its clear confirmation.
                     onSystemFiles = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.sysfiles.ROUTE_SYSTEM_FILES) },
                     onDevices = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.cloud.ROUTE_CLOUD_ACCOUNT) },
                     onCoding = { closeDrawer(); navController.safeNavigate(io.github.nanomuse.ui.coding.ROUTE_CODING) },
@@ -365,17 +382,26 @@ fun NanoMuseHome(
             containerColor = ChatColors.background,
             contentWindowInsets = WindowInsets(0),
             bottomBar = {
-                MuseBottomBar(selected = tab, hazeState = hazeState, onSelect = { picked ->
+                MuseBottomBar(selected = tab, hazeState = hazeState,
+                    modifier = Modifier.nmVoiceNavigationRetreat(voiceExpansion), onSelect = { picked ->
+                    // nanoMuse: retreating navigation cannot steal a tap from the expanded composer.
+                    if (!voiceFocused && voiceExpansion == 0f) {
                     if (picked == HomeTab.CHAT && tab == HomeTab.CHAT && !isMainChat) {
                         showMain()
                     } else {
                         focusManager.clearFocus(force = true)
                         tab = picked
                     }
+                    }
                 })
             },
         ) { padding ->
             val bottom = padding.calculateBottomPadding()
+            // nanoMuse: the composer moves into the pill's space while retaining the real system inset.
+            val systemBottom = androidx.compose.foundation.layout.WindowInsets.navigationBars
+                .asPaddingValues().calculateBottomPadding()
+            val chatBottom = io.github.nanomuse.ui.chat.nmVoiceBottomInset(
+                bottom.value, systemBottom.value, voiceExpansion).dp
             // Scaffold measures the entire bar, including its floating gap and
             // navigation inset, before laying out this content. Use that same
             // inset for placement and IME consumption, without a frame-late callback.
@@ -386,7 +412,7 @@ fun NanoMuseHome(
                     // nanoMuse: no bottom inset — the pill bar is an overlay and the
                     // content slides behind it for the frosted blur. Each tab pads
                     // its own scrollable content above the pill.
-                    .consumeWindowInsets(PaddingValues(bottom = bottom)),
+                    .consumeWindowInsets(PaddingValues(bottom = if (tab == HomeTab.CHAT) chatBottom else bottom)),
             ) {
                 // Chat tab — always composed, hidden while another tab is on top.
                 val chatVisible = tab == HomeTab.CHAT
@@ -425,10 +451,12 @@ fun NanoMuseHome(
                                 navController.safeNavigate(Routes.FILE_PREVIEW)
                             },
                             onModelGroupsClick = { navController.safeNavigate(Routes.MODEL_GROUPS) },
-                            nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }),
+                            nmHome = NmHomeChrome(isMainChat = isMainChat, onOpenDrawer = { openDrawer() }, voiceExpansion = voiceExpansion,
+                                clearChatRequested = pendingClearChat == sid,
+                                onClearChatRequestHandled = { pendingClearChat = null }),
                             // nanoMuse: preserve the full-size blur source, but keep
                             // the chat footer above the bar measured by Scaffold.
-                            nmBottomOverlay = bottom,
+                            nmBottomOverlay = chatBottom,
                         )
                     }
                 }

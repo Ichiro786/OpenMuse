@@ -1102,4 +1102,95 @@
     <string name="nm_models_search">Cari model</string>
     <string name="nm_models_search_clear">Kosongkan carian</string>
     <string name="nm_models_no_match">Tiada model yang sepadan</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Menyediakan jawapan</string>
+    <string name="nm_reasoning_search">Mencari di web</string>
+    <string name="nm_reasoning_code">Menjalankan kod</string>
+    <string name="nm_reasoning_read">Membaca fail</string>
+    <string name="nm_reasoning_write">Menulis fail</string>
+    <string name="nm_reasoning_edit">Mengedit fail</string>
+    <string name="nm_reasoning_image">Melihat imej</string>
+    <string name="nm_reasoning_memory_read">Menyemak memori</string>
+    <string name="nm_reasoning_memory_write">Menyimpan ke memori</string>
+    <string name="nm_reasoning_tool">Menggunakan alat</string>
+    <string name="nm_reasoning_failed">Gagal</string>
+    <string name="nm_reasoning_timeout">Tamat masa</string>
+    <string name="nm_reasoning_stopped">Dihentikan</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Soalan</string>
+    <string name="nm_card_previous">Sebelumnya</string>
+    <string name="nm_card_skip">Langkau</string>
+    <string name="nm_card_next">Seterusnya</string>
+    <string name="nm_card_other_answer">Jawapan anda</string>
+    <string name="nm_card_skipped">Dilangkau</string>
+    <string name="nm_card_todos">Tugasan</string>
+    <string name="nm_card_show_less">Tunjukkan kurang</string>
+    <string name="nm_card_more">%1$d lagi</string>
+    <string name="nm_card_auto_approve">Lulus automatik dalam %1$d s</string>
+    <string name="nm_card_approved">Diluluskan</string>
+    <string name="nm_card_auto_paused">Kelulusan automatik dijeda</string>
+    <string name="nm_card_view_plan">Lihat pelan</string>
+    <string name="nm_card_approve">Luluskan</string>
+    <string name="nm_card_answers">Jawapan kepada soalan anda</string>
+    <string name="nm_card_plan_reply">Saya meluluskan pelan ini: %1$s</string>
+    <string name="nm_card_submitted">Jawapan dihantar</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Batal</string>
+    <string name="nm_voice_agent">Ejen</string>
+    <string name="nm_voice_start">Mula</string>
+    <string name="nm_voice_skills">Kemahiran</string>
+    <string name="nm_voice_no_skills">Belum ada kemahiran</string>
+    <string name="nm_voice_skills_hint">Tambah kemahiran di Tetapan → Kemahiran.</string>
+    <string name="nm_voice_no_models">Tambah model sembang di Tetapan untuk input suara ejen.</string>
+    <string name="nm_feed_instructions_title">Arahan suapan</string>
+    <string name="nm_feed_instructions_description">Suapan anda mengikuti arahan di bawah. Perubahan pada prom ini akan digunakan pada siaran suapan akan datang.</string>
+    <string name="nm_feed_instructions_save">Simpan</string>
+    <string name="nm_feed_like">Suka</string>
+    <string name="nm_feed_dislike">Tidak suka</string>
+    <string name="nm_feed_info_title">Tentang siaran ini</string>
+    <string name="nm_feed_sample_label">Pratonton</string>
+    <string name="nm_feed_sample_skills_title">Kemahiran ejen untuk tugas berulang</string>
+    <string name="nm_feed_sample_skills_body">Arahan yang boleh digunakan semula memastikan penyelidikan, penulisan dan perancangan konsisten. Setiap kemahiran menghimpunkan panduan dan rujukan untuk bermula dengan konteks yang betul.</string>
+    <string name="nm_feed_sample_voice_title">Imlak untuk menyampaikan idea</string>
+    <string name="nm_feed_sample_voice_body">Bercakap secara semula jadi dan semak transkrip sebelum menghantar. Contoh ini menunjukkan ringkasan dan perbincangan dalam suapan peribadi anda.</string>
+    <string name="nm_feed_schedule">Jadual suapan</string>
+    <string name="nm_feed_today_short">Hari ini</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Sembang Baharu</string>
+    <string name="nm_menu_open_terminal">Buka Terminal</string>
+    <string name="nm_menu_open_browser">Buka Pelayar</string>
+    <string name="nm_menu_chat_files">Layari Fail Sembang</string>
+    <string name="nm_menu_session_skills">Kemahiran dalam Sesi</string>
+    <string name="nm_menu_session_mcps">MCP dalam Sesi</string>
+    <string name="nm_menu_session_memories">Memori dalam Sesi</string>
+    <string name="nm_menu_token_usage">Penggunaan Token</string>
+    <string name="nm_menu_auto_compact">Pemadatan Automatik</string>
+    <string name="nm_menu_clear_chat">Kosongkan Sembang</string>
+    <string name="nm_menu_title">Menu sembang</string>
+    <string name="nm_plus_photos">Foto</string>
+    <string name="nm_plus_camera">Kamera</string>
+    <string name="nm_plus_files">Fail</string>
+    <string name="nm_plus_label">Tambah pada mesej</string>
+    <string name="nm_plus_close">Tutup menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d langkah</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Tunjukkan langkah</string>
+    <string name="nm_reasoning_collapse">Sembunyikan langkah</string>
+    <string name="nm_message_reply">Balas</string>
+    <string name="nm_message_copy">Salin</string>
+    <string name="nm_message_select">Pilih</string>
+    <string name="nm_message_copied">Disalin</string>
+    <string name="nm_message_you">Anda</string>
+    <string name="nm_replying_to">Membalas %1$s</string>
+    <string name="nm_reply_cancel">Batalkan balasan</string>
+    <string name="nm_reaction_more">Lagi reaksi</string>
+    <string name="nm_reaction_toggle">Tukar reaksi %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Balasan kepada %1$s</string>
 </resources>

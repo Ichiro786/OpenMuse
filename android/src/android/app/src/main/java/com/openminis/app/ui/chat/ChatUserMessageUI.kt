@@ -295,6 +295,13 @@ internal fun UserMessageBubble(
     onDeleteFromHere: (() -> Unit)? = null,
     onWithdraw: (() -> Unit)? = null,
     onPreviewFile: (Uri, String) -> Unit = { _, _ -> },
+    // nanoMuse: the new menu shares the screen's popup and selection controller.
+    nmMenuEnabled: Boolean = false,
+    nmOnBounds: ((androidx.compose.ui.layout.LayoutCoordinates) -> Unit)? = null,
+    nmReactions: io.github.nanomuse.ui.chat.NmReactionState = io.github.nanomuse.ui.chat.NmReactionState(),
+    nmAgentName: String = "",
+    nmOnReaction: (String) -> Unit = {},
+    nmSwipeModifier: Modifier = Modifier, // nanoMuse: the message's bounded swipe surface.
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val isQueued = message.isQueued
@@ -323,11 +330,13 @@ internal fun UserMessageBubble(
         Box(
             modifier = Modifier
                 .widthIn(max = bubbleMaxWidth)
+                .then(nmSwipeModifier) // nanoMuse: child media/text gestures retain first refusal.
+                .onGloballyPositioned { nmOnBounds?.invoke(it) } // nanoMuse: anchor to the actual user bubble.
                 // pointerInput on the OUTER box (= MinisMenu's anchor). Long-press
                 // anywhere on the bubble (text or attachments) opens the menu;
                 // press coords are stored in this box's coordinate space, which
                 // is exactly what DropdownMenu's `offset` parameter expects.
-                .pointerInput(message.id) {
+                .then(if (nmMenuEnabled) Modifier else Modifier.pointerInput(message.id) {
                     detectTapGestures(
                         onLongPress = {
                             // Haptic must be fired by hand here. `combinedClickable`
@@ -346,13 +355,17 @@ internal fun UserMessageBubble(
                             showMenu = true
                         }
                     )
-                }
+                })
         ) {
             // iOS: VStack(alignment: .trailing, spacing: 6) { attachments; text bubble }
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                // nanoMuse: the saved quote stays separate from the typed caption and media.
+                message.nmReplies.forEach { reply ->
+                    io.github.nanomuse.ui.chat.NmReplyQuote(reply, nmAgentName)
+                }
                 // Attachments ABOVE the text bubble, right-aligned FlowRow (iOS UserAttachmentList)
                 val hasAttachments = message.imageUris.isNotEmpty() || message.attachmentNames.isNotEmpty()
                 if (hasAttachments) {
@@ -425,16 +438,13 @@ internal fun UserMessageBubble(
                                 isStreaming = false,
                                 stableKey = "user:${message.id}",
                             ) {
-                                Text(
-                                    text = message.content,
-                                    color = textColor,
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.5.sp),
-                                    modifier = bubbleModifier
-                                        .background(bubbleBg, shape)
-                                        .clip(shape)
-                                        .then(dashedStroke)
-                                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                                )
+                                // nanoMuse: Select uses the same shard/handle system as assistant text.
+                                val textModifier = bubbleModifier.background(bubbleBg, shape).clip(shape)
+                                    .then(dashedStroke).padding(horizontal = 14.dp, vertical = 8.dp)
+                                val textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.5.sp)
+                                if (nmMenuEnabled) io.github.nanomuse.ui.chat.NmSelectableUserText(
+                                    message.id, message.content, textColor, textStyle, textModifier)
+                                else Text(message.content, color = textColor, style = textStyle, modifier = textModifier)
                             }
                         }
                         if (isQueued && onWithdraw != null) {
@@ -458,6 +468,9 @@ internal fun UserMessageBubble(
                         }
                     }
                 }
+                // nanoMuse: reaction pills align with the left edge of this right-aligned message.
+                if (nmMenuEnabled) io.github.nanomuse.ui.chat.NmMessageReactions(
+                    nmReactions, nmOnReaction, Modifier.align(Alignment.Start))
             }
 
             // Long-press context menu — anchored to the bubble itself.

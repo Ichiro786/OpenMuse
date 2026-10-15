@@ -1106,4 +1106,96 @@
     <string name="nm_models_search">Model ara</string>
     <string name="nm_models_search_clear">Aramayı temizle</string>
     <string name="nm_models_no_match">Eşleşen model yok</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Yanıt hazırlanıyor</string>
+    <string name="nm_reasoning_search">Web’de aranıyor</string>
+    <string name="nm_reasoning_code">Kod çalıştırılıyor</string>
+    <string name="nm_reasoning_read">Dosya okunuyor</string>
+    <string name="nm_reasoning_write">Dosya yazılıyor</string>
+    <string name="nm_reasoning_edit">Dosya düzenleniyor</string>
+    <string name="nm_reasoning_image">Görüntü inceleniyor</string>
+    <string name="nm_reasoning_memory_read">Bellek kontrol ediliyor</string>
+    <string name="nm_reasoning_memory_write">Belleğe kaydediliyor</string>
+    <string name="nm_reasoning_tool">Araç kullanılıyor</string>
+    <string name="nm_reasoning_failed">Başarısız</string>
+    <string name="nm_reasoning_timeout">Zaman aşımı</string>
+    <string name="nm_reasoning_stopped">Durduruldu</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Sorular</string>
+    <string name="nm_card_previous">Önceki</string>
+    <string name="nm_card_skip">Atla</string>
+    <string name="nm_card_next">Sonraki</string>
+    <string name="nm_card_other_answer">Yanıtınız</string>
+    <string name="nm_card_skipped">Atlandı</string>
+    <string name="nm_card_todos">Yapılacaklar</string>
+    <string name="nm_card_show_less">Daha az göster</string>
+    <string name="nm_card_more">%1$d tane daha</string>
+    <string name="nm_card_auto_approve">%1$d sn sonra otomatik onay</string>
+    <string name="nm_card_approved">Onaylandı</string>
+    <string name="nm_card_auto_paused">Otomatik onay duraklatıldı</string>
+    <string name="nm_card_view_plan">Planı görüntüle</string>
+    <string name="nm_card_approve">Onayla</string>
+    <string name="nm_card_answers">Sorularınıza yanıtlar</string>
+    <string name="nm_card_plan_reply">Bu planı onaylıyorum: %1$s</string>
+    <string name="nm_card_submitted">Yanıt gönderildi</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">İptal</string>
+    <string name="nm_voice_agent">Ajan</string>
+    <string name="nm_voice_start">Başlat</string>
+    <string name="nm_voice_skills">Beceriler</string>
+    <string name="nm_voice_no_skills">Henüz beceri yok</string>
+    <string name="nm_voice_skills_hint">Ayarlar → Beceriler bölümünden ekleyin.</string>
+    <string name="nm_voice_no_models">Ajan ses girişi için ayarlardan bir sohbet modeli ekleyin.</string>
+    <string name="nm_feed_instructions_title">Akış talimatları</string>
+    <string name="nm_feed_instructions_description">Akışınız aşağıdaki talimatlara göre hazırlanır. Bu istemdeki değişiklikler gelecekteki akış gönderilerine uygulanır.</string>
+    <string name="nm_feed_instructions_save">Kaydet</string>
+    <string name="nm_feed_like">Beğen</string>
+    <string name="nm_feed_dislike">Beğenme</string>
+    <string name="nm_feed_info_title">Bu gönderi hakkında</string>
+    <string name="nm_feed_sample_label">Önizleme</string>
+    <string name="nm_feed_sample_skills_title">Tekrarlanan işler için ajan becerileri</string>
+    <string name="nm_feed_sample_skills_body">Yeniden kullanılabilir talimatlar araştırma, yazma ve planlamayı tutarlı kılar. Her beceri rehberleri ve kaynakları bir araya getirerek tekrarlanan işleri doğru bağlamla başlatır.</string>
+    <string name="nm_feed_sample_voice_title">Düşünceleri anlatmak için dikte</string>
+    <string name="nm_feed_sample_voice_body">Doğal konuşun ve göndermeden önce dökümü inceleyin. Bu örnek, kısa yazıların ve tartışmaların kişisel akışınıza nasıl uyduğunu gösterir.</string>
+    <string name="nm_feed_schedule">Akış programı</string>
+    <string name="nm_feed_today_short">Bugün</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Yeni Sohbet</string>
+    <string name="nm_menu_open_terminal">Terminali Aç</string>
+    <string name="nm_menu_open_browser">Tarayıcıyı Aç</string>
+    <string name="nm_menu_chat_files">Sohbet Dosyalarına Göz At</string>
+    <string name="nm_menu_session_skills">Oturumdaki Beceriler</string>
+    <string name="nm_menu_session_mcps">Oturumdaki MCP\'ler</string>
+    <string name="nm_menu_session_memories">Oturumdaki Hafıza</string>
+    <string name="nm_menu_token_usage">Token Kullanımı</string>
+    <string name="nm_menu_auto_compact">Otomatik Sıkıştırma</string>
+    <string name="nm_menu_clear_chat">Sohbeti Temizle</string>
+    <string name="nm_menu_title">Sohbet menüsü</string>
+    <string name="nm_plus_photos">Fotoğraflar</string>
+    <string name="nm_plus_camera">Kamera</string>
+    <string name="nm_plus_files">Dosyalar</string>
+    <string name="nm_plus_label">Mesaja ekle</string>
+    <string name="nm_plus_close">Menüyü kapat</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d adım</item>
+        <item quantity="other">%1$d adım</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Adımları göster</string>
+    <string name="nm_reasoning_collapse">Adımları gizle</string>
+    <string name="nm_message_reply">Yanıtla</string>
+    <string name="nm_message_copy">Kopyala</string>
+    <string name="nm_message_select">Seç</string>
+    <string name="nm_message_copied">Kopyalandı</string>
+    <string name="nm_message_you">Siz</string>
+    <string name="nm_replying_to">%1$s kişisine yanıt</string>
+    <string name="nm_reply_cancel">Yanıtı iptal et</string>
+    <string name="nm_reaction_more">Daha fazla tepki</string>
+    <string name="nm_reaction_toggle">%1$s tepkisini değiştir (%2$d)</string>
+    <string name="nm_reply_quote">%1$s kişisine yanıt</string>
 </resources>

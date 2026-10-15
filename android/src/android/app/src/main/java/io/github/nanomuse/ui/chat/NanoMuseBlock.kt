@@ -44,6 +44,8 @@ import org.json.JSONObject
  */
 @Composable
 fun NanoMuseBlock(language: String, code: String) {
+    // nanoMuse: native interactive question/plan attachments share the existing fence renderer.
+    if (NmAgentCardAttachment(language, code)) return
     val json = remember(code) { runCatching { JSONObject(code.trim()) }.getOrNull() }
     when {
         language == GoalFlow.BLOCK_GOAL && json != null -> GoalCreatedCard(json)

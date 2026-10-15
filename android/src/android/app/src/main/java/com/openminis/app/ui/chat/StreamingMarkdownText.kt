@@ -176,6 +176,9 @@ private fun ShardSubIndexScope(content: @Composable () -> Unit) {
 private fun currentSelectionHighlightColor(): Color {
     // Match Android's default textSelectHandle tint at ~30% alpha so it
     // visually overlays without obscuring the glyphs underneath.
+    // nanoMuse: selection in the new monochrome response renderer stays neutral.
+    val nm = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+    if (nm != null) return nm.ink.copy(alpha = 0.2f)
     val accent = androidx.compose.material3.MaterialTheme.colorScheme.primary
     return accent.copy(alpha = 0.28f)
 }
@@ -198,6 +201,15 @@ private data class MdColors(
 @androidx.compose.runtime.ReadOnlyComposable
 private fun currentMdColors(): MdColors {
     val c = com.openminis.app.ui.theme.LocalChatPalette.current
+    // nanoMuse: response foregrounds and their supporting surfaces remain monochrome.
+    val nm = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+    if (nm != null) return MdColors(
+        text = nm.ink, codeText = nm.ink, codeBg = nm.ink.copy(alpha = 0.06f),
+        inlineCodeText = nm.ink, inlineCodeBg = nm.ink.copy(alpha = 0.08f),
+        link = nm.ink, blockquote = nm.ink.copy(alpha = 0.6f),
+        divider = nm.ink.copy(alpha = 0.18f), tableBorder = nm.ink.copy(alpha = 0.2f),
+        tableHeaderBg = nm.ink.copy(alpha = 0.06f),
+    )
     return MdColors(
         text = c.primaryText,
         codeText = c.codeBlockText,
@@ -339,7 +351,9 @@ private fun MdText(
     // overlay a fade-in alpha on each freshly-appended word range. Off by
     // default (LocalAppendOnlyFade=false) so cold-loaded history and
     // completed messages render fully opaque without per-frame work.
-    val fadeEnabled = LocalAppendOnlyFade.current
+    // nanoMuse: word reveal and shimmer operate after parsing, preserving all annotations.
+    val nmText = io.github.nanomuse.ui.chat.rememberNmStreamingText(text, layoutResult)
+    val fadeEnabled = LocalAppendOnlyFade.current && nmText == null
     val fadeController = if (fadeEnabled) rememberFadeController() else null
     if (fadeController != null) {
         // Ingest synchronously during composition (not in a LaunchedEffect):
@@ -355,7 +369,7 @@ private fun MdText(
     // frame, so this expression re-runs (recomposing only THIS MdText) on
     // every animation frame. When no ranges are active overlay() returns the
     // base text unchanged.
-    val effectiveText = fadeController?.overlay(text, color) ?: text
+    val effectiveText = nmText ?: fadeController?.overlay(text, color) ?: text // nanoMuse: foreground only
     val tapModifier = if (hasUrlAnnotation || hasInlineCodeAnnotation) {
         Modifier.pointerInput(text) {
             detectTapGestures { pos ->
@@ -597,9 +611,9 @@ private fun StreamingMarkdownTextBody(
                 if (isStreaming && idx == lastIdx) {
                     androidx.compose.runtime.CompositionLocalProvider(
                         LocalAppendOnlyFade provides true,
-                    ) { RenderBlock(block) }
+                    ) { RenderBlock(block, isLastBlock = true) } // nanoMuse: keep one bottom inset.
                 } else {
-                    RenderBlock(block)
+                    RenderBlock(block, isLastBlock = idx == lastIdx) // nanoMuse: final paragraph only.
                 }
             }
         }
@@ -888,7 +902,10 @@ private fun MarkdownBlockBody(
         // rows) stay synchronous and flicker-free.
         if (cached != null) {
             Column(modifier = modifier) {
-                cached.forEach { RenderBlock(it) }
+                // nanoMuse: paragraph spacing stays internal to the bubble's outer insets.
+                cached.forEachIndexed { index, block ->
+                    RenderBlock(block, isLastBlock = index == cached.lastIndex)
+                }
             }
             return
         }
@@ -921,7 +938,10 @@ private fun MarkdownBlockBody(
                     color = currentMdColors().text,
                 )
             } else {
-                blocks.forEach { RenderBlock(it) }
+                // nanoMuse: remove only the final paragraph's extra bottom spacer.
+                blocks.forEachIndexed { index, block ->
+                    RenderBlock(block, isLastBlock = index == blocks.lastIndex)
+                }
             }
         }
         return
@@ -1030,9 +1050,9 @@ private fun MarkdownBlockBody(
                 androidx.compose.runtime.CompositionLocalProvider(
                     LocalAppendOnlyFade provides true,
                     LocalLiveIncremental provides true,
-                ) { RenderBlock(block) }
+                ) { RenderBlock(block, isLastBlock = true) } // nanoMuse: keep one bottom inset.
             } else {
-                RenderBlock(block)
+                RenderBlock(block) // nanoMuse: internal paragraph spacing stays unchanged.
             }
         }
     }
@@ -1656,7 +1676,7 @@ private fun parseTable(lines: List<String>): Pair<List<String>, List<List<String
 // ─── Block renderers ────────────────────────────────────────────────────────
 
 @Composable
-private fun RenderBlock(block: MdBlock) {
+private fun RenderBlock(block: MdBlock, isLastBlock: Boolean = false) { // nanoMuse: outer inset ownership.
     val colors = currentMdColors()
     // [T-android-streaming-incremental-inline] The live streaming tail block
     // re-parses its growing paragraph every throttle tick; route it through the
@@ -1671,7 +1691,10 @@ private fun RenderBlock(block: MdBlock) {
                 fontSize = BaseFontSize,
                 lineHeight = BaseLineHeight,
                 color = colors.text,
-                modifier = Modifier.padding(bottom = 4.dp),
+                // nanoMuse: the bubble already owns its final 16dp bottom inset.
+                modifier = Modifier.padding(bottom = if (isLastBlock &&
+                    io.github.nanomuse.ui.chat.LocalNmAssistantBubbleLastSegment.current
+                ) 0.dp else 4.dp),
                 inlineContent = rememberKatexInlineContent(
                     BaseFontSize,
                     if (liveIncremental) MarkdownParseCaches.mathLatexIncremental(block.raw)
@@ -1704,6 +1727,14 @@ private fun RenderBlock(block: MdBlock) {
             io.github.nanomuse.ui.chat.NanoMuseBlock(block.language, block.code)
         } else {
             val clipboardManager = LocalClipboardManager.current
+            // nanoMuse: code keeps its scroll/copy controls while its foreground streams.
+            val nmPresentation = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+            var nmCodeLayout by remember { // nanoMuse: use glyph-line geometry, not the code frame.
+                mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+            }
+            val nmCodeText = io.github.nanomuse.ui.chat.rememberNmStreamingText(
+                AnnotatedString(block.code), nmCodeLayout,
+            )
             var copied by remember { mutableStateOf(false) }
             if (copied) {
                 LaunchedEffect(Unit) {
@@ -1728,13 +1759,15 @@ private fun RenderBlock(block: MdBlock) {
                     Text(
                         text = block.language.ifEmpty { "code" },
                         fontSize = 11.sp,
-                        color = MdCodeLangColor,
+                        color = nmPresentation?.ink?.copy(alpha = 0.5f) ?: MdCodeLangColor, // nanoMuse
                         modifier = Modifier.weight(1f),
                     )
                     Icon(
                         imageVector = if (copied) Icons.Default.Check else Icons.Default.ContentCopy,
                         contentDescription = if (copied) "Copied" else "Copy code",
-                        tint = if (copied) Color(0xFF34C759) else Color.White.copy(alpha = 0.4f),
+                        // nanoMuse: copied state uses the check glyph, without a color accent.
+                        tint = nmPresentation?.ink?.copy(alpha = if (copied) 0.8f else 0.4f)
+                            ?: if (copied) Color(0xFF34C759) else Color.White.copy(alpha = 0.4f),
                         modifier = Modifier
                             .size(16.dp)
                             .clickable {
@@ -1766,7 +1799,8 @@ private fun RenderBlock(block: MdBlock) {
                             .padding(horizontal = 12.dp, vertical = 4.dp),
                     ) {
                         Text(
-                            text = block.code,
+                            text = nmCodeText ?: AnnotatedString(block.code), // nanoMuse
+                            onTextLayout = { nmCodeLayout = it }, // nanoMuse: shader follows glyph-line edges
                             fontSize = BaseFontSize * 0.85f,
                             fontFamily = FontFamily.Monospace,
                             color = colors.codeText,
@@ -1783,7 +1817,9 @@ private fun RenderBlock(block: MdBlock) {
             // refuses intrinsic measurement on those. Draw the orange rule
             // directly behind a single Column so layout never queries
             // intrinsics.
-            val barColor = Color(0xFFFF9500)
+            // nanoMuse: match quote rules to the monochrome response foreground.
+            val barColor = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current
+                ?.ink?.copy(alpha = 0.4f) ?: Color(0xFFFF9500)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1842,6 +1878,8 @@ private fun RenderBlock(block: MdBlock) {
         }
 
         is MdBlock.TaskList -> {
+            // nanoMuse: checked boxes need a contrasting monochrome checkmark.
+            val nmTaskInk = io.github.nanomuse.ui.chat.LocalNmStreamingPresentation.current?.ink
             Column(modifier = Modifier.padding(bottom = 8.dp)) {
                 block.items.forEach { item ->
                     Row(
@@ -1852,9 +1890,11 @@ private fun RenderBlock(block: MdBlock) {
                             checked = item.checked,
                             onCheckedChange = null,
                             modifier = Modifier.size(20.dp),
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = colors.link,
-                            ),
+                            colors = if (nmTaskInk != null) CheckboxDefaults.colors(
+                                checkedColor = nmTaskInk,
+                                uncheckedColor = nmTaskInk.copy(alpha = 0.5f),
+                                checkmarkColor = if (nmTaskInk == Color.White) Color.Black else Color.White,
+                            ) else CheckboxDefaults.colors(checkedColor = colors.link),
                         )
                         Spacer(Modifier.width(6.dp))
                         MdText(

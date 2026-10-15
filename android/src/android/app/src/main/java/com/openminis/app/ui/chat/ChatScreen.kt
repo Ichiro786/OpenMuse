@@ -1,5 +1,9 @@
 package com.openminis.app.ui.chat
 
+// nanoMuse: the voice toolbar's adaptive controls.
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.TextButton
+
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
@@ -190,6 +194,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import dev.chrisbanes.haze.hazeSource // nanoMuse: menu placement/blur.
+import androidx.compose.runtime.key // nanoMuse: retain each reasoning step's composition identity.
+import io.github.nanomuse.ui.chat.* // nanoMuse: message actions, reply metadata and reasoning projection.
+import io.github.nanomuse.ui.chat.nmPlusOutsideTap // nanoMuse: menu placement/blur.
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
@@ -568,6 +576,16 @@ fun ChatScreen(
     val messages by viewModel.uiMessages.collectAsState()
     val hasOlderMessages by viewModel.hasOlderMessages.collectAsState()
     val isStreaming by viewModel.isStreaming.collectAsState()
+    // nanoMuse: interaction state belongs to the conversation, independent of recycled rows.
+    val nmReplyingTo by viewModel.replyingTo.collectAsState()
+    val nmReactions by viewModel.reactionsById.collectAsState()
+    val nmReasoningExpanded by viewModel.reasoningExpandedIds.collectAsState()
+    val nmThinkingLevel by viewModel.thinkingLevel.collectAsState() // nanoMuse: restored thinking uses the current visibility setting.
+    val nmSoul by com.openminis.app.agent.SoulStore.cachedMetadata.collectAsState()
+    val nmAgentName = nmSoul.name.trim().ifEmpty { stringResource(R.string.app_name) }
+    var nmMenuSelection by remember(sessionId) { mutableStateOf<TextPosition?>(null) } // nanoMuse: capture selection before popup focus changes layout.
+    var nmMessageMenu by remember(sessionId) { mutableStateOf<NmMessageMenuTarget?>(null) }
+    val nmCardsBusy by viewModel.isCompacting.collectAsState() // nanoMuse: card replies wait for compaction.
     // nanoMuse: the screen stays on while the agent drives the browser or another app's screen.
     io.github.nanomuse.status.KeepAwake.Effect(isStreaming)
     val canResume by viewModel.canResume.collectAsState()
@@ -905,6 +923,11 @@ fun ChatScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var showModelPicker by remember { mutableStateOf(false) }
+    var nmVoiceCaptureToken by remember { mutableStateOf(0) } // nanoMuse: footer capture requests.
+    var nmVoiceSkillsOpen by remember { mutableStateOf(false) } // nanoMuse
+    var nmAgentVoiceOpen by remember { mutableStateOf(false) } // nanoMuse
+    var nmInlineVoiceHeight by remember { mutableStateOf(72.dp) } // nanoMuse: retain the background footer's measured size.
+    val nmVoiceDensity = LocalDensity.current
     // [T-android-modelpicker-stuck-ripple] Interaction source for the navbar
     // model-picker row, owned here so the press can be drained when the picker
     // closes. See the clickable's comment for why the release never arrives on
@@ -940,7 +963,12 @@ fun ChatScreen(
     // (opened by tapping the navbar thinking badge) is presented. Mirrors iOS
     // AIChatView.showThinkingLevelSheet.
     var showThinkingLevelSheet by remember { mutableStateOf(false) }
-    var showAttachMenu by remember { mutableStateOf(false) }
+    // nanoMuse: same-window menu state keeps the current editor and IME focus.
+    val nmPlusState = remember(sessionId) { io.github.nanomuse.ui.chat.NmPlusMenuState() }
+    val nmPlusBlur = io.github.nanomuse.ui.chat.rememberNmMenuBlur(nmPlusState.present)
+    val nmPlusHaze = dev.chrisbanes.haze.rememberHazeState(blurEnabled = nmPlusBlur)
+    val nmPlusRotation by androidx.compose.animation.core.animateFloatAsState(
+        if (nmPlusState.expanded) 45f else 0f, tween(200), label = "nmPlusRotation")
     var showChatMenu by remember { mutableStateOf(false) }
     var showSkillsSheet by remember { mutableStateOf(false) }
     // [T-mcp-integration-android] MCPs-in-Session sheet visibility.
@@ -973,6 +1001,14 @@ fun ChatScreen(
         if (clearChatRequested) {
             showClearChatDialog = true
             viewModel.ackClearChatConfirmRequest()
+        }
+    }
+
+    // nanoMuse: clearing moved to a drawer long-press and still requires the existing confirmation.
+    LaunchedEffect(nmHome?.clearChatRequested) {
+        if (nmHome?.clearChatRequested == true) {
+            showClearChatDialog = true
+            nmHome.onClearChatRequestHandled()
         }
     }
 
@@ -2965,7 +3001,7 @@ fun ChatScreen(
                         io.github.nanomuse.ui.home.MuseRoundButton(
                             icon = Icons.Filled.Menu,
                             contentDescription = stringResource(R.string.nm_open_drawer),
-                            onClick = nmHome.onOpenDrawer,
+                            onClick = { nmPlusState.close(); nmHome.onOpenDrawer() }, // nanoMuse: header navigation dismisses the plus menu.
                             modifier = Modifier.padding(start = 12.dp),
                         )
                     } else
@@ -3054,299 +3090,43 @@ fun ChatScreen(
                             io.github.nanomuse.ui.home.MuseRoundButton(
                                 icon = Icons.Filled.MoreHoriz,
                                 contentDescription = stringResource(R.string.nm_more),
-                                onClick = { showChatMenu = true },
+                                onClick = { nmPlusState.close(); showChatMenu = true },
                                 modifier = Modifier.padding(end = 12.dp),
                             )
                         } else
-                        IconButton(onClick = { showChatMenu = true }) {
+                        IconButton(onClick = { nmPlusState.close(); showChatMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
                         }
-                        MinisMenu(
-                            expanded = showChatMenu,
-                            onDismissRequest = { showChatMenu = false },
-                        ) {
-                            // [T-android-memory-enabled-minisconfig] Gate the
-                            // "Memories in Session" item below on the session's
-                            // live memoryEnabled — when memory is off the entry
-                            // disappears, consistent with the per-session gating
-                            // of the memory_get / memory_write tools and the
-                            // system-prompt injection.
-                            val menuMemoryEnabled by viewModel.memoryEnabled.collectAsState()
-                            // [T-new-chat-menu-entry] New Chat — first item
-                            // (iOS parity: square.and.pencil at the top of the
-                            // "..." menu). Streaming sessions confirm first.
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_new_chat)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    if (isStreaming) {
-                                        showNewChatStopDialog = true
-                                    } else {
-                                        onNewChat()
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Outlined.Forum, contentDescription = null)
-                                },
-                            )
-                            // nanoMuse: the top-bar pill now carries the agent's
-                            // name, so the session edit sheet (title / emoji)
-                            // moved here from the title tap.
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.nm_chat_menu_rename)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    coroutineScope.launch {
-                                        editingSession = viewModel.loadSessionEntity()
-                                    }
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Edit, contentDescription = null)
-                                },
-                            )
-                            // nanoMuse: with the model rows off the header, the
-                            // picker opens from here.
-                            if (nmHideModelRows) {
-                                DropdownMenuItem(
-                                    text = {
-                                        // the model answering right now, so the menu says what
-                                        // "Model" would change
-                                        Column {
-                                            Text(stringResource(R.string.nm_chat_menu_model))
-                                            if (modelName.isNotBlank()) {
-                                                Text(
-                                                    modelName,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                )
-                                            }
+                        // nanoMuse: broad grouped sheet replaces the long header dropdown.
+                        if (showChatMenu) {
+                            val memoryOn by viewModel.memoryEnabled.collectAsState()
+                            val compactOn by viewModel.autoCompactEnabled.collectAsState()
+                            io.github.nanomuse.ui.chat.NmChatOverflowMenu(
+                                modelName = modelName, autoCompact = compactOn,
+                                skillsAvailable = skillRepository != null, mcpsAvailable = mcpRepository != null,
+                                memoriesAvailable = memoryRepository != null && memoryOn,
+                                onDismiss = { showChatMenu = false },
+                                onAutoCompact = { viewModel.setAutoCompactEnabled(it) },
+                                onHiddenDebug = if (BuildConfig.DEBUG) ({
+                                    throw RuntimeException("Debug crash triggered by hidden menu gesture")
+                                }) else null,
+                                onAction = { action ->
+                                    when (action) {
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.NewChat ->
+                                            if (isStreaming) showNewChatStopDialog = true else onNewChat()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Rename -> coroutineScope.launch {
+                                            editingSession = viewModel.loadSessionEntity()
                                         }
-                                    },
-                                    onClick = {
-                                        showChatMenu = false
-                                        showModelPicker = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Outlined.Tune, contentDescription = null)
-                                    },
-                                )
-                            }
-                            MinisMenuDivider()
-                            // Clear Chat (iOS parity, red)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_clear_chat), color = MaterialTheme.colorScheme.error) },
-                                onClick = {
-                                    showChatMenu = false
-                                    showClearChatDialog = true
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                                },
-                            )
-                            MinisMenuDivider()
-                            // Open Terminal (iOS parity) — session-bound, starts in /var/minis
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_open_terminal)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    onOpenTerminal()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Terminal, contentDescription = null)
-                                },
-                            )
-                            // Open Browser (iOS parity)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_open_browser)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    viewModel.toggleBrowserSheet()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Language, contentDescription = null)
-                                },
-                            )
-                            // Browse Chat Files (iOS parity) — opens file browser at /var/minis
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_browse_chat_files)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    onBrowseChatFiles()
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Description, contentDescription = null)
-                                },
-                            )
-                            MinisMenuDivider()
-                            // Session Skills (iOS parity)
-                            if (skillRepository != null) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.session_skills_title)) },
-                                    onClick = {
-                                        showChatMenu = false
-                                        showSkillsSheet = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Build, contentDescription = null)
-                                    },
-                                )
-                            }
-                            // [T-mcp-integration-android] MCPs in Session, next to Skills.
-                            if (mcpRepository != null) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.session_mcps_title)) },
-                                    onClick = {
-                                        showChatMenu = false
-                                        showMcpsSheet = true
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Extension, contentDescription = null)
-                                    },
-                                )
-                            }
-                            // Session Memory (iOS parity)
-                            if (memoryRepository != null && menuMemoryEnabled) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.session_memory_title)) },
-                                    onClick = {
-                                        showChatMenu = false
-                                        viewModel.toggleMemorySheet()
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Psychology, contentDescription = null)
-                                    },
-                                )
-                            }
-                            MinisMenuDivider()
-                            // Token Usage (iOS parity)
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.settings_token_usage)) },
-                                onClick = {
-                                    showChatMenu = false
-                                    showTokenUsageSheet = true
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.DataUsage, contentDescription = null)
-                                },
-                            )
-                            // Enhanced Cache (iOS parity, commit 57aaf122):
-                            // 1-hour Anthropic cache TTL. Only shown for the
-                            // official Anthropic API (not relays / other
-                            // providers) — showEnhancedCacheToggle recomputes on
-                            // model/provider switch. First enable prompts a
-                            // one-time extra-billing confirmation.
-                            val showEnhancedCache by viewModel.showEnhancedCacheToggle.collectAsState()
-                            val enhancedCacheOn by viewModel.enhancedCacheEnabled.collectAsState()
-                            if (showEnhancedCache) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_menu_enhanced_cache)) },
-                                    onClick = {
-                                        if (enhancedCacheOn) {
-                                            viewModel.setEnhancedCacheEnabled(false)
-                                        } else if (viewModel.isEnhancedCacheConfirmed()) {
-                                            viewModel.setEnhancedCacheEnabled(true)
-                                        } else {
-                                            showChatMenu = false
-                                            showEnhancedCacheDialog = true
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Bolt, contentDescription = null)
-                                    },
-                                    trailingIcon = {
-                                        SettingsSwitch(
-                                            checked = enhancedCacheOn,
-                                            onCheckedChange = {
-                                                if (enhancedCacheOn) {
-                                                    viewModel.setEnhancedCacheEnabled(false)
-                                                } else if (viewModel.isEnhancedCacheConfirmed()) {
-                                                    viewModel.setEnhancedCacheEnabled(true)
-                                                } else {
-                                                    showChatMenu = false
-                                                    showEnhancedCacheDialog = true
-                                                }
-                                            },
-                                        )
-                                    },
-                                )
-                            }
-                            // [T-codex-fast-mode] Fast Mode (iOS parity,
-                            // fb671083 + 838ba929): shown when the active model
-                            // is a gpt-family model served through the
-                            // Responses path (useResponsesAPI instance or Codex
-                            // OAuth). App-level persisted toggle; while on, the
-                            // Responses body carries service_tier="priority"
-                            // (≈1.5x faster at 2x credit burn on the ChatGPT
-                            // subscription) and the nav model row shows a ⚡
-                            // badge. Sits next to Enhanced Cache — both are
-                            // model-invocation controls (iOS 09944220 grouping).
-                            val showFastMode by viewModel.showFastModeToggle.collectAsState()
-                            val fastModeOn by viewModel.fastModeEnabled.collectAsState()
-                            if (showFastMode) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_menu_fast_mode)) },
-                                    onClick = { viewModel.setFastModeEnabled(!fastModeOn) },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Bolt, contentDescription = null)
-                                    },
-                                    trailingIcon = {
-                                        SettingsSwitch(
-                                            checked = fastModeOn,
-                                            onCheckedChange = { viewModel.setFastModeEnabled(it) },
-                                        )
-                                    },
-                                )
-                            }
-                            // Auto Compact: app-level persisted toggle mirroring
-                            // iOS `autoCompactEnabled`. On → crossing the
-                            // compact threshold before a send compacts silently
-                            // and sends; off → the user is asked first. Lives
-                            // beside Fast Mode because both are model-invocation
-                            // controls the user flips mid-conversation.
-                            val autoCompactOn by viewModel.autoCompactEnabled.collectAsState()
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.chat_menu_auto_compact)) },
-                                onClick = { viewModel.setAutoCompactEnabled(!autoCompactOn) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Compress, contentDescription = null)
-                                },
-                                trailingIcon = {
-                                    SettingsSwitch(
-                                        checked = autoCompactOn,
-                                        onCheckedChange = { viewModel.setAutoCompactEnabled(it) },
-                                    )
-                                },
-                            )
-                            // T287: debug-only crash trigger so the user can verify
-                            // ACRA/native crash log generation (T283). Throws a
-                            // RuntimeException from the click handler — the
-                            // uncaught-exception handler catches it and writes
-                            // a crash-<stamp>.log under filesDir/logs/.
-                            if (BuildConfig.DEBUG) {
-                                MinisMenuDivider()
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            stringResource(R.string.debug_trigger_crash_menu),
-                                            color = MaterialTheme.colorScheme.error,
-                                        )
-                                    },
-                                    onClick = {
-                                        showChatMenu = false
-                                        throw RuntimeException(
-                                            "Debug crash triggered by user (T287)",
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.BugReport,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.error,
-                                        )
-                                    },
-                                )
-                            }
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Model -> showModelPicker = true
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Terminal -> onOpenTerminal()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Browser -> viewModel.toggleBrowserSheet()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Files -> onBrowseChatFiles()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Skills -> showSkillsSheet = true
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Mcps -> showMcpsSheet = true
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Memories -> viewModel.toggleMemorySheet()
+                                        io.github.nanomuse.ui.chat.NmChatMenuAction.Tokens -> showTokenUsageSheet = true
+                                    }
+                                })
                         }
                     }
                 },
@@ -3397,7 +3177,11 @@ fun ChatScreen(
                 // header itself is a scrim over the scrolling list.
                 .padding(bottom = padding.calculateBottomPadding())
                 .imePadding()
-                .onGloballyPositioned { chatPaneWidthPx = it.size.width },
+                .onGloballyPositioned {
+                    chatPaneWidthPx = it.size.width
+                    nmPlusState.rootPosition = it.positionInWindow()
+                }
+                .nmPlusOutsideTap(nmPlusState), // nanoMuse: no popup window steals keyboard focus.
         ) {
         // nanoMuse: merge live steps once so the footer and its reserve agree
         // on the same frame, including tools still in the streaming side channel.
@@ -3433,14 +3217,16 @@ fun ChatScreen(
             nmRecState == com.openminis.app.speech.RecognitionState.STARTING ||
             nmRecState == com.openminis.app.speech.RecognitionState.FINISHING
         val editingId by viewModel.editingMessageId.collectAsState()
+        // nanoMuse: fork chats use the reference's compact voice input; other layouts stay intact.
+        val nmReferenceVoice = nmHome != null && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive
         val nmPill = nmHome != null &&
             !com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive &&
             !nmRecording && editingId == null
         // nanoMuse: the surface and fade share the same reading width, insets
         // and corner radius, so no separate rectangle projects past the composer.
-        val nmComposerCorner = if (nmPill) 26.dp else 20.dp
+        val nmComposerCorner = if (nmPill || nmReferenceVoice) 26.dp else 20.dp
         val nmComposerShape = RoundedCornerShape(nmComposerCorner)
-        val nmComposerHorizontalInset = if (nmPill) 16.dp else 12.dp
+        val nmComposerHorizontalInset = if (nmPill || nmReferenceVoice) 16.dp else 12.dp
         val nmComposerTopPadding = 2.dp
         // nanoMuse: share the footer gap with the nav surround so no content peeks through.
         val nmComposerBottomPadding = io.github.nanomuse.ui.chat.NM_CHAT_COMPOSER_BOTTOM_GAP
@@ -3448,8 +3234,10 @@ fun ChatScreen(
         // nanoMuse: measure the whole footer before the list, while keeping the
         // list full-size behind the pill for Haze. No asynchronous height feedback.
         io.github.nanomuse.ui.chat.NmChatBottomLayout(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(
+                if (nmPlusState.present && nmPlusBlur) Modifier.hazeSource(nmPlusHaze) else Modifier), // nanoMuse: exclude the popup from its own backdrop.
             bottomInset = nmBottomOverlay,
+            focusFraction = nmHome?.voiceExpansion ?: 0f, // nanoMuse: cover the old nav area while voice is focused.
             content = { bottomChromeHeight ->
             // Dismiss keyboard when the USER scrolls the messages. Gated on
             // `isUserDragging` (a real finger drag) rather than
@@ -3532,7 +3320,7 @@ fun ChatScreen(
                 // frame's list while the next one computes. Keyed on `sessionId` so a
                 // chat-switch resets the cache; LaunchedEffect(messages) reruns the
                 // computation on every new emission.
-                var flatItems by remember(sessionId) {
+                var nmRawFlatItems by remember(sessionId) {
                     mutableStateOf<List<FlatChatItem>>(emptyList())
                 }
                 // [T-android-coldload-offmain-parse] Composition-snapshot
@@ -3621,7 +3409,7 @@ fun ChatScreen(
                             val frozenReused = splitIdx == frozenSplitIdx
                             if (!frozenReused) {
                                 val tBuildStart = System.nanoTime()
-                                val wasEmptyPre = flatItems.isEmpty()
+                                val wasEmptyPre = nmRawFlatItems.isEmpty()
                                 // [T-android-perf-logging] Mark the start of a
                                 // full (first / non-streaming) build so the
                                 // gap to buildFlatChatItems.firstBuild bounds
@@ -3656,7 +3444,7 @@ fun ChatScreen(
                                 // the newest (viewport-candidate) markdown
                                 // fragments off-main so the first frame's rows
                                 // compose as cache HITs. Deliberately launched
-                                // in PARALLEL with the flatItems publish, not
+                                // in PARALLEL with the nmRawFlatItems publish, not
                                 // before it — blocking the publish would add
                                 // the parse latency to time-to-first-frame,
                                 // the exact thing this task removes; rows the
@@ -3724,7 +3512,7 @@ fun ChatScreen(
                                     buildFlatChatItems(merged, null, fromIndex = splitIdx, seedKeys = frozenKeys, showSteps = nmShowSteps) // nanoMuse
                                 }
                             }
-                            flatItems = if (liveRows.isEmpty()) frozenRows else frozenRows + liveRows
+                            nmRawFlatItems = if (liveRows.isEmpty()) frozenRows else frozenRows + liveRows
                             com.openminis.app.diagnostics.StreamPerfMonitor.tick(
                                 flattenNanos = System.nanoTime() - tickStartNs,
                                 frozenReused = frozenReused,
@@ -3744,6 +3532,12 @@ fun ChatScreen(
                         }
                     }
                 }
+                // nanoMuse: one stable reasoning carrier animates its whole group at the answer edge.
+                val nmReasoning = remember(nmRawFlatItems, nmHome != null, nmThinkingLevel) {
+                    if (nmHome != null) nmReasoningPresentation(nmRawFlatItems, nmThinkingLevel.isEnabled)
+                    else NmReasoningPresentation(nmRawFlatItems, emptyMap())
+                }
+                val flatItems = nmReasoning.items
                 // T304: when a new tool-use item appears at the trailing
                 // edge (head of flatItems with reverseLayout=true), pin
                 // back to the bottom so the just-arrived tool card is
@@ -3880,6 +3674,22 @@ fun ChatScreen(
                 // scrolling back in re-registers the shard and the highlight
                 // redraws automatically.
                 val selectionController = remember { SelectionController() }
+                // nanoMuse: ordinary coordinate holders avoid recomposing every message on scroll.
+                val nmRowBounds = remember(sessionId) { mutableMapOf<String, androidx.compose.ui.layout.LayoutCoordinates>() }
+                // nanoMuse: one shared offset moves every virtual row of the touched message once.
+                val nmSwipeThreshold = with(LocalDensity.current) { 64.dp.toPx() }
+                val nmSwipeState = remember(sessionId, nmSwipeThreshold) { NmSwipeToReplyState(nmSwipeThreshold) }
+                fun nmReplyToMessage(id: String) {
+                    viewModel.nmReplyToMessage(id)
+                    try { inputFocusRequester.requestFocus() } catch (_: IllegalStateException) {}
+                    keyboardController?.show()
+                }
+                fun nmBubbleSwipe(messageId: String, rowKey: String): Modifier =
+                    if (nmHome == null) Modifier else Modifier.nmSwipeToReplyGesture(
+                        nmSwipeState, messageId, rowKey,
+                        enabled = selectionController.selection.value == null && nmMessageMenu == null && !nmPlusState.present,
+                        scope = coroutineScope, onReply = ::nmReplyToMessage)
+
                 // [T-android-selection-readaloud] Player backing the selection
                 // toolbar's "Read Aloud". Screen-scoped and independent of the
                 // voice panel's own player (that one only exists while voice
@@ -3973,6 +3783,102 @@ fun ChatScreen(
                 val perfFirstLayoutFired = remember(sessionId) { java.util.concurrent.atomic.AtomicBoolean(false) }
                 Box {
                 AlwaysStretchOverscrollBox { sharedEffect ->
+                // nanoMuse: one continuous answer surface, retaining virtual rows and selection shards.
+                val nmAnswerSegments = remember(flatItems, nmHome != null) {
+                    if (nmHome != null) io.github.nanomuse.ui.chat.nmBubbleSegments(flatItems) else emptyMap()
+                }
+                val nmReactionCarriers = remember(flatItems) {
+                    flatItems.mapNotNull { row ->
+                        val id = when (row) {
+                            is FlatChatItem.AssistantText -> row.messageId
+                            is FlatChatItem.AssistantMarkdownBlock -> row.messageId
+                            is FlatChatItem.AssistantLegacyContent -> row.messageId
+                            is FlatChatItem.AssistantToolUse -> row.messageId
+                            else -> null
+                        }
+                        id?.substringBefore('#')?.let { it to row.key }
+                    }.toMap().entries.associate { it.value to it.key }
+                }
+                // nanoMuse: expanded groups reuse the existing tool actions and thinking visibility.
+                @Composable
+                fun NmRenderReasoningStep(step: FlatChatItem) {
+                    when (step) {
+                            is FlatChatItem.AssistantThinking -> {
+                                // T300: hide Deep Thinking block when the user
+                                // currently has thinking turned off — even if
+                                // a forced-reasoning model (e.g. xAI Grok 4.x
+                                // via OpenRouter) still streams reasoning_-
+                                // content. Snapshot on the message wins so
+                                // toggling the level after a turn finishes
+                                // doesn't retro-hide an already-visible block;
+                                // legacy DB-restored messages (snapshot=null)
+                                // follow the chat's current level.
+                                val effectiveLevel = step.messageThinkingLevel
+                                    ?: viewModel.thinkingLevel.value
+                                if (effectiveLevel.isEnabled) {
+                                    // [T-android-thinking-auto-collapse] Use
+                                    // `isLastBlockOverall` (not `isLast` =
+                                    // last-thinking-only) so the block flips
+                                    // to !isStreaming the moment a sibling
+                                    // text/tool_use arrives — that's the
+                                    // edge ThinkingBlock's LaunchedEffect
+                                    // hooks for auto-collapse, matching iOS
+                                    // ThinkingBlockView semantics.
+                                    ThinkingBlock(
+                                        block = step.block,
+                                        isStreaming = step.isLastBlockOverall && step.messageIsStreaming,
+                                        isLast = step.isLast,
+                                    )
+                                }
+                            }
+                            is FlatChatItem.AssistantToolUse -> ToolCallPill(
+                                nmReasoning = nmHome != null, // nanoMuse: real progress steps
+                                block = step.block,
+                                allToolBlocks = step.allToolBlocks,
+                                onRetry = if (step.isLastCancelled && !isStreaming && !canResume) ({ safeMutate { viewModel.retryLast() } }) else null,
+                                // T14: route per-card stop to the global
+                                // cancelStream(). The button only renders
+                                // when the block is RUNNING/STREAMING — see
+                                // ToolCallPill `isRunning && onStop != null`
+                                // — so passing it unconditionally is safe.
+                                onStop = { viewModel.cancelStream() },
+                                onOpenTerminalWithCommand = onOpenTerminalWithCommand,
+                                // T261: route detail open through ViewModel so
+                                // the sheet is hoisted out of LazyColumn item
+                                // scope (otherwise the sheet snaps shut when
+                                // the pill scrolls off-screen and Compose
+                                // disposes the item).
+                                onOpenDetail = { viewModel.openToolDetail(it) },
+                                // [T-android-rerun-from-tool-block-position]
+                                // Re-run cuts at THIS tool_use block: keep the
+                                // blocks before it in the same turn, drop it +
+                                // everything after, then regenerate. The block
+                                // id (== tool_use id for a tool_use block) is
+                                // the stable anchor. Gated off while streaming
+                                // (mutating an in-flight turn corrupts agent
+                                // state, same rule as Retry on the user bubble).
+                                // safeMutate tears down the selection toolbar
+                                // before the truncation reshuffles the list.
+                                onRerunFromHere = if (!isStreaming) ({
+                                    coroutineScope.launch {
+                                        tracedScrollToItem("RERUN-FROM-TOOL", 0, 0)
+                                    }
+                                    safeMutate { viewModel.rerunFromToolBlock(step.messageId, step.block.id) }
+                                }) else null,
+                                onCopyDetails = {
+                                    val text = formatToolDetailsForClipboard(step.block)
+                                    val cb = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    cb.setPrimaryClip(android.content.ClipData.newPlainText("tool", text))
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        context.getString(R.string.tool_longpress_copied_toast),
+                                        android.widget.Toast.LENGTH_SHORT,
+                                    ).show()
+                                },
+                            )
+                        else -> Unit
+                    }
+                }
                 LazyColumn(
                     state = listState,
                     reverseLayout = true,
@@ -4036,6 +3942,41 @@ fun ChatScreen(
                             // the bottom edge reveals NEWER messages (lower
                             // index) rather than jumping backward.
                             reverseLayout = true,
+                            // nanoMuse: no competing pointer detector in each virtual Markdown row.
+                            onMessageLongPress = { point ->
+                                val entry = nmRowBounds.entries.firstOrNull { (_, coords) ->
+                                    coords.isAttached && androidx.compose.ui.geometry.Rect(coords.positionInWindow(),
+                                        androidx.compose.ui.geometry.Size(coords.size.width.toFloat(), coords.size.height.toFloat())).contains(point)
+                                }
+                                val row = flatItems.firstOrNull { it.key == entry?.key }
+                                val rowMessageId = when (row) {
+                                    is FlatChatItem.UserBubble -> row.message.id
+                                    is FlatChatItem.AssistantText -> row.messageId
+                                    is FlatChatItem.AssistantMarkdownBlock -> row.messageId
+                                    is FlatChatItem.AssistantLegacyContent -> row.messageId
+                                    else -> null
+                                }
+                                val id = rowMessageId?.substringBefore('#')
+                                val message = messages.firstOrNull { originalMessageId(it.id) == id }
+                                val coords = entry?.value
+                                if (nmHome != null && message != null && coords != null &&
+                                    selectionController.selection.value == null) {
+                                    // nanoMuse: offscreen parts of a tall bubble cannot anchor the menu.
+                                    val bounds = coords.boundsInWindow().intersect(
+                                        listRootCoords?.boundsInWindow() ?: coords.boundsInWindow())
+                                    val hit = selectionController.hitTestStrict(point)?.takeIf {
+                                        originalMessageId(it.shard.messageId) == id
+                                    } ?: selectionController.currentShards().values.firstOrNull {
+                                        originalMessageId(it.id.messageId) == id
+                                    }?.let { TextPosition(it.id, 0) }
+                                    nmMenuSelection = hit
+                                    nmPlusState.close()
+                                    nmMessageMenu = NmMessageMenuTarget(message.id,
+                                        if (message.role == "user") message.content.ifBlank { message.attachmentNames.joinToString(", ") }
+                                        else messageBounds.markdownFor(rowMessageId ?: message.id) ?: message.content, point, bounds)
+                                    true
+                                } else false
+                            },
                         )
                         // T29 dismiss-on-tap spy. Only active while the slash
                         // popup is showing. awaitFirstDown(requireUnconsumed=false,
@@ -4071,7 +4012,8 @@ fun ChatScreen(
                     // hits ~1300 px while listState still reports
                     // firstVisible=0, firstOffset=0 (logged as the "tool on
                     // screen but not pushed into view" repro on Pixel 4a).
-                    verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Bottom),
+                    // nanoMuse: joined answer rows have no list gap; other row spacing is explicit below.
+                    verticalArrangement = if (nmHome != null) Arrangement.Bottom else Arrangement.spacedBy(2.dp, Alignment.Bottom),
                     overscrollEffect = sharedEffect,
                 ) {
                     // T13 Resume banner — placed BEFORE items() so reverseLayout
@@ -4205,9 +4147,22 @@ fun ChatScreen(
                             }
                         }
                         val isNewestItem = item == flatItems.lastOrNull()
-                        Box(
+                        // nanoMuse: dispose stale row coordinates before a recycled item can be hit.
+                        DisposableEffect(item.key) { onDispose { nmRowBounds.remove(item.key) } }
+                        // nanoMuse: rich answer rows share one physical-right swipe and spring return.
+                        val nmSwipeMessageId = if (nmHome == null) null else when (item) {
+                            is FlatChatItem.UserBubble -> item.message.id
+                            is FlatChatItem.AssistantText -> item.messageId
+                            is FlatChatItem.AssistantMarkdownBlock -> item.messageId
+                            is FlatChatItem.AssistantLegacyContent -> item.messageId
+                            else -> null
+                        }
+                        NmSwipeToReplyRow(nmSwipeState, nmSwipeMessageId, item.key) {
+                        Column(
                             modifier = Modifier
                                 .alpha(rowAlpha)
+                                // nanoMuse: preserve the old gap only at a real message/card boundary.
+                                .padding(bottom = if (nmHome != null && io.github.nanomuse.ui.chat.nmBubbleBoundary(nmAnswerSegments[item.key])) 2.dp else 0.dp)
                                 .then(
                                     if (isNewestItem) {
                                         Modifier.onPlaced {
@@ -4252,17 +4207,27 @@ fun ChatScreen(
                                     },
                                 ),
                         ) {
-                        when (item) {
+                        val nmGroup = nmReasoning.groups[item.key]
+                        if (nmGroup != null) {
+                            NmReasoningSummary(nmGroup, nmGroup.messageId in nmReasoningExpanded,
+                                onToggle = { viewModel.nmToggleReasoning(nmGroup.messageId) }) {
+                                nmGroup.steps.forEach { step -> key(step.key) { NmRenderReasoningStep(step) } }
+                            }
+                        } else when (item) {
                             is FlatChatItem.UserBubble -> Column { // nanoMuse: a column, for the sync caption over the bubble
                                 // nanoMuse: "From Pixel 8" when the line was written on another device (C8)
                                 io.github.nanomuse.ui.chat.NmSyncCaption(item.message.id.substringBefore('#'), end = true)
-                                // User bubbles intentionally don't register
-                                // MinisTextKit shards — long-press on a user
-                                // bubble shows its own action menu (Copy /
-                                // Retry / Edit) instead of starting text
-                                // selection, matching iOS UX.
+                                // nanoMuse: the home menu enters selection explicitly; legacy
+                                // hosts retain the original user-message actions.
                                 UserMessageBubble(
                                 message = item.message,
+                                // nanoMuse: user bubbles share the screen-level menu.
+                                nmMenuEnabled = nmHome != null,
+                                nmSwipeModifier = nmBubbleSwipe(item.message.id, item.key), // nanoMuse: swipe the whole user bubble.
+                                nmOnBounds = { nmRowBounds[item.key] = it },
+                                nmReactions = nmReactions[originalMessageId(item.message.id)] ?: NmReactionState(),
+                                nmAgentName = nmAgentName,
+                                nmOnReaction = { viewModel.nmToggleReaction(item.message.id, it) },
                                 // [T-android-candidate-bubble-gap] extra top
                                 // gap when this bubble directly follows another
                                 // user bubble (back-to-back candidate sends).
@@ -4345,7 +4310,21 @@ fun ChatScreen(
                                 messageId = item.messageId,
                                 slotKey = "text:${item.block.id}",
                                 markdown = item.messageMarkdown,
-                            ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content) {
+                            ) { // nanoMuse: scope attachments to this message and the active session.
+                                io.github.nanomuse.ui.chat.NmAgentCardHost(
+                                    sessionId = sessionId,
+                                    messageId = item.messageId,
+                                    active = nmHome != null && !isStreaming && !nmCardsBusy && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    streaming = item.isStreaming,
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
+                                ) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }, modifier = nmBubbleSwipe(item.messageId, item.key)) {
+                                // nanoMuse: animate glyphs above the existing message background.
+                                io.github.nanomuse.ui.chat.NmStreamingText(
+                                    isStreaming = item.isStreaming,
+                                    revealWords = item.isStreaming,
+                                    enabled = nmHome != null,
+                                ) {
                                 // T-android-gc-storm-issue17: collapse oversized frozen
                                 // assistant text before feeding the markdown parser, which
                                 // is the GC-storm hotspot for legacy sessions.
@@ -4366,12 +4345,26 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } // nanoMuse: bubble
+                            } } } } // nanoMuse: bubble + streaming foreground + attachment host
                             is FlatChatItem.AssistantMarkdownBlock -> BoundsTrackedBlock(
                                 messageId = item.messageId,
                                 slotKey = "mdblock:${item.parentBlockId}:${item.blockIndex}",
                                 markdown = item.messageMarkdown,
-                            ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText) {
+                            ) { // nanoMuse: scope attachments to this message and the active session.
+                                io.github.nanomuse.ui.chat.NmAgentCardHost(
+                                    sessionId = sessionId,
+                                    messageId = item.messageId,
+                                    active = nmHome != null && !isStreaming && !nmCardsBusy && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    streaming = item.messageIsStreaming,
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
+                                ) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }, modifier = nmBubbleSwipe(item.messageId, item.key)) {
+                                // nanoMuse: animate glyphs above the existing message background.
+                                io.github.nanomuse.ui.chat.NmStreamingText(
+                                    isStreaming = item.messageIsStreaming,
+                                    revealWords = item.isStreaming,
+                                    enabled = nmHome != null,
+                                ) {
                                 LargeContentGuard(
                                     content = item.rawText,
                                     isStreaming = item.isStreaming,
@@ -4389,79 +4382,9 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } // nanoMuse: bubble
-                            is FlatChatItem.AssistantThinking -> {
-                                // T300: hide Deep Thinking block when the user
-                                // currently has thinking turned off — even if
-                                // a forced-reasoning model (e.g. xAI Grok 4.x
-                                // via OpenRouter) still streams reasoning_-
-                                // content. Snapshot on the message wins so
-                                // toggling the level after a turn finishes
-                                // doesn't retro-hide an already-visible block;
-                                // legacy DB-restored messages (snapshot=null)
-                                // follow the chat's current level.
-                                val effectiveLevel = item.messageThinkingLevel
-                                    ?: viewModel.thinkingLevel.value
-                                if (effectiveLevel.isEnabled) {
-                                    // [T-android-thinking-auto-collapse] Use
-                                    // `isLastBlockOverall` (not `isLast` =
-                                    // last-thinking-only) so the block flips
-                                    // to !isStreaming the moment a sibling
-                                    // text/tool_use arrives — that's the
-                                    // edge ThinkingBlock's LaunchedEffect
-                                    // hooks for auto-collapse, matching iOS
-                                    // ThinkingBlockView semantics.
-                                    ThinkingBlock(
-                                        block = item.block,
-                                        isStreaming = item.isLastBlockOverall && item.messageIsStreaming,
-                                        isLast = item.isLast,
-                                    )
-                                }
-                            }
-                            is FlatChatItem.AssistantToolUse -> ToolCallPill(
-                                block = item.block,
-                                allToolBlocks = item.allToolBlocks,
-                                onRetry = if (item.isLastCancelled && !isStreaming && !canResume) ({ safeMutate { viewModel.retryLast() } }) else null,
-                                // T14: route per-card stop to the global
-                                // cancelStream(). The button only renders
-                                // when the block is RUNNING/STREAMING — see
-                                // ToolCallPill `isRunning && onStop != null`
-                                // — so passing it unconditionally is safe.
-                                onStop = { viewModel.cancelStream() },
-                                onOpenTerminalWithCommand = onOpenTerminalWithCommand,
-                                // T261: route detail open through ViewModel so
-                                // the sheet is hoisted out of LazyColumn item
-                                // scope (otherwise the sheet snaps shut when
-                                // the pill scrolls off-screen and Compose
-                                // disposes the item).
-                                onOpenDetail = { viewModel.openToolDetail(it) },
-                                // [T-android-rerun-from-tool-block-position]
-                                // Re-run cuts at THIS tool_use block: keep the
-                                // blocks before it in the same turn, drop it +
-                                // everything after, then regenerate. The block
-                                // id (== tool_use id for a tool_use block) is
-                                // the stable anchor. Gated off while streaming
-                                // (mutating an in-flight turn corrupts agent
-                                // state, same rule as Retry on the user bubble).
-                                // safeMutate tears down the selection toolbar
-                                // before the truncation reshuffles the list.
-                                onRerunFromHere = if (!isStreaming) ({
-                                    coroutineScope.launch {
-                                        tracedScrollToItem("RERUN-FROM-TOOL", 0, 0)
-                                    }
-                                    safeMutate { viewModel.rerunFromToolBlock(item.messageId, item.block.id) }
-                                }) else null,
-                                onCopyDetails = {
-                                    val text = formatToolDetailsForClipboard(item.block)
-                                    val cb = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                    cb.setPrimaryClip(android.content.ClipData.newPlainText("tool", text))
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        context.getString(R.string.tool_longpress_copied_toast),
-                                        android.widget.Toast.LENGTH_SHORT,
-                                    ).show()
-                                },
-                            )
+                            } } } } // nanoMuse: bubble + streaming foreground + attachment host
+                            is FlatChatItem.AssistantThinking, is FlatChatItem.AssistantToolUse ->
+                                NmRenderReasoningStep(item)
                             is FlatChatItem.AssistantInfo -> FallbackInfoBlock(
                                 block = item.block,
                                 // Only the compact-divider info block should
@@ -4519,7 +4442,11 @@ fun ChatScreen(
                                     )
                                 }
                             }
-                            is FlatChatItem.AssistantTyping -> TypingIndicator()
+                            is FlatChatItem.AssistantTyping -> {
+                                // nanoMuse: the same calm dot grid before the first tool or token.
+                                if (nmHome != null && nmShowSteps) io.github.nanomuse.ui.chat.NmReasoningWorking()
+                                else TypingIndicator()
+                            }
                             // nanoMuse: a provider that could not be reached (or refused the
                             // region, or whose sign-in ran out) is a card, not the socket's text
                             is FlatChatItem.AssistantError -> io.github.nanomuse.ui.chat.NmProviderErrorOrBanner(
@@ -4546,7 +4473,21 @@ fun ChatScreen(
                                 messageId = item.messageId,
                                 slotKey = "legacy",
                                 markdown = item.messageMarkdown,
-                            ) { io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content) {
+                            ) { // nanoMuse: scope attachments to this message and the active session.
+                                io.github.nanomuse.ui.chat.NmAgentCardHost(
+                                    sessionId = sessionId,
+                                    messageId = item.messageId,
+                                    active = nmHome != null && !isStreaming && !nmCardsBusy && messages.lastOrNull()?.id == item.messageId.substringBefore('#'),
+                                    streaming = item.isStreaming,
+                                    onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
+                                ) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content, onBounds = { nmRowBounds[item.key] = it }, modifier = nmBubbleSwipe(item.messageId, item.key)) {
+                                // nanoMuse: animate glyphs above the existing message background.
+                                io.github.nanomuse.ui.chat.NmStreamingText(
+                                    isStreaming = item.isStreaming,
+                                    revealWords = item.isStreaming,
+                                    enabled = nmHome != null,
+                                ) {
                                 LargeContentGuard(
                                     content = item.content,
                                     isStreaming = item.isStreaming,
@@ -4564,9 +4505,16 @@ fun ChatScreen(
                                         ),
                                     )
                                 }
-                            } } // nanoMuse: bubble
+                            } } } } // nanoMuse: bubble + streaming foreground + attachment host
                         }
-                        } // Box (alpha wrapper)
+                        // nanoMuse: one reaction row follows the final visible piece of a message.
+                        val nmReactionId = nmReactionCarriers[item.key]
+                        if (nmHome != null && nmReactionId != null) NmMessageReactions(
+                            nmReactions[nmReactionId] ?: NmReactionState(),
+                            onToggle = { viewModel.nmToggleReaction(nmReactionId, it) })
+                        } // Column (alpha wrapper)
+                        } // nanoMuse: shared message swipe drawing.
+
                     }
                     // [T-android-larky-longsession-followup] "Load older
                     // messages" header — placed AFTER items() so under
@@ -4673,6 +4621,25 @@ fun ChatScreen(
                         },
                     ),
                 )
+                // nanoMuse: popup actions reuse clipboard and selection; reply leaves the draft intact.
+                nmMessageMenu?.let { target ->
+                    NmMessageLongPressMenu(target,
+                        onDismiss = { nmMessageMenu = null },
+                        onReact = { viewModel.nmToggleReaction(target.messageId, it) },
+                        onReply = { nmReplyToMessage(target.messageId) }, // nanoMuse: same draft-preserving reply path as swipe.
+                        onCopy = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("message", target.text))
+                            android.widget.Toast.makeText(context, R.string.nm_message_copied, android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        canSelect = nmMenuSelection != null,
+                        onSelect = {
+                            nmMenuSelection?.let { hit ->
+                                selectionController.selectionFromMouse.value = false
+                                selectionController.beginSelectionWord(hit)
+                            }
+                        })
+                }
                 // iOS-style selection handle dots, one at each endpoint.
                 MinisSelectionHandlesHost(
                     controller = selectionController,
@@ -5445,6 +5412,9 @@ fun ChatScreen(
                     }
                 }
 
+                // nanoMuse: reserve the animated reply preview above either composer mode.
+                if (nmHome != null) NmReplyPreview(nmReplyingTo, nmAgentName, viewModel::nmCancelReply)
+
                 // T185: Move-to-session capsule mirrors iOS
                 // AIChatView.swift:1816 (.overlay(alignment: .topTrailing))
                 // on the input card. We render it as the first child of the
@@ -5541,7 +5511,8 @@ fun ChatScreen(
                         }
                     },
                 ) {
-                Column(
+                // nanoMuse: the glow spans the full rounded composer, behind transcript and toolbar.
+                io.github.nanomuse.ui.chat.NmVoiceComposerFrame(active = nmReferenceVoice, monochrome = nmHome != null, animate = nmHome != null,
                     modifier = Modifier
                         .fillMaxWidth()
                         // nanoMuse: draw the shadow outside the shared rounded
@@ -5555,12 +5526,13 @@ fun ChatScreen(
                         )
                         .clip(nmComposerShape)
                         .background(
-                            if (nmPill) io.github.nanomuse.ui.home.MuseTones.bubble
+                            if (nmHome != null) io.github.nanomuse.ui.chat.NmComposerSurface
                             else ChatColors.inputBg,
                             shape = nmComposerShape,
                         )
-                        .padding(top = if (attachments.isNotEmpty()) 8.dp else if (nmPill) 0.dp else 4.dp), // nanoMuse: pill composer
+                        .padding(top = if (attachments.isNotEmpty()) 8.dp else if (nmHome != null) 0.dp else 4.dp), // nanoMuse: pill composer
                 ) {
+                Column(Modifier.fillMaxWidth()) {
                     // T185: Move-to capsule lives INSIDE the composer card,
                     // pinned 8dp from the top-right corner, mirroring iOS
                     // AIChatView.swift:1816 (.overlay(alignment: .topTrailing)
@@ -5939,6 +5911,7 @@ fun ChatScreen(
                         }
                         BasicTextField(
                             value = inputFieldValue,
+                            readOnly = nmReferenceVoice && nmRecording, // nanoMuse: ASR owns text until capture completes.
                             onValueChange = { tfv ->
                                 // T217-2: drop IME residue commits in 300ms post-send window.
                                 // finishComposingText (fired by clearFocus on send) makes
@@ -6272,11 +6245,12 @@ fun ChatScreen(
                                             label = "composerPlaceholder",
                                         ) { idx ->
                                             Text(
-                                                if (nmChoosingName) stringResource(R.string.nm_naming_placeholder)
+                                                if (nmReferenceVoice) stringResource(R.string.voice_panel_tip_tap_to_transcribe) // nanoMuse: same editor in voice mode.
+                                                else if (nmChoosingName) stringResource(R.string.nm_naming_placeholder)
                                                 // nanoMuse: Muse's pill says just "Message".
                                                 else if (nmPill) stringResource(R.string.nm_composer_placeholder)
                                                 else composerPlaceholderText(idx, soulName.name),
-                                                color = if (nmPill) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                color = if (nmHome != null) Color(0xFFAAAAAA) // nanoMuse: shared composer placeholder.
                                                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
                                                 fontSize = 16.5.sp * chatInputFontScale,
                                                 maxLines = 1,
@@ -6313,8 +6287,19 @@ fun ChatScreen(
                         )
                     }
                     } // nmTextField
+                    // nanoMuse: move this editor into the expanded surface rather than creating a second input.
+                    val nmSharedEditor = io.github.nanomuse.ui.chat.rememberNmComposerEditor(nmTextField)
                     if (com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
-                        com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
+                        // nanoMuse: exactly one speech panel owns capture while the dialog is open.
+                        if (nmAgentVoiceOpen) Spacer(Modifier.height(nmInlineVoiceHeight))
+                        else com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
+                            // nanoMuse: opening the dialog must not reflow the underlying conversation.
+                            modifier = Modifier.onGloballyPositioned {
+                                nmInlineVoiceHeight = with(nmVoiceDensity) { it.size.height.toDp() }
+                            },
+                            nmReferenceStyle = nmReferenceVoice, // nanoMuse: transcript above the reference toolbar.
+                            nmComposerEditor = if (nmReferenceVoice) ({ nmSharedEditor(Modifier.fillMaxWidth()) }) else null,
+                            toggleCaptureToken = nmVoiceCaptureToken,
                             providerRepository = providerRepository,
                             inputText = inputText,
                             onInputTextChange = { text ->
@@ -6357,7 +6342,7 @@ fun ChatScreen(
                                 )
                             }
                         }
-                    } else if (!nmPill) nmTextField(Modifier.fillMaxWidth())
+                    } else if (!nmPill) nmSharedEditor(Modifier.fillMaxWidth())
 
                     // Button row below text field (iOS layout: + / ... mic send)
                     // nanoMuse: in the pill this is THE row — "+", the field, mic/send.
@@ -6373,87 +6358,32 @@ fun ChatScreen(
                             ),
                         verticalAlignment = if (nmPill) Alignment.Bottom else Alignment.CenterVertically,
                     ) {
-                        // Left: + button (iOS: 34×34 circle, secondary bg)
-                        Box {
-                            InputCircleButton(
-                                onClick = { showAttachMenu = true },
-                                plain = nmPill, // nanoMuse: a bare glyph inside the pill
-                            ) {
-                                Icon(
-                                    Icons.Default.Add,
-                                    contentDescription = "Attach",
-                                    tint = if (nmPill) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(if (nmPill) 24.dp else 20.dp),
-                                )
-                            }
-                            MinisMenu(
-                                expanded = showAttachMenu,
-                                onDismissRequest = { showAttachMenu = false },
-                            ) {
-                                // nanoMuse: the "/" button has no seat in the pill,
-                                // so the slash commands open from here (typing "/"
-                                // still opens them inline).
-                                if (nmPill) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.nm_attach_commands)) },
-                                        leadingIcon = { Icon(Icons.Default.Terminal, contentDescription = null) },
-                                        onClick = {
-                                            showAttachMenu = false
-                                            viewModel.setInputText(viewModel.showSlashMenuOverInput(inputText))
-                                            try { inputFocusRequester.requestFocus() } catch (_: IllegalStateException) {}
-                                        },
-                                    )
-                                }
-                                // iOS parity: Take Photo / Choose Photos & Videos / Add File
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_attach_take_photo)) },
-                                    leadingIcon = { Icon(Icons.Default.CameraAlt, contentDescription = null) },
-                                    onClick = {
-                                        showAttachMenu = false
-                                        val granted = ContextCompat.checkSelfPermission(
-                                            context,
-                                            android.Manifest.permission.CAMERA,
-                                        ) == PackageManager.PERMISSION_GRANTED
-                                        if (granted) {
-                                            launchCamera()
-                                        } else {
-                                            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                                        }
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_attach_choose_photos_videos)) },
-                                    leadingIcon = { Icon(Icons.Default.PhotoLibrary, contentDescription = null) },
-                                    onClick = {
-                                        showAttachMenu = false
-                                        mediaPickerLauncher.launch(
-                                            androidx.activity.result.PickVisualMediaRequest(
-                                                ActivityResultContracts.PickVisualMedia.ImageAndVideo,
-                                            ),
-                                        )
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.chat_attach_add_file)) },
-                                    leadingIcon = { Icon(Icons.Default.Description, contentDescription = null) },
-                                    onClick = {
-                                        showAttachMenu = false
-                                        // OpenMultipleDocuments takes a mime-
-                                        // type array; "*/*" stays the wildcard.
-                                        filePickerLauncher.launch(arrayOf("*/*"))
-                                    },
-                                )
+                        // nanoMuse: preserve the current plus design; only its glyph rotates.
+                        Box(Modifier.onGloballyPositioned { nmPlusState.anchorBounds = it.boundsInWindow() }) {
+                            InputCircleButton(onClick = { nmPlusState.toggle() },
+                                plain = nmPill || nmReferenceVoice, fresh = nmHome != null) {
+                                Icon(Icons.Default.Add,
+                                    contentDescription = stringResource(if (nmPlusState.expanded) R.string.nm_plus_close else R.string.nm_plus_label),
+                                    tint = if (nmHome != null) Color(0xFFDDDDDD) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp).graphicsLayer { rotationZ = nmPlusRotation })
                             }
                         }
 
                         if (nmPill) {
-                            nmTextField(Modifier.weight(1f)) // nanoMuse: the field between the buttons
+                            nmSharedEditor(Modifier.weight(1f)) // nanoMuse: the same editor between the buttons.
                         } else {
+                        // nanoMuse: keep voice toolbar controls reachable at narrow widths and large text sizes.
+                        Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                         Spacer(modifier = Modifier.width(8.dp))
 
+                        // nanoMuse: Agent and Skills sit together; slash remains in the text-mode toolbar.
+                        if (!nmReferenceVoice) {
                         // Left: "/" slash command button (iOS: italic /, bold)
                         InputCircleButton(onClick = {
-                            if (viewModel.showSlashMenu.value) {
+                            // nanoMuse: the voice slash opens installed skills rather than an inert command control.
+                            if (nmHome != null && com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive) {
+                                nmVoiceSkillsOpen = true
+                            } else if (viewModel.showSlashMenu.value) {
                                 viewModel.setInputText(viewModel.dismissSlashMenu(inputText))
                             } else {
                                 viewModel.setInputText(viewModel.showSlashMenuOverInput(inputText))
@@ -6466,6 +6396,20 @@ fun ChatScreen(
                                 fontStyle = FontStyle.Italic,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                        }
+
+                        } // nanoMuse: text-mode slash
+                        if (nmReferenceVoice) {
+                            io.github.nanomuse.ui.chat.NmVoiceToolButton(stringResource(R.string.nm_voice_agent),
+                                onClick = {
+                                    com.openminis.app.speech.SpeechRecognitionManager.cancelRecording()
+                                    nmVoiceCaptureToken = 0
+                                    nmAgentVoiceOpen = true
+                                }, dropdown = true)
+                            Spacer(Modifier.width(6.dp))
+                            io.github.nanomuse.ui.chat.NmVoiceToolButton(stringResource(R.string.nm_voice_skills),
+                                onClick = { nmVoiceSkillsOpen = true })
+                            Spacer(Modifier.width(6.dp))
                         }
 
                         // T187: Exit Edit Mode pill, only while editingMessageId
@@ -6493,7 +6437,7 @@ fun ChatScreen(
                         }
 
                         Spacer(modifier = Modifier.weight(1f))
-                        } // nanoMuse: end of the two-row layout's left group
+                        } } // nanoMuse: end of the scrollable two-row layout's left group
 
                         // Right: Mic button — only renders when a speech engine
                         // is actually available on this device (handles the
@@ -6565,7 +6509,10 @@ fun ChatScreen(
                                     .clearDegradationAndRefresh()
                                 voiceUsedSinceClear = true
                                 com.openminis.app.ui.chat.voice.VoiceModePrefs.enteredFromText = true
+                                // nanoMuse: release the keyboard before the existing editor grows into voice mode.
+                                if (nmHome != null) { focusManager.clearFocus(force = true); keyboardController?.hide() }
                                 com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive = true
+                                if (nmHome != null) nmVoiceCaptureToken += 1 // nanoMuse: entering voice starts capture.
                             }
                         }
 
@@ -6658,6 +6605,8 @@ fun ChatScreen(
                             //    otherwise reserves the font's full ascent/descent
                             //    leading on top of the 6dp padding, making the pill
                             //    visibly taller than iOS's for the same numbers.
+                            // nanoMuse: keep playback effects active; the reference toolbar's toggle lives in Agent.
+                            if (!nmReferenceVoice) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center,
@@ -6717,6 +6666,7 @@ fun ChatScreen(
                                     color = if (ttsEnabled) MaterialTheme.colorScheme.primary else ChatColors.secondaryText,
                                 )
                             }
+                            } // nanoMuse: read-replies control, retained in the agent dialog.
                             // [T-android-streaming-readaloud] Speak the reply AS
                             // IT STREAMS. Previously this waited for isStreaming
                             // to flip false and then spoke the whole finished
@@ -6877,7 +6827,7 @@ fun ChatScreen(
                             // +59px on a 1080px screen). Matching weights on both
                             // sides centre it between the leading (+, /) and
                             // trailing (keyboard, mic/send) button groups.
-                            Spacer(modifier = Modifier.weight(1f))
+                            if (!nmReferenceVoice) Spacer(modifier = Modifier.weight(1f)) // nanoMuse: reserve width for Agent and Skills.
                         }
 
                         // [T-android-voice-entry-always-available] The voice /
@@ -6899,7 +6849,23 @@ fun ChatScreen(
                         // arrow once there is something to send (or a stop
                         // square while the agent answers), as on Muse.
                         val nmPillBusy = nmPill && (inputText.isNotBlank() || attachments.isNotEmpty() || isStreaming)
-                        if (com.openminis.app.speech.SpeechRecognitionManager.hasMicrophoneHardware && !nmPillBusy) {
+                        // nanoMuse: small mic/stop and close controls match the video, with the same capture owner.
+                        if (nmReferenceVoice) {
+                            io.github.nanomuse.ui.chat.NmVoiceInputCore(40.dp,
+                                isRecording = recSttState == com.openminis.app.speech.RecognitionState.RECORDING ||
+                                    recSttState == com.openminis.app.speech.RecognitionState.STARTING,
+                                isTranscribing = recSttState == com.openminis.app.speech.RecognitionState.FINISHING,
+                                levels = emptyList(), enabled = !nmAgentVoiceOpen,
+                                onTap = { nmVoiceCaptureToken += 1 })
+                            Spacer(Modifier.width(6.dp))
+                            if (recIsRecording || (!isStreaming && inputText.isBlank() && attachments.isEmpty()))
+                            io.github.nanomuse.ui.chat.NmVoiceRoundButton(Icons.Default.Close,
+                                stringResource(R.string.voice_panel_cancel_transcription), onClick = {
+                                    com.openminis.app.speech.SpeechRecognitionManager.cancelRecording()
+                                    nmVoiceCaptureToken = 0
+                                    triggerVoiceInput()
+                                })
+                        } else if (com.openminis.app.speech.SpeechRecognitionManager.hasMicrophoneHardware && !nmPillBusy) {
                             MicButton(
                                 isRecording = !com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive &&
                                     (sttState == com.openminis.app.speech.RecognitionState.RECORDING ||
@@ -6908,12 +6874,13 @@ fun ChatScreen(
                                 onClick = { triggerVoiceInput() },
                                 onLongClick = { showLangSheet = true },
                                 isVoiceActive = com.openminis.app.ui.chat.voice.VoiceModePrefs.isVoiceActive,
-                                plain = nmPill, // nanoMuse
+                                plain = nmPill,
+                                fresh = nmHome != null, // nanoMuse: match the expanded voice mic control.
                             )
                         }
 
-                        if (!nmPill) Spacer(modifier = Modifier.width(8.dp))
-                        if (!nmPill || nmPillBusy) { // nanoMuse: the pill shows send/stop only when there is something to do
+                        if (!nmPill && !nmReferenceVoice) Spacer(modifier = Modifier.width(8.dp))
+                        if ((!nmPill || nmPillBusy) && (!nmReferenceVoice || (!recIsRecording && (isStreaming || inputText.isNotBlank() || attachments.isNotEmpty())))) { // nanoMuse: the pill shows send/stop only when there is something to do
 
                         // Right: 3-state Send / Enqueue / Stop button (mirrors iOS sendButton).
                         //   • streaming + hasText  → SEND (routes through viewModel.sendMessage,
@@ -6935,7 +6902,7 @@ fun ChatScreen(
                             Box(
                                 modifier = Modifier
                                     .size(38.dp)
-                                    .background(Color(0xFFFF3B30), CircleShape)
+                                    .background(if (nmHome != null) Color.White else Color(0xFFFF3B30), CircleShape) // nanoMuse: monochrome voice stop.
                                     .clip(CircleShape)
                                     .clickable { viewModel.cancelStream() },
                                 contentAlignment = Alignment.Center,
@@ -6943,7 +6910,7 @@ fun ChatScreen(
                                 Icon(
                                     Icons.Default.Stop,
                                     contentDescription = "Stop",
-                                    tint = Color.White,
+                                    tint = if (nmHome != null) Color.Black else Color.White, // nanoMuse: shared neutral stop contrast.
                                     modifier = Modifier.size(20.dp),
                                 )
                             }
@@ -6953,7 +6920,7 @@ fun ChatScreen(
                             val canActivate = hasContent
                             // nanoMuse: monochrome send — white disc, black arrow in
                             // dark theme, inverted in light. No more blue accent.
-                            val nmSendDark = ChatColors.isDark
+                            val nmSendDark = nmReferenceVoice || ChatColors.isDark // nanoMuse: voice stays monochrome on its dark surface.
                             val nmSendBg = if (canActivate) {
                                 if (nmSendDark) Color.White else Color.Black
                             } else {
@@ -6997,6 +6964,7 @@ fun ChatScreen(
                     }
                 }
             }
+                } // nanoMuse: full composer glow frame
                 // --- Swipe-to-send floating hint (extracted helper) ---
                 SwipeToSendHint(
                     progress = sendSwipeProgress,
@@ -7073,7 +7041,7 @@ fun ChatScreen(
             if (showClearChatDialog) {
                 MinisAlertDialog(
                     onDismissRequest = { showClearChatDialog = false },
-                    title = stringResource(R.string.chat_menu_clear_chat),
+                    title = stringResource(R.string.nm_menu_clear_chat),
                     text = stringResource(R.string.chat_clear_dialog_body),
                     confirmText = stringResource(R.string.chat_clear_dialog_confirm),
                     isDestructive = true,
@@ -7145,6 +7113,21 @@ fun ChatScreen(
             }
             },
         )
+        // nanoMuse: overlay after the backdrop/footer, anchored in this IME-adjusted chat viewport.
+        io.github.nanomuse.ui.chat.NmPlusMenu(nmPlusState, nmPlusHaze, nmPlusBlur,
+            modifier = Modifier.matchParentSize(), onAction = { action ->
+                when (action) {
+                    io.github.nanomuse.ui.chat.NmPlusAction.Photos -> mediaPickerLauncher.launch(
+                        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    io.github.nanomuse.ui.chat.NmPlusAction.Camera -> {
+                        val granted = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                        if (granted) launchCamera() else cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    }
+                    io.github.nanomuse.ui.chat.NmPlusAction.Files -> filePickerLauncher.launch(arrayOf("*/*"))
+                    io.github.nanomuse.ui.chat.NmPlusAction.Skills -> nmVoiceSkillsOpen = true
+                }
+            })
+
         // Top gradient fade: messages fade into the Scaffold background.
         Box(
             modifier = Modifier
@@ -7188,6 +7171,49 @@ fun ChatScreen(
             onRevokeRecord = { record -> viewModel.revokeMemoryRecord(record) },
             onSaveRecord = { record, newContent -> viewModel.replaceMemoryRecord(record, newContent) },
         )
+    }
+
+    // nanoMuse: voice skills and agent setup reuse the current session and speech pipeline.
+    if (nmVoiceSkillsOpen) {
+        val skills = if (skillRepository != null) {
+            val installed by skillRepository.skills.collectAsState()
+            installed.filter { it.isEnabled && skillRepository.isEnabledForSession(it.id, sessionId) }.sortedBy { it.name.lowercase() }
+        } else emptyList()
+        io.github.nanomuse.ui.chat.NmVoiceSkillsSheet(skills,
+            onSelect = { skill ->
+                val text = io.github.nanomuse.ui.chat.nmInsertVoiceSkill(inputText, skill.name, skills.map { it.name })
+                viewModel.dismissSlashMenu(inputText)
+                viewModel.setInputText(text)
+                nmVoiceSkillsOpen = false
+            }, onDismiss = { nmVoiceSkillsOpen = false })
+    }
+    if (nmAgentVoiceOpen) {
+        val config by providerRepository.config.collectAsState()
+        val active by viewModel.activeEntryId.collectAsState()
+        val choices = config.modelEntries.filter { entry ->
+            val instance = config.instances.firstOrNull { it.id == entry.providerInstanceId }
+            val output = entry.model.outputModalities.orEmpty().map { it.lowercase() }
+            instance != null && instance.isEnabled && providerRepository.hasAnyCredential(instance) &&
+                (output.isEmpty() || "text" in output)
+        }.map { entry ->
+            io.github.nanomuse.ui.chat.NmVoiceModel(entry.id, entry.model.displayName,
+                config.instances.firstOrNull { it.id == entry.providerInstanceId }?.label.orEmpty())
+        }
+        io.github.nanomuse.ui.chat.NmAgentVoiceDialog(choices, active, inputText,
+            busy = isStreaming || nmCardsBusy,
+            onStart = { id ->
+                if (viewModel.isStreaming.value || viewModel.isCompacting.value) false
+                else { viewModel.selectEntry(id); viewModel.activeEntryId.value == id }
+            }, onDismiss = { nmAgentVoiceOpen = false }, voiceContent = { token, requestCapture ->
+                com.openminis.app.ui.chat.voice.InlineVoiceInputPanel(
+                    providerRepository = providerRepository, inputText = inputText,
+                    onInputTextChange = { text -> viewModel.setInputText(text) },
+                    ensureMicPermission = { ensureMicPermissionFlow() },
+                    startCaptureToken = token, onRequestCapture = requestCapture,
+                    conversationContextProvider = {
+                        com.openminis.app.speech.correction.VoiceCorrection.buildConversationContext(context, viewModel.messages.value)
+                    })
+            })
     }
 
     // Session Skills bottom sheet

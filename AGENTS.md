@@ -46,7 +46,7 @@ node scripts/providers-json.mjs --check         # the clients' copies of the pro
 # Desktop shell (harness/desktop/)
 cd harness/desktop && npm ci && npm run typecheck && npm test
 
-# Android (android/src/android); JDK 21, NDK r27c; natives first: bash scripts/android/build-natives.sh
+# Android (android/src/android); JDK 21, NDK r30; natives first: bash scripts/android/build-natives.sh
 cd android/src/android && ./gradlew :app:assembleDebug --console=plain --no-daemon
 ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --console=plain --no-daemon # our unit tests; CI runs them too
 
@@ -82,7 +82,7 @@ The three protocols are documented and versioned; change the doc in the same cha
 ## Platform notes
 
 - **iOS** targets iOS 16; use the `.nmOnChange(of:)` helper, not the two-parameter `onChange` (iOS 17+). The device build treats warnings in `NanoMuse/` as failures. Xcode and TestFlight details: [docs/ios.md](docs/ios.md).
-- **Android** builds with JDK 21, SDK CMake 3.22.1, NDK r27c, Go 1.25+; phone features are tested on real arm64 hardware (the emulator cannot run the APK).
+- **Android** builds with JDK 21, SDK CMake 3.22.1, NDK r30, Go 1.25+; phone features are tested on real arm64 hardware (the emulator cannot run the APK).
 - **Desktop** is a dsh plugin: profile overlays in `cordis.patch.yml`, the relay URL in the plugin's `config.baseURL`; [docs/desktop.md](docs/desktop.md). The Electron shell and the plugin carry the same version.
 - **CI** uses Node 22 for every JavaScript job; keep `engines` and lock files compatible with it even when you develop on a newer Node.
 

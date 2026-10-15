@@ -1083,4 +1083,96 @@
     <string name="nm_models_search">Search models</string>
     <string name="nm_models_search_clear">Clear the search</string>
     <string name="nm_models_no_match">No model matches</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Preparing a response</string>
+    <string name="nm_reasoning_search">Searching the web</string>
+    <string name="nm_reasoning_code">Running code</string>
+    <string name="nm_reasoning_read">Reading a file</string>
+    <string name="nm_reasoning_write">Writing a file</string>
+    <string name="nm_reasoning_edit">Editing a file</string>
+    <string name="nm_reasoning_image">Viewing an image</string>
+    <string name="nm_reasoning_memory_read">Checking memory</string>
+    <string name="nm_reasoning_memory_write">Saving to memory</string>
+    <string name="nm_reasoning_tool">Using a tool</string>
+    <string name="nm_reasoning_failed">Failed</string>
+    <string name="nm_reasoning_timeout">Timed out</string>
+    <string name="nm_reasoning_stopped">Stopped</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Questions</string>
+    <string name="nm_card_previous">Previous</string>
+    <string name="nm_card_skip">Skip</string>
+    <string name="nm_card_next">Next</string>
+    <string name="nm_card_other_answer">Your answer</string>
+    <string name="nm_card_skipped">Skipped</string>
+    <string name="nm_card_todos">To-dos</string>
+    <string name="nm_card_show_less">Show less</string>
+    <string name="nm_card_more">%1$d more</string>
+    <string name="nm_card_auto_approve">Auto Approve in %1$ds</string>
+    <string name="nm_card_approved">Approved</string>
+    <string name="nm_card_auto_paused">Auto-approve paused</string>
+    <string name="nm_card_view_plan">View Plan</string>
+    <string name="nm_card_approve">Approve</string>
+    <string name="nm_card_answers">Answers to your questions</string>
+    <string name="nm_card_plan_reply">I approve this plan: %1$s</string>
+    <string name="nm_card_submitted">Response sent</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Cancel</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Start</string>
+    <string name="nm_voice_skills">Skills</string>
+    <string name="nm_voice_no_skills">No skills yet</string>
+    <string name="nm_voice_skills_hint">Add skills in Settings → Skills.</string>
+    <string name="nm_voice_no_models">Add a chat model in Settings to use agent voice input.</string>
+    <string name="nm_feed_instructions_title">Feed instructions</string>
+    <string name="nm_feed_instructions_description">Your feed is powered by the instructions below. Any edits that you make to this prompt will apply to future posts on the feed.</string>
+    <string name="nm_feed_instructions_save">Save</string>
+    <string name="nm_feed_like">Like</string>
+    <string name="nm_feed_dislike">Dislike</string>
+    <string name="nm_feed_info_title">About this post</string>
+    <string name="nm_feed_sample_label">Preview</string>
+    <string name="nm_feed_sample_skills_title">Agent skills for recurring tasks</string>
+    <string name="nm_feed_sample_skills_body">Reusable instructions keep research, writing and planning consistent. Each skill groups its guidance and references in one place, so repeated work starts with the right context.</string>
+    <string name="nm_feed_sample_voice_title">Dictation that tidies your speech</string>
+    <string name="nm_feed_sample_voice_body">Speak naturally, then review the transcript before sending. This sample shows how a short briefing and discussion controls fit into your personal feed.</string>
+    <string name="nm_feed_schedule">Feed schedule</string>
+    <string name="nm_feed_today_short">Today</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">New Chat</string>
+    <string name="nm_menu_open_terminal">Open Terminal</string>
+    <string name="nm_menu_open_browser">Open Browser</string>
+    <string name="nm_menu_chat_files">Browse Chat Files</string>
+    <string name="nm_menu_session_skills">Skills in Session</string>
+    <string name="nm_menu_session_mcps">MCPs in Session</string>
+    <string name="nm_menu_session_memories">Memories in Session</string>
+    <string name="nm_menu_token_usage">Token Usage</string>
+    <string name="nm_menu_auto_compact">Auto Compact</string>
+    <string name="nm_menu_clear_chat">Clear Chat</string>
+    <string name="nm_menu_title">Chat menu</string>
+    <string name="nm_plus_photos">Photos</string>
+    <string name="nm_plus_camera">Camera</string>
+    <string name="nm_plus_files">Files</string>
+    <string name="nm_plus_label">Add to message</string>
+    <string name="nm_plus_close">Close menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d step</item>
+        <item quantity="other">%1$d steps</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Show steps</string>
+    <string name="nm_reasoning_collapse">Hide steps</string>
+    <string name="nm_message_reply">Reply</string>
+    <string name="nm_message_copy">Copy</string>
+    <string name="nm_message_select">Select</string>
+    <string name="nm_message_copied">Copied</string>
+    <string name="nm_message_you">You</string>
+    <string name="nm_replying_to">Replying to %1$s</string>
+    <string name="nm_reply_cancel">Cancel reply</string>
+    <string name="nm_reaction_more">More reactions</string>
+    <string name="nm_reaction_toggle">Toggle %1$s reaction (%2$d)</string>
+    <string name="nm_reply_quote">Reply to %1$s</string>
 </resources>

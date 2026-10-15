@@ -113,8 +113,11 @@ fun Modifier.minisTextKitSelectionGesture(
     /** Set true when the LazyColumn uses `reverseLayout = true` (chat lists). */
     reverseLayout: Boolean = false,
     onLongPressEngaged: () -> Unit = {},
+    // nanoMuse: offer a message action menu before entering the existing text-selection flow.
+    onMessageLongPress: ((Offset) -> Boolean)? = null,
 ): Modifier = composed {
     val hapticFeedback = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val messageLongPress by androidx.compose.runtime.rememberUpdatedState(onMessageLongPress) // nanoMuse: fresh callbacks without restarting a held gesture.
     pointerInput(controller, listState, reverseLayout) {
     val longPressTimeoutMs = android.view.ViewConfiguration.getLongPressTimeout().toLong()
     val touchSlopPx = viewConfiguration.touchSlop
@@ -183,6 +186,17 @@ fun Modifier.minisTextKitSelectionGesture(
             @Suppress("UNREACHABLE_CODE") "unreached"
         }
         if (abortReason != null) return@awaitEachGesture
+
+        // nanoMuse: consume the remaining touch so the menu gesture cannot start a drag.
+        if (messageLongPress?.invoke(lastWindowPoint) == true) {
+            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+            down.consume()
+            do {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                event.changes.forEach { it.consume() }
+            } while (event.changes.any { it.pressed })
+            return@awaitEachGesture
+        }
 
         // ── Engage selection: snap to the word under the finger ─────────
         // Use the STRICT hit-test (no nearest-shard fallback) so a long-

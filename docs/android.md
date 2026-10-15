@@ -118,6 +118,83 @@ It fades out below the composer before the navigation pill without a rectangular
 Only live browser controls hide it: the browser step bar, browser panel or browser
 hand-over controls. Older browser pills and other tools do not disable the effect.
 The composer's fill, content clipping and soft shadow share one rounded outline.
+Home and side chats show tool activity as monochrome reasoning steps: a gently pulsing
+dot grid, a readable action title, and source or file pills from the actual tool metadata.
+Completed steps dim and stop pulsing. Tapping a step still opens its details; stop and
+long-press actions remain available. The existing appearance setting hides these steps.
+When the answer follows the steps, they fold into a step count. Tap the summary to show
+or hide the steps again; each message keeps its own expansion choice while you leave and
+return to the chat. Tool details, source and file pills remain available when expanded.
+
+Each answer shares one continuous rounded bubble across its paragraphs while keeping the
+existing virtual rows and scroll anchors. Responses reveal complete words as they arrive, with a slow grey-to-white shimmer above
+the message background. Completed replies settle to solid text. Markdown, links, code
+copying and text selection keep their existing behavior. Both effects respect the system
+animation scale, and light mode uses the matching black-and-grey treatment.
+The answer bubble grows and shrinks with its visible text and blocks, including when
+reasoning steps fold or expand.
+
+Long-press a message to reply, copy, select text or choose an emoji reaction. A reply shows
+the selected message above the composer; sending keeps a quoted excerpt with your new
+message and gives the model the original message reference. Cancel reply clears the preview.
+Queued sends retain their quotes, and reopening the conversation on this phone restores
+the sent quotes. Quotes are local to this phone and are not included in conversation sync.
+Emoji reactions show a count and your selected reactions; tapping the same emoji again
+removes your reaction. More reactions opens the larger picker. Reactions last for the current
+app session and are not synced to other devices.
+
+The agent can attach a monochrome Questions card when it needs a choice: select an option,
+enter another answer when offered, or Skip. Next advances through the questions, and Previous
+keeps earlier selections. The completed answers return through the normal chat send path without consuming a composer
+draft, its attachments or a message being edited.
+A Plan card shows three tasks, with the rest expandable through View Plan or the more row.
+Approve continues immediately; an untouched card can approve after its displayed countdown
+(default ten seconds). Interacting with its controls cancels the countdown, and leaving the
+foreground pauses it. Historical cards never auto-approve, and a submitted decision is kept
+locally so reopening the conversation cannot submit it again. Plan approval preserves the
+normal risk checks for every action. Both cards are inline assistant attachments, using
+`nanomuse-question` and `nanomuse-plan` JSON fences; no additional dependencies are required.
+Streamed Markdown rows join without list gaps inside an answer. Separate messages and inline
+cards retain their spacing; virtual row keys, Markdown and text selection remain intact.
+
+The chat header's three-dot button opens a grouped dark bottom sheet for new chat, rename,
+model selection, terminal/browser/files, session tools, token usage and Auto Compact. Drag down,
+tap the scrim or press Back to dismiss it. Long-press the main or a side chat in the drawer to
+clear its history with confirmation; chat files remain. Debug builds retain the crash-log test
+behind seven quick taps on the menu's drag handle, with no debug row in the ordinary menu.
+
+The composer plus keeps its existing appearance and rotates to an X while a rounded frosted
+menu opens above it. Photos, Camera, Files and Skills use the existing attachment and skill
+flows. Opening or closing this menu preserves the current editor and keyboard; the popup shares
+the chat window and stays inside its keyboard-adjusted viewport. It scales from the plus corner,
+staggers its rows on entry and closes them together. Haze blurs the captured chat content only
+while the menu is present. Unsupported/low-memory devices use a translucent background, and
+repeated missed frame budgets switch this menu to the same fallback without losing its motion.
+Native blur and gesture smoothness still need validation on a real ARM64 phone.
+
+Text and voice input share one dark composer, editor and neutral icon style. Tapping the mic
+smoothly expands that message bar into the floating navigation pill's space; the pill retreats
+completely while voice is active. Closing voice or pressing Back restores the bar. System
+navigation and keyboard insets remain reserved, and the other tabs keep their navigation.
+The expanded composer places the transcript above media, Agent, Skills, microphone and close. After capture, send replaces close when there is text or an
+attachment. The monochrome glow spans the full rounded input behind its controls, with three
+independently moving lobes rising from the bottom in response to microphone amplitude. It gathers
+smoothly into a dimmer horizontal sweep while recognition finishes, then fades over 300 ms.
+The animation filters incoming levels on display frames and pauses outside the foreground.
+Skills lists installed skills and preserves dictated text when inserting a trigger; plus opens
+the existing photo/video picker with the same attachment previews. Agent opens one animated dialog
+with configured, usable chat models, the existing recognition labels/settings and Read replies.
+Start confirms the pending model and begins the existing microphone permission and recognition
+flow. Closing the dialog cancels its capture, and recognition results remain in the composer.
+
+Feed uses borderless monochrome posts, Today/Yesterday headings, neutral images, thumbs-up/down,
+Discuss and post information. Reactions are mutually exclusive and remain in each post's Markdown
+front matter (`liked` / `disliked`). The header or prompt preview opens Feed instructions in a
+centered animated dialog; saving updates the existing preference file for future posts. Dialog
+state stays in its ViewModel. Feed schedule retains the existing daily routine controls. An empty
+feed shows clearly labeled, local sample posts and an illustration; generating real posts replaces
+these previews without writing sample files or changing existing posts.
+
 The upper scrolling fade is slightly lighter. In dark mode, home and side chats use
 pure black around the navigation pill, including the gap below the composer. Its
 rounded glass area stays open to the scrolling content, preserving the live frosted
@@ -244,13 +321,54 @@ not taken for a private address. The same rule decides whether a relay of your o
 `http://`; nanoMuse Cloud and the hub to it are TLS only. The in-app web view is not exported
 to other apps.
 
+Message actions open beside the visible pressed bubble, flipping below it when there is no
+room above. Long-pressing a tall, partly scrolled-off answer anchors near the finger. Drag
+a bubble physically right by more than 64 dp and release to reply; shorter drags spring
+back. Connected streaming rows move together, and vertical scrolling, text selection and
+horizontal code/table scrolling retain their gestures. Reaction emoji keep their natural
+colors while the menu and reaction-pill surfaces remain monochrome.
+
+## Native libraries and 16 KB pages
+
+The Android build uses AGP 8.7.3 and [NDK r30](https://developer.android.com/ndk/downloads).
+The app's C/C++ libraries, PRoot executable and Go/rclone binding are linked for 16 KB
+pages. Packaged ONNX Runtime, WebRTC processing, VAD, CameraX, AndroidX graphics,
+DataStore and C++ runtime binaries were already aligned; their dependency versions stay unchanged.
+
+CI checks ELF load-segment alignment and offset/address congruence in every packaged
+library, checks the PRoot executable asset, and runs Android SDK ZIP alignment validation.
+Compressed libraries are extracted at install time and do not need a 16 KB ZIP offset;
+their ELF load segments still do.
+
+**Known upstream blocker:** lib/arm64-v8a/libproot-loader32.so is a legacy ARM32
+guest loader, not a 64-bit Android shared library. The vendored Termux 5.1.107-70
+binary still has 4 KB ELF load segments. The current official
+[Termux PRoot 5.1.107.96 package](https://packages.termux.dev/apt/termux-main/pool/main/p/proot/)
+also ships a 4 KB ARM32 loader, so there is no verified drop-in 16 KB-compatible
+upstream release. Keep the pinned working loader: substituting fork-built loaders
+previously broke sandbox execution on some Android ROMs. No ELF headers are patched
+and no Android compatibility warning is disabled. An all-libraries analyzer can still
+flag this file, and the ColorOS warning may remain until that upstream helper is updated.
+
+The standalone check is strict:
+
+    python3 scripts/android/check-native-alignment.py app-debug.apk
+
+CI's explicit --allow-legacy-proot32 exception accepts only the exact vendored
+file name, ARM32 class and pinned SHA-256, reports it as an unresolved warning, and
+continues to reject every other misaligned library. This is not a claim of full
+16 KB compatibility. A ColorOS/16 KB device test is still required.
+After upgrading the toolchain, rebuild cached native artifacts with:
+
+    bash scripts/android/build-natives.sh --force
+
 ## Building it yourself
 
 JDK 17 or 21 (CI uses 21) and the Android SDK (Android Studio installs both); `scripts/android/env.sh` sets
 the environment on a bare machine. The project is under `android/src/android`:
 
 ```bash
-bash scripts/android/build-natives.sh   # once: proot, the Alpine rootfs and rclone.aar (NDK r27c, Go 1.25+)
+bash scripts/android/build-natives.sh   # once: proot, the Alpine rootfs and rclone.aar (NDK r30 (30.0.16248370), Go 1.25+)
 cd android/src/android
 ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:assembleRelease      # signed with android/keystore.properties when present
@@ -277,7 +395,10 @@ and put its four values in `android/keystore.properties` (git-ignored: `storeFil
 ## Releases
 
 `.github/workflows/android.yml` builds the debug APK on every change under `android/`
-(the "debug APK · arm64-v8a" check). A release is made from a tag by
+(the "debug APK · arm64-v8a" check). The check verifies the APK archive and signature,
+then uploads `app-debug.apk` directly as an artifact. Download and open that APK on the
+phone; no outer ZIP needs to be extracted. The check log includes its SHA-256 checksum.
+A release is made from a tag by
 `scripts/release-apk.sh <version>`: it checks the version against `rebrand.py` and
 Gradle, builds `:app:assembleRelease` with the release key, writes
 `dist/nanoMuse-<version>-arm64.apk` and its `.sha256`, and with `--publish` tags

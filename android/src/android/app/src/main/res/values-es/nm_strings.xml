@@ -1106,4 +1106,96 @@
     <string name="nm_models_search">Buscar modelos</string>
     <string name="nm_models_search_clear">Borrar la búsqueda</string>
     <string name="nm_models_no_match">Ningún modelo coincide</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Preparando una respuesta</string>
+    <string name="nm_reasoning_search">Buscando en la web</string>
+    <string name="nm_reasoning_code">Ejecutando código</string>
+    <string name="nm_reasoning_read">Leyendo un archivo</string>
+    <string name="nm_reasoning_write">Escribiendo un archivo</string>
+    <string name="nm_reasoning_edit">Editando un archivo</string>
+    <string name="nm_reasoning_image">Viendo una imagen</string>
+    <string name="nm_reasoning_memory_read">Consultando la memoria</string>
+    <string name="nm_reasoning_memory_write">Guardando en la memoria</string>
+    <string name="nm_reasoning_tool">Usando una herramienta</string>
+    <string name="nm_reasoning_failed">Error</string>
+    <string name="nm_reasoning_timeout">Tiempo agotado</string>
+    <string name="nm_reasoning_stopped">Detenido</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Preguntas</string>
+    <string name="nm_card_previous">Anterior</string>
+    <string name="nm_card_skip">Omitir</string>
+    <string name="nm_card_next">Siguiente</string>
+    <string name="nm_card_other_answer">Tu respuesta</string>
+    <string name="nm_card_skipped">Omitida</string>
+    <string name="nm_card_todos">Tareas</string>
+    <string name="nm_card_show_less">Mostrar menos</string>
+    <string name="nm_card_more">%1$d más</string>
+    <string name="nm_card_auto_approve">Aprobación automática en %1$d s</string>
+    <string name="nm_card_approved">Aprobado</string>
+    <string name="nm_card_auto_paused">Aprobación automática pausada</string>
+    <string name="nm_card_view_plan">Ver plan</string>
+    <string name="nm_card_approve">Aprobar</string>
+    <string name="nm_card_answers">Respuestas a tus preguntas</string>
+    <string name="nm_card_plan_reply">Apruebo este plan: %1$s</string>
+    <string name="nm_card_submitted">Respuesta enviada</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Cancelar</string>
+    <string name="nm_voice_agent">Agente</string>
+    <string name="nm_voice_start">Iniciar</string>
+    <string name="nm_voice_skills">Habilidades</string>
+    <string name="nm_voice_no_skills">Aún no hay habilidades</string>
+    <string name="nm_voice_skills_hint">Añade habilidades en Ajustes → Habilidades.</string>
+    <string name="nm_voice_no_models">Añade un modelo de chat en Ajustes para usar la entrada de voz del agente.</string>
+    <string name="nm_feed_instructions_title">Instrucciones del feed</string>
+    <string name="nm_feed_instructions_description">Tu feed se basa en las instrucciones siguientes. Los cambios en este prompt se aplicarán a las publicaciones futuras del feed.</string>
+    <string name="nm_feed_instructions_save">Guardar</string>
+    <string name="nm_feed_like">Me gusta</string>
+    <string name="nm_feed_dislike">No me gusta</string>
+    <string name="nm_feed_info_title">Acerca de esta publicación</string>
+    <string name="nm_feed_sample_label">Vista previa</string>
+    <string name="nm_feed_sample_skills_title">Habilidades del agente para tareas recurrentes</string>
+    <string name="nm_feed_sample_skills_body">Las instrucciones reutilizables mantienen coherentes la investigación, la escritura y la planificación. Cada habilidad reúne guías y referencias para comenzar las tareas repetidas con el contexto adecuado.</string>
+    <string name="nm_feed_sample_voice_title">Dictado para expresar tus ideas</string>
+    <string name="nm_feed_sample_voice_body">Habla con naturalidad y revisa la transcripción antes de enviarla. Este ejemplo muestra cómo los resúmenes y las discusiones encajan en tu feed personal.</string>
+    <string name="nm_feed_schedule">Horario del feed</string>
+    <string name="nm_feed_today_short">Hoy</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Nuevo chat</string>
+    <string name="nm_menu_open_terminal">Abrir terminal</string>
+    <string name="nm_menu_open_browser">Abrir navegador</string>
+    <string name="nm_menu_chat_files">Ver archivos del chat</string>
+    <string name="nm_menu_session_skills">Skills en la sesión</string>
+    <string name="nm_menu_session_mcps">MCP en la sesión</string>
+    <string name="nm_menu_session_memories">Memorias en la sesión</string>
+    <string name="nm_menu_token_usage">Uso de tokens</string>
+    <string name="nm_menu_auto_compact">Compactación automática</string>
+    <string name="nm_menu_clear_chat">Borrar chat</string>
+    <string name="nm_menu_title">Menú del chat</string>
+    <string name="nm_plus_photos">Fotos</string>
+    <string name="nm_plus_camera">Cámara</string>
+    <string name="nm_plus_files">Archivos</string>
+    <string name="nm_plus_label">Añadir al mensaje</string>
+    <string name="nm_plus_close">Cerrar menú</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d paso</item>
+        <item quantity="other">%1$d pasos</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Mostrar pasos</string>
+    <string name="nm_reasoning_collapse">Ocultar pasos</string>
+    <string name="nm_message_reply">Responder</string>
+    <string name="nm_message_copy">Copiar</string>
+    <string name="nm_message_select">Seleccionar</string>
+    <string name="nm_message_copied">Copiado</string>
+    <string name="nm_message_you">Tú</string>
+    <string name="nm_replying_to">Respondiendo a %1$s</string>
+    <string name="nm_reply_cancel">Cancelar respuesta</string>
+    <string name="nm_reaction_more">Más reacciones</string>
+    <string name="nm_reaction_toggle">Cambiar reacción %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Respuesta a %1$s</string>
 </resources>

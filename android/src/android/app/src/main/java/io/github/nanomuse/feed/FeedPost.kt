@@ -22,6 +22,7 @@ data class FeedPost(
     val createdAt: Long,
     val liked: Boolean,
     val file: File,
+    val disliked: Boolean = false, // nanoMuse: neutral thumbs-down reaction.
 ) {
     val id: String get() = "$day/${"%02d".format(Locale.ROOT, index)}"
 
@@ -33,6 +34,7 @@ data class FeedPost(
         if (source.isNotEmpty()) appendLine("source: ${source.joinToString("; ") { escape(it) }}")
         appendLine("created: ${ISO.format(Date(createdAt))}")
         if (liked) appendLine("liked: true")
+        if (disliked && !liked) appendLine("disliked: true") // nanoMuse
         appendLine("---")
         appendLine()
         append(body.trimEnd())
@@ -62,6 +64,7 @@ data class FeedPost(
                 source = meta["source"]?.split(";")?.map { unescape(it.trim()) }?.filter { it.isNotEmpty() }.orEmpty(),
                 createdAt = created,
                 liked = meta["liked"] == "true",
+                disliked = meta["disliked"] == "true" && meta["liked"] != "true", // nanoMuse
                 file = file,
             )
         }

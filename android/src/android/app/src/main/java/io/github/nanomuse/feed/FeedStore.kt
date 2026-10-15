@@ -60,9 +60,17 @@ object FeedStore {
     }
 
     fun setLiked(post: FeedPost, liked: Boolean) {
-        val updated = post.copy(liked = liked)
+        val updated = post.copy(liked = liked, disliked = if (liked) false else post.disliked) // nanoMuse: mutually exclusive reactions.
         runCatching { post.file.writeText(updated.serialize()) }
             .onFailure { AppLogger.warning(TAG, "like not saved: ${it.message}") }
+        _posts.value = _posts.value.map { if (it.file == post.file) updated else it }
+    }
+
+    // nanoMuse: persist the negative reaction in the same Markdown front matter as likes.
+    fun setDisliked(post: FeedPost, disliked: Boolean) {
+        val updated = post.copy(disliked = disliked, liked = if (disliked) false else post.liked)
+        runCatching { post.file.writeText(updated.serialize()) }
+            .onFailure { AppLogger.warning(TAG, "reaction not saved: ${it.message}") }
         _posts.value = _posts.value.map { if (it.file == post.file) updated else it }
     }
 

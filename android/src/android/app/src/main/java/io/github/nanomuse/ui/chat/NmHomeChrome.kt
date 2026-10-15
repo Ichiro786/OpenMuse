@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +17,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.openminis.app.ui.settings.KEY_NM_HEADER_MODEL
@@ -35,6 +39,9 @@ import io.github.nanomuse.ui.home.MuseTones
 data class NmHomeChrome(
     val isMainChat: Boolean,
     val onOpenDrawer: () -> Unit,
+    val voiceExpansion: Float = 0f, // nanoMuse: shared with the shell's navigation retreat.
+    val clearChatRequested: Boolean = false,
+    val onClearChatRequestHandled: () -> Unit = {}, // nanoMuse: drawer clearing keeps chat confirmation.
 )
 
 /**
@@ -75,32 +82,50 @@ fun rememberShowSteps(): State<Boolean> {
     return state
 }
 
-/**
- * Muse's grey bubble around one block of the agent's reply. Each top-level block of a message
- * (a paragraph, a list) is its own bubble, which is also how Muse breaks a long reply up. Code
- * blocks, tables and the app's own `nanomuse-*` cards carry their own frame and are left bare.
- */
+// nanoMuse: the final paragraph shares the bubble's bottom inset, without a second spacer.
+internal val LocalNmAssistantBubbleLastSegment = compositionLocalOf { false }
+
+/** nanoMuse: connected Markdown rows share one bubble; attachments keep their own frames. */
 @Composable
 fun NmAssistantBubble(
     enabled: Boolean,
     rawText: String,
+    segment: NmBubbleSegment? = null,
+    onBounds: ((LayoutCoordinates) -> Unit)? = null, // nanoMuse: include actual bubble padding in hits.
+    modifier: Modifier = Modifier, // nanoMuse: swipe input stays on the actual bubble surface.
     content: @Composable () -> Unit,
 ) {
-    val bare = !enabled || isBareBlock(rawText)
+    val bare = !enabled || (segment == null && isBareBlock(rawText))
     if (bare) {
-        content()
+        // nanoMuse: older code/table messages keep their frame and still expose message actions.
+        if (enabled && onBounds != null) {
+            Box(modifier.onGloballyPositioned { onBounds(it) }) { content() }
+        } else content()
         return
     }
-    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), contentAlignment = Alignment.TopStart) {
+    val first = segment?.first ?: true
+    val last = segment?.last ?: true
+    Box(modifier = Modifier.fillMaxWidth().padding(top = if (first) 2.dp else 0.dp, bottom = if (last) 2.dp else 0.dp), contentAlignment = Alignment.TopStart) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .widthIn(max = 340.dp)
-                .clip(RoundedCornerShape(20.dp))
+                // nanoMuse: only connected rows need a common width; short standalone text wraps.
+                .then(if (segment != null && (!first || !last)) Modifier.fillMaxWidth() else Modifier)
+                .clip(RoundedCornerShape(
+                    topStart = if (first) 20.dp else 0.dp,
+                    topEnd = if (first) 20.dp else 0.dp,
+                    bottomStart = if (last) 20.dp else 0.dp,
+                    bottomEnd = if (last) 20.dp else 0.dp,
+                ))
                 // nanoMuse: Meta AI's assistant pill — a touch off the background.
                 .background(ChatColors.assistantBubble)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .onGloballyPositioned { onBounds?.invoke(it) } // nanoMuse: shaped surface, before inner padding.
+                // nanoMuse: each outside edge contributes 16dp around the actual content.
+                .padding(start = 14.dp, end = 14.dp, top = if (first) 16.dp else 0.dp, bottom = if (last) 16.dp else 0.dp),
         ) {
-            content()
+            CompositionLocalProvider(LocalNmAssistantBubbleLastSegment provides last) {
+                content()
+            }
         }
     }
 }

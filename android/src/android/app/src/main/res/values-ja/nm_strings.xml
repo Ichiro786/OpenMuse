@@ -1102,4 +1102,95 @@
     <string name="nm_models_search">モデルを検索</string>
     <string name="nm_models_search_clear">検索をクリア</string>
     <string name="nm_models_no_match">一致するモデルはありません</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">応答を準備中</string>
+    <string name="nm_reasoning_search">ウェブを検索中</string>
+    <string name="nm_reasoning_code">コードを実行中</string>
+    <string name="nm_reasoning_read">ファイルを読み込み中</string>
+    <string name="nm_reasoning_write">ファイルを書き込み中</string>
+    <string name="nm_reasoning_edit">ファイルを編集中</string>
+    <string name="nm_reasoning_image">画像を確認中</string>
+    <string name="nm_reasoning_memory_read">メモリを確認中</string>
+    <string name="nm_reasoning_memory_write">メモリに保存中</string>
+    <string name="nm_reasoning_tool">ツールを使用中</string>
+    <string name="nm_reasoning_failed">失敗</string>
+    <string name="nm_reasoning_timeout">タイムアウト</string>
+    <string name="nm_reasoning_stopped">停止</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">質問</string>
+    <string name="nm_card_previous">前へ</string>
+    <string name="nm_card_skip">スキップ</string>
+    <string name="nm_card_next">次へ</string>
+    <string name="nm_card_other_answer">回答</string>
+    <string name="nm_card_skipped">スキップ済み</string>
+    <string name="nm_card_todos">タスク</string>
+    <string name="nm_card_show_less">折りたたむ</string>
+    <string name="nm_card_more">他 %1$d 件</string>
+    <string name="nm_card_auto_approve">%1$d 秒後に自動承認</string>
+    <string name="nm_card_approved">承認済み</string>
+    <string name="nm_card_auto_paused">自動承認を一時停止</string>
+    <string name="nm_card_view_plan">計画を見る</string>
+    <string name="nm_card_approve">承認</string>
+    <string name="nm_card_answers">質問への回答</string>
+    <string name="nm_card_plan_reply">この計画を承認します：%1$s</string>
+    <string name="nm_card_submitted">回答を送信しました</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">キャンセル</string>
+    <string name="nm_voice_agent">エージェント</string>
+    <string name="nm_voice_start">開始</string>
+    <string name="nm_voice_skills">スキル</string>
+    <string name="nm_voice_no_skills">スキルはまだありません</string>
+    <string name="nm_voice_skills_hint">設定 → スキルで追加してください。</string>
+    <string name="nm_voice_no_models">エージェントの音声入力には、設定でチャットモデルを追加してください。</string>
+    <string name="nm_feed_instructions_title">フィードの指示</string>
+    <string name="nm_feed_instructions_description">フィードは以下の指示に従って作成されます。このプロンプトの変更は、今後のフィード投稿に適用されます。</string>
+    <string name="nm_feed_instructions_save">保存</string>
+    <string name="nm_feed_like">いいね</string>
+    <string name="nm_feed_dislike">よくない</string>
+    <string name="nm_feed_info_title">この投稿について</string>
+    <string name="nm_feed_sample_label">プレビュー</string>
+    <string name="nm_feed_sample_skills_title">繰り返す作業に使うスキル</string>
+    <string name="nm_feed_sample_skills_body">再利用できる指示で調査、執筆、計画の進め方を揃えます。各スキルにガイドと参考資料をまとめ、適切な文脈から繰り返す作業を始められます。</string>
+    <string name="nm_feed_sample_voice_title">考えを伝える音声入力</string>
+    <string name="nm_feed_sample_voice_body">自然に話し、送信前に文字起こしを確認します。この例は短い記事と議論の操作を個人のフィードに配置する方法を示します。</string>
+    <string name="nm_feed_schedule">フィードの予定</string>
+    <string name="nm_feed_today_short">今日</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">新しいチャット</string>
+    <string name="nm_menu_open_terminal">ターミナルを開く</string>
+    <string name="nm_menu_open_browser">ブラウザを開く</string>
+    <string name="nm_menu_chat_files">チャットファイルを閲覧</string>
+    <string name="nm_menu_session_skills">セッション内のスキル</string>
+    <string name="nm_menu_session_mcps">セッション内の MCP</string>
+    <string name="nm_menu_session_memories">セッション内のメモリ</string>
+    <string name="nm_menu_token_usage">トークン使用量</string>
+    <string name="nm_menu_auto_compact">自動圧縮</string>
+    <string name="nm_menu_clear_chat">チャットをクリア</string>
+    <string name="nm_menu_title">チャットメニュー</string>
+    <string name="nm_plus_photos">写真</string>
+    <string name="nm_plus_camera">カメラ</string>
+    <string name="nm_plus_files">ファイル</string>
+    <string name="nm_plus_label">メッセージに追加</string>
+    <string name="nm_plus_close">メニューを閉じる</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="other">%1$d ステップ</item>
+    </plurals>
+    <string name="nm_reasoning_expand">手順を表示</string>
+    <string name="nm_reasoning_collapse">手順を非表示</string>
+    <string name="nm_message_reply">返信</string>
+    <string name="nm_message_copy">コピー</string>
+    <string name="nm_message_select">選択</string>
+    <string name="nm_message_copied">コピーしました</string>
+    <string name="nm_message_you">あなた</string>
+    <string name="nm_replying_to">%1$s に返信中</string>
+    <string name="nm_reply_cancel">返信をキャンセル</string>
+    <string name="nm_reaction_more">その他のリアクション</string>
+    <string name="nm_reaction_toggle">%1$s リアクションを切り替え（%2$d）</string>
+    <string name="nm_reply_quote">%1$s への返信</string>
 </resources>

@@ -1114,4 +1114,98 @@
     <string name="nm_models_search">Поиск моделей</string>
     <string name="nm_models_search_clear">Очистить поиск</string>
     <string name="nm_models_no_match">Ни одна модель не подходит</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Подготовка ответа</string>
+    <string name="nm_reasoning_search">Поиск в интернете</string>
+    <string name="nm_reasoning_code">Выполнение кода</string>
+    <string name="nm_reasoning_read">Чтение файла</string>
+    <string name="nm_reasoning_write">Запись файла</string>
+    <string name="nm_reasoning_edit">Редактирование файла</string>
+    <string name="nm_reasoning_image">Просмотр изображения</string>
+    <string name="nm_reasoning_memory_read">Проверка памяти</string>
+    <string name="nm_reasoning_memory_write">Сохранение в память</string>
+    <string name="nm_reasoning_tool">Использование инструмента</string>
+    <string name="nm_reasoning_failed">Ошибка</string>
+    <string name="nm_reasoning_timeout">Время истекло</string>
+    <string name="nm_reasoning_stopped">Остановлено</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Вопросы</string>
+    <string name="nm_card_previous">Назад</string>
+    <string name="nm_card_skip">Пропустить</string>
+    <string name="nm_card_next">Далее</string>
+    <string name="nm_card_other_answer">Ваш ответ</string>
+    <string name="nm_card_skipped">Пропущено</string>
+    <string name="nm_card_todos">Задачи</string>
+    <string name="nm_card_show_less">Свернуть</string>
+    <string name="nm_card_more">Ещё %1$d</string>
+    <string name="nm_card_auto_approve">Автоодобрение через %1$d с</string>
+    <string name="nm_card_approved">Одобрено</string>
+    <string name="nm_card_auto_paused">Автоодобрение приостановлено</string>
+    <string name="nm_card_view_plan">Посмотреть план</string>
+    <string name="nm_card_approve">Одобрить</string>
+    <string name="nm_card_answers">Ответы на ваши вопросы</string>
+    <string name="nm_card_plan_reply">Я одобряю этот план: %1$s</string>
+    <string name="nm_card_submitted">Ответ отправлен</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Отмена</string>
+    <string name="nm_voice_agent">Агент</string>
+    <string name="nm_voice_start">Начать</string>
+    <string name="nm_voice_skills">Навыки</string>
+    <string name="nm_voice_no_skills">Навыков пока нет</string>
+    <string name="nm_voice_skills_hint">Добавьте навыки в Настройки → Навыки.</string>
+    <string name="nm_voice_no_models">Добавьте модель чата в настройках для голосового ввода агента.</string>
+    <string name="nm_feed_instructions_title">Инструкции ленты</string>
+    <string name="nm_feed_instructions_description">Лента создаётся по инструкциям ниже. Изменения этого промпта будут применены к будущим публикациям.</string>
+    <string name="nm_feed_instructions_save">Сохранить</string>
+    <string name="nm_feed_like">Нравится</string>
+    <string name="nm_feed_dislike">Не нравится</string>
+    <string name="nm_feed_info_title">Об этой публикации</string>
+    <string name="nm_feed_sample_label">Пример</string>
+    <string name="nm_feed_sample_skills_title">Навыки агента для повторяющихся задач</string>
+    <string name="nm_feed_sample_skills_body">Многоразовые инструкции помогают последовательно исследовать, писать и планировать. Каждый навык объединяет рекомендации и источники, чтобы повторяющаяся работа начиналась в подходящем контексте.</string>
+    <string name="nm_feed_sample_voice_title">Диктовка для ясных мыслей</string>
+    <string name="nm_feed_sample_voice_body">Говорите естественно и проверьте расшифровку перед отправкой. Этот пример показывает краткие публикации и обсуждения в личной ленте.</string>
+    <string name="nm_feed_schedule">Расписание ленты</string>
+    <string name="nm_feed_today_short">Сегодня</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Новый чат</string>
+    <string name="nm_menu_open_terminal">Открыть Терминал</string>
+    <string name="nm_menu_open_browser">Открыть браузер</string>
+    <string name="nm_menu_chat_files">Файлы чата</string>
+    <string name="nm_menu_session_skills">Навыки в Сессии</string>
+    <string name="nm_menu_session_mcps">MCP в сессии</string>
+    <string name="nm_menu_session_memories">Память в сессии</string>
+    <string name="nm_menu_token_usage">Расход токенов</string>
+    <string name="nm_menu_auto_compact">Автосжатие</string>
+    <string name="nm_menu_clear_chat">Очистить чат</string>
+    <string name="nm_menu_title">Меню чата</string>
+    <string name="nm_plus_photos">Фото</string>
+    <string name="nm_plus_camera">Камера</string>
+    <string name="nm_plus_files">Файлы</string>
+    <string name="nm_plus_label">Добавить к сообщению</string>
+    <string name="nm_plus_close">Закрыть меню</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d шаг</item>
+        <item quantity="few">%1$d шага</item>
+        <item quantity="many">%1$d шагов</item>
+        <item quantity="other">%1$d шага</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Показать шаги</string>
+    <string name="nm_reasoning_collapse">Скрыть шаги</string>
+    <string name="nm_message_reply">Ответить</string>
+    <string name="nm_message_copy">Копировать</string>
+    <string name="nm_message_select">Выбрать</string>
+    <string name="nm_message_copied">Скопировано</string>
+    <string name="nm_message_you">Вы</string>
+    <string name="nm_replying_to">Ответ на %1$s</string>
+    <string name="nm_reply_cancel">Отменить ответ</string>
+    <string name="nm_reaction_more">Другие реакции</string>
+    <string name="nm_reaction_toggle">Переключить реакцию %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Ответ на %1$s</string>
 </resources>

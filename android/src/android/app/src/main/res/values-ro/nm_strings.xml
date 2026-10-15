@@ -1110,4 +1110,97 @@
     <string name="nm_models_search">Caută modele</string>
     <string name="nm_models_search_clear">Șterge căutarea</string>
     <string name="nm_models_no_match">Niciun model nu se potrivește</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Se pregătește răspunsul</string>
+    <string name="nm_reasoning_search">Se caută pe web</string>
+    <string name="nm_reasoning_code">Se execută codul</string>
+    <string name="nm_reasoning_read">Se citește fișierul</string>
+    <string name="nm_reasoning_write">Se scrie fișierul</string>
+    <string name="nm_reasoning_edit">Se editează fișierul</string>
+    <string name="nm_reasoning_image">Se vizualizează imaginea</string>
+    <string name="nm_reasoning_memory_read">Se verifică memoria</string>
+    <string name="nm_reasoning_memory_write">Se salvează în memorie</string>
+    <string name="nm_reasoning_tool">Se folosește un instrument</string>
+    <string name="nm_reasoning_failed">Eșuat</string>
+    <string name="nm_reasoning_timeout">Timp expirat</string>
+    <string name="nm_reasoning_stopped">Oprit</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Întrebări</string>
+    <string name="nm_card_previous">Înapoi</string>
+    <string name="nm_card_skip">Omite</string>
+    <string name="nm_card_next">Următorul</string>
+    <string name="nm_card_other_answer">Răspunsul tău</string>
+    <string name="nm_card_skipped">Omis</string>
+    <string name="nm_card_todos">Sarcini</string>
+    <string name="nm_card_show_less">Arată mai puțin</string>
+    <string name="nm_card_more">Încă %1$d</string>
+    <string name="nm_card_auto_approve">Aprobare automată în %1$d s</string>
+    <string name="nm_card_approved">Aprobat</string>
+    <string name="nm_card_auto_paused">Aprobarea automată este în pauză</string>
+    <string name="nm_card_view_plan">Vezi planul</string>
+    <string name="nm_card_approve">Aprobă</string>
+    <string name="nm_card_answers">Răspunsuri la întrebările tale</string>
+    <string name="nm_card_plan_reply">Aprob acest plan: %1$s</string>
+    <string name="nm_card_submitted">Răspuns trimis</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Anulează</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Începe</string>
+    <string name="nm_voice_skills">Abilități</string>
+    <string name="nm_voice_no_skills">Nu există încă abilități</string>
+    <string name="nm_voice_skills_hint">Adaugă abilități în Setări → Abilități.</string>
+    <string name="nm_voice_no_models">Adaugă un model de chat în setări pentru intrarea vocală a agentului.</string>
+    <string name="nm_feed_instructions_title">Instrucțiuni pentru flux</string>
+    <string name="nm_feed_instructions_description">Fluxul tău urmează instrucțiunile de mai jos. Modificările acestui prompt se aplică postărilor viitoare din flux.</string>
+    <string name="nm_feed_instructions_save">Salvează</string>
+    <string name="nm_feed_like">Îmi place</string>
+    <string name="nm_feed_dislike">Nu îmi place</string>
+    <string name="nm_feed_info_title">Despre această postare</string>
+    <string name="nm_feed_sample_label">Previzualizare</string>
+    <string name="nm_feed_sample_skills_title">Abilități pentru sarcini repetate</string>
+    <string name="nm_feed_sample_skills_body">Instrucțiunile reutilizabile păstrează consecvența cercetării, scrierii și planificării. Fiecare abilitate adună ghiduri și referințe pentru a începe cu contextul potrivit.</string>
+    <string name="nm_feed_sample_voice_title">Dictare pentru idei clare</string>
+    <string name="nm_feed_sample_voice_body">Vorbește natural și verifică transcrierea înainte de trimitere. Acest exemplu arată rezumate și discuții în fluxul personal.</string>
+    <string name="nm_feed_schedule">Programul fluxului</string>
+    <string name="nm_feed_today_short">Astăzi</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Conversație nouă</string>
+    <string name="nm_menu_open_terminal">Deschide terminalul</string>
+    <string name="nm_menu_open_browser">Deschide browserul</string>
+    <string name="nm_menu_chat_files">Răsfoiește fișierele conversației</string>
+    <string name="nm_menu_session_skills">Abilități în sesiune</string>
+    <string name="nm_menu_session_mcps">MCP în sesiune</string>
+    <string name="nm_menu_session_memories">Memorie în sesiune</string>
+    <string name="nm_menu_token_usage">Consum de tokenuri</string>
+    <string name="nm_menu_auto_compact">Compactare automată</string>
+    <string name="nm_menu_clear_chat">Golește conversația</string>
+    <string name="nm_menu_title">Meniu chat</string>
+    <string name="nm_plus_photos">Fotografii</string>
+    <string name="nm_plus_camera">Cameră</string>
+    <string name="nm_plus_files">Fișiere</string>
+    <string name="nm_plus_label">Adaugă la mesaj</string>
+    <string name="nm_plus_close">Închide meniul</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d pas</item>
+        <item quantity="few">%1$d pași</item>
+        <item quantity="other">%1$d de pași</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Afișează pașii</string>
+    <string name="nm_reasoning_collapse">Ascunde pașii</string>
+    <string name="nm_message_reply">Răspunde</string>
+    <string name="nm_message_copy">Copiază</string>
+    <string name="nm_message_select">Selectează</string>
+    <string name="nm_message_copied">Copiat</string>
+    <string name="nm_message_you">Tu</string>
+    <string name="nm_replying_to">Răspuns către %1$s</string>
+    <string name="nm_reply_cancel">Anulează răspunsul</string>
+    <string name="nm_reaction_more">Mai multe reacții</string>
+    <string name="nm_reaction_toggle">Comută reacția %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Răspuns către %1$s</string>
 </resources>

@@ -63,6 +63,9 @@ check_version harness/desktop/package.json "\"version\": \"$version\""
 # Signature + badging of one APK; exits on the debug key unless allowed.
 inspect_apk() {
   local apk="$1"
+  # nanoMuse: release and publish-only paths enforce the same native checks as CI.
+  "$build_tools/zipalign" -c -P 16 -v 4 "$apk"
+  python3 "$NM_ROOT/scripts/android/check-native-alignment.py" "$apk" --allow-legacy-proot32
   echo "== signature"
   local certs
   certs="$("$build_tools/apksigner" verify --print-certs "$apk")"

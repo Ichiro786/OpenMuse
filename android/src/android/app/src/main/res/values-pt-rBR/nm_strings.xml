@@ -1106,4 +1106,96 @@
     <string name="nm_models_search">Buscar modelos</string>
     <string name="nm_models_search_clear">Limpar a busca</string>
     <string name="nm_models_no_match">Nenhum modelo corresponde</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Preparando uma resposta</string>
+    <string name="nm_reasoning_search">Pesquisando na web</string>
+    <string name="nm_reasoning_code">Executando código</string>
+    <string name="nm_reasoning_read">Lendo um arquivo</string>
+    <string name="nm_reasoning_write">Gravando um arquivo</string>
+    <string name="nm_reasoning_edit">Editando um arquivo</string>
+    <string name="nm_reasoning_image">Visualizando uma imagem</string>
+    <string name="nm_reasoning_memory_read">Consultando a memória</string>
+    <string name="nm_reasoning_memory_write">Salvando na memória</string>
+    <string name="nm_reasoning_tool">Usando uma ferramenta</string>
+    <string name="nm_reasoning_failed">Falhou</string>
+    <string name="nm_reasoning_timeout">Tempo esgotado</string>
+    <string name="nm_reasoning_stopped">Interrompido</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Perguntas</string>
+    <string name="nm_card_previous">Anterior</string>
+    <string name="nm_card_skip">Pular</string>
+    <string name="nm_card_next">Próximo</string>
+    <string name="nm_card_other_answer">Sua resposta</string>
+    <string name="nm_card_skipped">Pulada</string>
+    <string name="nm_card_todos">Tarefas</string>
+    <string name="nm_card_show_less">Mostrar menos</string>
+    <string name="nm_card_more">Mais %1$d</string>
+    <string name="nm_card_auto_approve">Aprovação automática em %1$d s</string>
+    <string name="nm_card_approved">Aprovado</string>
+    <string name="nm_card_auto_paused">Aprovação automática pausada</string>
+    <string name="nm_card_view_plan">Ver plano</string>
+    <string name="nm_card_approve">Aprovar</string>
+    <string name="nm_card_answers">Respostas às suas perguntas</string>
+    <string name="nm_card_plan_reply">Aprovo este plano: %1$s</string>
+    <string name="nm_card_submitted">Resposta enviada</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Cancelar</string>
+    <string name="nm_voice_agent">Agente</string>
+    <string name="nm_voice_start">Iniciar</string>
+    <string name="nm_voice_skills">Habilidades</string>
+    <string name="nm_voice_no_skills">Ainda não há habilidades</string>
+    <string name="nm_voice_skills_hint">Adicione habilidades em Configurações → Habilidades.</string>
+    <string name="nm_voice_no_models">Adicione um modelo de chat nas configurações para usar a entrada de voz do agente.</string>
+    <string name="nm_feed_instructions_title">Instruções do feed</string>
+    <string name="nm_feed_instructions_description">Seu feed segue as instruções abaixo. As alterações neste prompt serão aplicadas às próximas publicações do feed.</string>
+    <string name="nm_feed_instructions_save">Salvar</string>
+    <string name="nm_feed_like">Curtir</string>
+    <string name="nm_feed_dislike">Não curtir</string>
+    <string name="nm_feed_info_title">Sobre esta publicação</string>
+    <string name="nm_feed_sample_label">Prévia</string>
+    <string name="nm_feed_sample_skills_title">Habilidades do agente para tarefas recorrentes</string>
+    <string name="nm_feed_sample_skills_body">Instruções reutilizáveis mantêm pesquisa, escrita e planejamento consistentes. Cada habilidade reúne orientações e referências para começar tarefas repetidas com o contexto adequado.</string>
+    <string name="nm_feed_sample_voice_title">Ditado para organizar suas ideias</string>
+    <string name="nm_feed_sample_voice_body">Fale naturalmente e revise a transcrição antes de enviar. Este exemplo mostra resumos e discussões no seu feed pessoal.</string>
+    <string name="nm_feed_schedule">Horário do feed</string>
+    <string name="nm_feed_today_short">Hoje</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Nova conversa</string>
+    <string name="nm_menu_open_terminal">Abrir terminal</string>
+    <string name="nm_menu_open_browser">Abrir navegador</string>
+    <string name="nm_menu_chat_files">Navegar pelos arquivos da conversa</string>
+    <string name="nm_menu_session_skills">Habilidades na sessão</string>
+    <string name="nm_menu_session_mcps">MCPs na sessão</string>
+    <string name="nm_menu_session_memories">Memória na sessão</string>
+    <string name="nm_menu_token_usage">Uso de tokens</string>
+    <string name="nm_menu_auto_compact">Compactação automática</string>
+    <string name="nm_menu_clear_chat">Limpar conversa</string>
+    <string name="nm_menu_title">Menu da conversa</string>
+    <string name="nm_plus_photos">Fotos</string>
+    <string name="nm_plus_camera">Câmera</string>
+    <string name="nm_plus_files">Arquivos</string>
+    <string name="nm_plus_label">Adicionar à mensagem</string>
+    <string name="nm_plus_close">Fechar menu</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d etapa</item>
+        <item quantity="other">%1$d etapas</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Mostrar etapas</string>
+    <string name="nm_reasoning_collapse">Ocultar etapas</string>
+    <string name="nm_message_reply">Responder</string>
+    <string name="nm_message_copy">Copiar</string>
+    <string name="nm_message_select">Selecionar</string>
+    <string name="nm_message_copied">Copiado</string>
+    <string name="nm_message_you">Você</string>
+    <string name="nm_replying_to">Respondendo a %1$s</string>
+    <string name="nm_reply_cancel">Cancelar resposta</string>
+    <string name="nm_reaction_more">Mais reações</string>
+    <string name="nm_reaction_toggle">Alternar reação %1$s (%2$d)</string>
+    <string name="nm_reply_quote">Resposta a %1$s</string>
 </resources>

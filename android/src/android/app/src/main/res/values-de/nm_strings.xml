@@ -1106,4 +1106,96 @@
     <string name="nm_models_search">Modelle suchen</string>
     <string name="nm_models_search_clear">Suche löschen</string>
     <string name="nm_models_no_match">Kein Modell passt</string>
+
+    <!-- Native monochrome chat progress. -->
+    <string name="nm_reasoning_working">Antwort wird vorbereitet</string>
+    <string name="nm_reasoning_search">Web wird durchsucht</string>
+    <string name="nm_reasoning_code">Code wird ausgeführt</string>
+    <string name="nm_reasoning_read">Datei wird gelesen</string>
+    <string name="nm_reasoning_write">Datei wird geschrieben</string>
+    <string name="nm_reasoning_edit">Datei wird bearbeitet</string>
+    <string name="nm_reasoning_image">Bild wird angezeigt</string>
+    <string name="nm_reasoning_memory_read">Erinnerungen werden geprüft</string>
+    <string name="nm_reasoning_memory_write">Erinnerung wird gespeichert</string>
+    <string name="nm_reasoning_tool">Werkzeug wird verwendet</string>
+    <string name="nm_reasoning_failed">Fehlgeschlagen</string>
+    <string name="nm_reasoning_timeout">Zeitüberschreitung</string>
+    <string name="nm_reasoning_stopped">Gestoppt</string>
+
+    <!-- nanoMuse: interactive question and plan cards. -->
+    <string name="nm_card_questions">Fragen</string>
+    <string name="nm_card_previous">Zurück</string>
+    <string name="nm_card_skip">Überspringen</string>
+    <string name="nm_card_next">Weiter</string>
+    <string name="nm_card_other_answer">Deine Antwort</string>
+    <string name="nm_card_skipped">Übersprungen</string>
+    <string name="nm_card_todos">Aufgaben</string>
+    <string name="nm_card_show_less">Weniger anzeigen</string>
+    <string name="nm_card_more">%1$d weitere</string>
+    <string name="nm_card_auto_approve">Automatisch genehmigen in %1$d s</string>
+    <string name="nm_card_approved">Genehmigt</string>
+    <string name="nm_card_auto_paused">Automatische Genehmigung pausiert</string>
+    <string name="nm_card_view_plan">Plan ansehen</string>
+    <string name="nm_card_approve">Genehmigen</string>
+    <string name="nm_card_answers">Antworten auf deine Fragen</string>
+    <string name="nm_card_plan_reply">Ich genehmige diesen Plan: %1$s</string>
+    <string name="nm_card_submitted">Antwort gesendet</string>
+
+    <!-- nanoMuse: monochrome voice and Feed UI. -->
+    <string name="nm_voice_cancel">Abbrechen</string>
+    <string name="nm_voice_agent">Agent</string>
+    <string name="nm_voice_start">Starten</string>
+    <string name="nm_voice_skills">Skills</string>
+    <string name="nm_voice_no_skills">Noch keine Skills</string>
+    <string name="nm_voice_skills_hint">Füge Skills unter Einstellungen → Skills hinzu.</string>
+    <string name="nm_voice_no_models">Füge in den Einstellungen ein Chatmodell für die Spracheingabe hinzu.</string>
+    <string name="nm_feed_instructions_title">Feed-Anweisungen</string>
+    <string name="nm_feed_instructions_description">Dein Feed wird durch die folgenden Anweisungen gesteuert. Änderungen an diesem Prompt gelten für zukünftige Feed-Beiträge.</string>
+    <string name="nm_feed_instructions_save">Speichern</string>
+    <string name="nm_feed_like">Gefällt mir</string>
+    <string name="nm_feed_dislike">Gefällt mir nicht</string>
+    <string name="nm_feed_info_title">Über diesen Beitrag</string>
+    <string name="nm_feed_sample_label">Vorschau</string>
+    <string name="nm_feed_sample_skills_title">Agent-Skills für wiederkehrende Aufgaben</string>
+    <string name="nm_feed_sample_skills_body">Wiederverwendbare Anweisungen halten Recherche, Schreiben und Planung konsistent. Jeder Skill bündelt Hinweise und Quellen, damit wiederkehrende Arbeit mit dem passenden Kontext beginnt.</string>
+    <string name="nm_feed_sample_voice_title">Gedanken verständlich diktieren</string>
+    <string name="nm_feed_sample_voice_body">Sprich natürlich und prüfe das Transkript vor dem Senden. Dieses Beispiel zeigt, wie kurze Beiträge und Diskussionen in deinen persönlichen Feed passen.</string>
+    <string name="nm_feed_schedule">Feed-Zeitplan</string>
+    <string name="nm_feed_today_short">Heute</string>
+
+    <!-- nanoMuse: grouped chat sheet and frosted composer menu. -->
+    <string name="nm_menu_new_chat">Neuer Chat</string>
+    <string name="nm_menu_open_terminal">Terminal öffnen</string>
+    <string name="nm_menu_open_browser">Browser öffnen</string>
+    <string name="nm_menu_chat_files">Chat-Dateien durchsuchen</string>
+    <string name="nm_menu_session_skills">Fähigkeiten in der Sitzung</string>
+    <string name="nm_menu_session_mcps">MCPs in der Sitzung</string>
+    <string name="nm_menu_session_memories">Erinnerungen in der Sitzung</string>
+    <string name="nm_menu_token_usage">Token-Verbrauch</string>
+    <string name="nm_menu_auto_compact">Automatisch verdichten</string>
+    <string name="nm_menu_clear_chat">Chat leeren</string>
+    <string name="nm_menu_title">Chat-Menü</string>
+    <string name="nm_plus_photos">Fotos</string>
+    <string name="nm_plus_camera">Kamera</string>
+    <string name="nm_plus_files">Dateien</string>
+    <string name="nm_plus_label">Zur Nachricht hinzufügen</string>
+    <string name="nm_plus_close">Menü schließen</string>
+
+    <!-- nanoMuse: collapsed reasoning, quoted replies and local emoji reactions. -->
+    <plurals name="nm_reasoning_summary_steps">
+        <item quantity="one">%1$d Schritt</item>
+        <item quantity="other">%1$d Schritte</item>
+    </plurals>
+    <string name="nm_reasoning_expand">Schritte anzeigen</string>
+    <string name="nm_reasoning_collapse">Schritte ausblenden</string>
+    <string name="nm_message_reply">Antworten</string>
+    <string name="nm_message_copy">Kopieren</string>
+    <string name="nm_message_select">Auswählen</string>
+    <string name="nm_message_copied">Kopiert</string>
+    <string name="nm_message_you">Du</string>
+    <string name="nm_replying_to">Antwort an %1$s</string>
+    <string name="nm_reply_cancel">Antwort abbrechen</string>
+    <string name="nm_reaction_more">Weitere Reaktionen</string>
+    <string name="nm_reaction_toggle">Reaktion %1$s umschalten (%2$d)</string>
+    <string name="nm_reply_quote">Antwort an %1$s</string>
 </resources>

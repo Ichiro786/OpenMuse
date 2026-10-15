@@ -85,13 +85,8 @@ object FeedUi {
     val settingsOpen = MutableStateFlow(false)
 }
 
-private val likeRed = Color(0xFFE0245E)
 
-/**
- * Muse's Feed: a grey canvas, a "Wednesday morning" heading, white cards with an icon tile, a
- * title, a few lines, and a footer of heart · discuss · info. The first card explains what drives
- * the feed and lets the user edit that sentence; before the first run, the page says what to expect.
- */
+/** nanoMuse: borderless monochrome feed, with an editable prompt and labeled sample posts. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedTab(
@@ -101,53 +96,71 @@ fun FeedTab(
 ) {
     val context = LocalContext.current
     val posts by FeedStore.posts.collectAsState()
-    val introAck by FeedFlow.introAcknowledged.collectAsState()
     val generating by FeedFlow.generating.collectAsState()
     val settingsOpen by FeedUi.settingsOpen.collectAsState()
+    val preferences by FeedStore.preferences.collectAsState()
+    val model: NmFeedViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
     var infoPost by remember { mutableStateOf<FeedPost?>(null) }
-    var editPrefs by remember { mutableStateOf(false) }
-
-    // The routine needs a model; retry quietly whenever the tab shows.
+    var scheduleOpen by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { runCatching { FeedFlow.ensureRoutine(context) } }
+    LaunchedEffect(preferences) { if (!model.instructionsOpen.value) model.prompt.value = preferences }
+    LaunchedEffect(settingsOpen) {
+        if (settingsOpen) { model.openInstructions(preferences); FeedUi.settingsOpen.value = false }
+    }
+    val samplePosts = if (posts.isEmpty()) listOf(
+        FeedPost(todayKey(), 1, stringResource(R.string.nm_feed_sample_skills_title), "brief", "",
+            stringResource(R.string.nm_feed_sample_skills_body), emptyList(), System.currentTimeMillis(),
+            model.previewReactions["skills"] == 1, java.io.File("sample-skills.md"), model.previewReactions["skills"] == -1),
+        FeedPost(todayKey(), 2, stringResource(R.string.nm_feed_sample_voice_title), "reminder", "",
+            stringResource(R.string.nm_feed_sample_voice_body), emptyList(), System.currentTimeMillis(),
+            model.previewReactions["voice"] == 1, java.io.File("sample-voice.md"), model.previewReactions["voice"] == -1),
+    ) else emptyList()
+    val displayed = if (posts.isEmpty()) samplePosts else posts
+    val days = displayed.groupBy { it.day }.toList()
 
-    val days = remember(posts) { posts.groupBy { it.day }.toList() }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MuseTones.canvas),
-        contentPadding = PaddingValues(bottom = 28.dp),
-    ) {
-        item(key = "header") { header() }
-
-        if (days.isEmpty()) {
-            item(key = "today-title") { DayTitle(dayLabel(todayKey(), System.currentTimeMillis())) }
-            if (!introAck) item(key = "intro") { IntroCard(onEdit = { editPrefs = true }, onAck = { FeedFlow.acknowledgeIntro(context) }) }
-            item(key = "empty") { EmptyState(generating = generating, onWriteNow = { FeedFlow.generateNow(context) }) }
-        } else {
-            days.forEachIndexed { i, (day, dayPosts) ->
-                item(key = "day-$day") { DayTitle(dayLabel(day, dayPosts.first().createdAt)) }
-                if (i == 0 && !introAck) {
-                    item(key = "intro") { IntroCard(onEdit = { editPrefs = true }, onAck = { FeedFlow.acknowledgeIntro(context) }) }
+    io.github.nanomuse.ui.components.NmMonochrome {
+    LazyColumn(modifier = Modifier.fillMaxSize().background(Color.Black), contentPadding = PaddingValues(bottom = 28.dp)) {
+        item(key = "header") { Box(Modifier.clickable { model.openInstructions(preferences) }) { header() } }
+        item(key = "instructions") {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                Surface(shape = RoundedCornerShape(50), color = Color(0xFF202020),
+                    modifier = Modifier.fillMaxWidth().clickable { model.openInstructions(preferences) }) {
+                    Text(preferences, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        fontSize = 15.sp, color = Color(0xFFAAAAAA), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                if (i == 0 && generating) item(key = "generating") { Box(Modifier.animateItem()) { GeneratingCard() } }
-                items(dayPosts, key = { it.id }) { post -> // the model leads with what matters most
-                    PostCard(
-                        post = post,
-                        onLike = { FeedStore.setLiked(post, !post.liked) },
-                        onDiscuss = { onDiscuss(post) },
-                        onInfo = { infoPost = post },
-                        modifier = Modifier.animateItem(), // new posts settle in, removed ones fade out
-                    )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { scheduleOpen = true }) {
+                        Text(stringResource(R.string.nm_feed_schedule), color = Color(0xFFAAAAAA))
+                    }
+                }
+                if (posts.isEmpty()) {
+                    Text(stringResource(R.string.nm_feed_sample_label), color = Color(0xFF888888), fontSize = 12.sp)
+                    TextButton(enabled = !generating, onClick = { FeedFlow.acknowledgeIntro(context); FeedFlow.generateNow(context) }) {
+                        Text(stringResource(if (generating) R.string.nm_feed_generating else R.string.nm_feed_write_now), color = Color.White)
+                    }
                 }
             }
         }
+        days.forEach { (day, dayPosts) ->
+            item(key = "day-$day") { DayTitle(dayLabel(day, dayPosts.first().createdAt)) }
+            items(dayPosts, key = { it.id }) { post ->
+                val preview = posts.isEmpty()
+                val previewKey = if (post.index == 1) "skills" else "voice"
+                NmFeedPost(post, onLike = {
+                    if (preview) model.previewReactions[previewKey] = if (post.liked) 0 else 1
+                    else FeedStore.setLiked(post, !post.liked)
+                }, onDislike = {
+                    if (preview) model.previewReactions[previewKey] = if (post.disliked) 0 else -1
+                    else FeedStore.setDisliked(post, !post.disliked)
+                }, onDiscuss = { onDiscuss(post) }, onInfo = { infoPost = post },
+                    modifier = Modifier.animateItem(), preview = preview)
+            }
+        }
     }
-
-    if (settingsOpen || editPrefs) {
-        FeedSettingsSheet(
-            onDismiss = { FeedUi.settingsOpen.value = false; editPrefs = false },
-            onEditRoutine = onEditRoutine,
-        )
-    }
+    if (model.instructionsOpen.value) NmFeedInstructionsDialog(model.prompt.value,
+        onCancel = model::closeInstructions,
+        onSave = { model.saveInstructions(it); FeedFlow.acknowledgeIntro(context) })
+    if (scheduleOpen) FeedSettingsSheet(onDismiss = { scheduleOpen = false }, onEditRoutine = onEditRoutine)
 
     infoPost?.let { post ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -162,16 +175,17 @@ fun FeedTab(
                 InfoRow(stringResource(R.string.nm_feed_info_type), typeLabel(post.type))
                 InfoRow(stringResource(R.string.nm_feed_info_written), DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(post.createdAt)))
                 if (post.source.isNotEmpty()) InfoRow(stringResource(R.string.nm_feed_info_source), post.source.joinToString("\n"))
-                InfoRow(stringResource(R.string.nm_feed_info_file), "minis-global/nanomuse/feed/${post.day}/${"%02d".format(Locale.ROOT, post.index)}.md")
+                if (!post.file.name.startsWith("sample-")) InfoRow(stringResource(R.string.nm_feed_info_file), "minis-global/nanomuse/feed/${post.day}/${"%02d".format(Locale.ROOT, post.index)}.md")
                 Spacer(Modifier.height(16.dp))
-                TextButton(onClick = { FeedStore.delete(post); infoPost = null }) {
-                    Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+                if (!post.file.name.startsWith("sample-")) TextButton(onClick = { FeedStore.delete(post); infoPost = null }) {
+                    Icon(Icons.Outlined.DeleteOutline, contentDescription = null, tint = Color(0xFFAAAAAA), modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(stringResource(R.string.nm_feed_delete), color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.nm_feed_delete), color = Color(0xFFAAAAAA))
                 }
             }
         }
     }
+    } // nanoMuse: scoped neutral feed surfaces
 }
 
 @Composable
@@ -186,8 +200,8 @@ private fun InfoRow(label: String, value: String) {
 private fun DayTitle(text: String) {
     Text(
         text = text,
-        fontSize = 22.sp,
-        lineHeight = 28.sp,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurface,
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp),
@@ -199,202 +213,12 @@ private fun DayTitle(text: String) {
 private fun FeedCard(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = MuseTones.surface,
+        color = Color(0xFF1C1C1C),
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 6.dp)
             .animateContentSize(),
     ) { content() }
-}
-
-@Composable
-private fun PostCard(
-    post: FeedPost,
-    onLike: () -> Unit,
-    onDiscuss: () -> Unit,
-    onInfo: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FeedCard(modifier) {
-        Column(Modifier.padding(start = 14.dp, end = 10.dp, top = 14.dp, bottom = 6.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(MuseTones.fill, RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(post.emoji.ifBlank { defaultEmoji(post.type) }, fontSize = 22.sp)
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        post.title,
-                        fontSize = 16.sp,
-                        lineHeight = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    MarkdownText(
-                        markdown = post.body,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f),
-                        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp),
-                    )
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                // The heart pops when it fills, the way a like should feel.
-                val heartScale = remember { Animatable(1f) }
-                LaunchedEffect(post.liked) {
-                    if (post.liked) {
-                        heartScale.snapTo(0.7f)
-                        heartScale.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 800f))
-                    }
-                }
-                val heartTint by animateColorAsState(
-                    if (post.liked) likeRed else MaterialTheme.colorScheme.onSurface,
-                    tween(180),
-                    label = "heartTint",
-                )
-                FooterAction(
-                    icon = if (post.liked) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    tint = heartTint,
-                    label = null,
-                    onClick = onLike,
-                    iconModifier = Modifier.graphicsLayer { scaleX = heartScale.value; scaleY = heartScale.value },
-                )
-                Spacer(Modifier.width(6.dp))
-                FooterAction(
-                    icon = Icons.Outlined.ChatBubbleOutline,
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    label = stringResource(R.string.nm_feed_discuss),
-                    onClick = onDiscuss,
-                )
-                Spacer(Modifier.weight(1f))
-                FooterAction(icon = Icons.Outlined.Info, tint = MaterialTheme.colorScheme.onSurface, label = null, onClick = onInfo)
-            }
-        }
-    }
-}
-
-@Composable
-private fun FooterAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color,
-    label: String?,
-    onClick: () -> Unit,
-    iconModifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, contentDescription = label, tint = tint, modifier = iconModifier.size(22.dp))
-        if (label != null) {
-            Spacer(Modifier.width(6.dp))
-            Text(label, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-        }
-    }
-}
-
-/** Muse's "About the feed" card: what drives it, the sentence itself, Edit / Got it. */
-@Composable
-private fun IntroCard(onEdit: () -> Unit, onAck: () -> Unit) {
-    val prefs by FeedStore.preferences.collectAsState()
-    FeedCard {
-        Column {
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text(stringResource(R.string.nm_feed_intro_title), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.nm_feed_intro_desc), fontSize = 13.sp, lineHeight = 18.sp, color = ChatColors.secondaryText)
-            }
-            HorizontalDivider(color = MuseTones.hairline, thickness = 1.dp)
-            Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                Text(prefs, fontSize = 15.sp, lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(14.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Surface(onClick = onEdit, shape = CircleShape, color = MuseTones.fill) {
-                        Text(
-                            stringResource(R.string.nm_feed_edit),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 26.dp, vertical = 11.dp),
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Surface(onClick = onAck, shape = CircleShape, color = MuseTones.action) {
-                        Text(
-                            stringResource(R.string.nm_feed_got_it),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White,
-                            modifier = Modifier.padding(horizontal = 26.dp, vertical = 11.dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(generating: Boolean, onWriteNow: () -> Unit) {
-    val context = LocalContext.current
-    val task = remember { FeedFlow.task(context) }
-    val time = task?.let { "%02d:%02d".format(it.timeOfDayHour, it.timeOfDayMinute) } ?: "%02d:%02d".format(FeedFlow.DEFAULT_HOUR, FeedFlow.DEFAULT_MINUTE)
-    StaticCard("🖼️", stringResource(R.string.nm_feed_empty_title), stringResource(R.string.nm_feed_empty_body, time))
-    StaticCard("📝", stringResource(R.string.nm_feed_empty_how_title), stringResource(R.string.nm_feed_empty_how_body))
-    FeedCard {
-        Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            if (generating) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MuseTones.action)
-                    Spacer(Modifier.width(10.dp))
-                    Text(stringResource(R.string.nm_feed_generating), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
-                }
-            } else {
-                Button(
-                    onClick = onWriteNow,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = MuseTones.action, contentColor = Color.White),
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
-                ) { Text(stringResource(R.string.nm_feed_write_now), fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GeneratingCard() {
-    FeedCard {
-        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = MuseTones.action)
-            Spacer(Modifier.width(10.dp))
-            Text(stringResource(R.string.nm_feed_generating), fontSize = 15.sp, color = MaterialTheme.colorScheme.onSurface)
-        }
-    }
-}
-
-@Composable
-private fun StaticCard(emoji: String, title: String, body: String) {
-    FeedCard {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-            Box(Modifier.size(44.dp).background(MuseTones.fill, RoundedCornerShape(12.dp)), contentAlignment = Alignment.Center) {
-                Text(emoji, fontSize = 22.sp)
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.height(4.dp))
-                Text(body, fontSize = 15.sp, lineHeight = 22.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.86f))
-            }
-        }
-    }
 }
 
 /** Sliders sheet: the steering sentence, the routine's switch and time, "Write it now". */
@@ -422,14 +246,14 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
                 modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MuseTones.action,
-                    unfocusedBorderColor = MuseTones.hairline,
+                    focusedBorderColor = Color.White,
+                    unfocusedBorderColor = Color(0xFF333333),
                 ),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                 textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp),
             )
             Spacer(Modifier.height(16.dp))
-            Surface(shape = RoundedCornerShape(14.dp), color = MuseTones.fill, modifier = Modifier.fillMaxWidth()) {
+            Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFF252525), modifier = Modifier.fillMaxWidth()) {
                 Column {
                     Row(Modifier.padding(horizontal = 14.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -446,7 +270,7 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
                         }
                         Switch(checked = task?.enabled == true, enabled = task != null, onCheckedChange = { FeedFlow.setEnabled(context, it) })
                     }
-                    HorizontalDivider(color = MuseTones.hairline, modifier = Modifier.padding(horizontal = 14.dp))
+                    HorizontalDivider(color = Color(0xFF333333), modifier = Modifier.padding(horizontal = 14.dp))
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -457,7 +281,7 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
                         Text(
                             stringResource(if (generating) R.string.nm_feed_generating else R.string.nm_feed_write_now),
                             fontSize = 15.sp,
-                            color = if (generating) ChatColors.secondaryText else MuseTones.action,
+                            color = if (generating) ChatColors.secondaryText else Color.White,
                             fontWeight = FontWeight.Medium,
                         )
                     }
@@ -467,7 +291,7 @@ private fun FeedSettingsSheet(onDismiss: () -> Unit, onEditRoutine: (String) -> 
             Button(
                 onClick = { FeedStore.savePreferences(text); FeedFlow.acknowledgeIntro(context); onDismiss() },
                 shape = CircleShape,
-                colors = ButtonDefaults.buttonColors(containerColor = MuseTones.action, contentColor = Color.White),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
                 modifier = Modifier.fillMaxWidth().height(46.dp),
             ) { Text(stringResource(R.string.nm_feed_save), fontSize = 15.sp, fontWeight = FontWeight.SemiBold) }
         }
@@ -488,17 +312,7 @@ private fun dayLabel(day: String, firstPostAt: Long): String {
     val weekday = weekdays[(cal.get(Calendar.DAY_OF_WEEK) + 5) % 7] // Calendar: SUNDAY=1 → index 6
     val today = todayKey()
     return when {
-        day == today -> {
-            val hour = Calendar.getInstance().apply { timeInMillis = firstPostAt }.get(Calendar.HOUR_OF_DAY)
-            val part = stringResource(
-                when {
-                    hour < 12 -> R.string.nm_feed_part_morning
-                    hour < 18 -> R.string.nm_feed_part_afternoon
-                    else -> R.string.nm_feed_part_evening
-                },
-            )
-            stringResource(R.string.nm_feed_day_today, weekday, part)
-        }
+        day == today -> stringResource(R.string.nm_feed_today_short)
         isYesterday(cal) -> stringResource(R.string.nm_time_yesterday)
         else -> stringResource(R.string.nm_feed_day_past, weekday, DateFormat.getDateInstance(DateFormat.MEDIUM).format(date))
     }

@@ -617,6 +617,7 @@ internal fun ToolCallPill(
     // streaming or when there's no preceding user turn to re-run from).
     onRerunFromHere: (() -> Unit)? = null,
     onCopyDetails: (() -> Unit)? = null,
+    nmReasoning: Boolean = false, // nanoMuse: monochrome reasoning steps in home chats
 ) {
     // T-android-jank-profile: this log was firing on every ToolCallPill
     // recomposition (every streaming token while a tool call is live),
@@ -689,6 +690,17 @@ internal fun ToolCallPill(
     // space via weight(1f), duration stays fixed-width (softWrap=false).
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
       Box(modifier = Modifier.weight(1f, fill = false)) {
+        // nanoMuse: retain the existing detail and long-press actions around the new step.
+        if (nmReasoning) {
+            io.github.nanomuse.ui.chat.NmReasoningSteps(
+                block = block,
+                onOpenDetail = { onOpenDetail(block.id) },
+                onLongClick = if (onRerunFromHere != null || onCopyDetails != null) {
+                    { showToolMenu = true }
+                } else null,
+                onStop = onStop,
+            )
+        } else {
         Row(
             modifier = Modifier
                 .background(
@@ -792,6 +804,7 @@ internal fun ToolCallPill(
                 Spacer(modifier = Modifier.width(8.dp))
                 ToolStopButton(onStop = onStop)
             }
+        }
         }
         // [T-android-tool-bubble-longpress-menu] Long-press menu anchored to
         // the pill. Items mirror the user-bubble menu's style (MinisMenu +

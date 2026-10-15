@@ -374,13 +374,15 @@ internal fun AttachmentChip(
 internal fun InputCircleButton(
     onClick: () -> Unit,
     plain: Boolean = false, // nanoMuse: bare glyph, no disc (Muse's composer pill)
+    fresh: Boolean = false, // nanoMuse: one neutral control style for the text and voice composers.
     content: @Composable () -> Unit,
 ) {
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(if (fresh) 40.dp else 38.dp) // nanoMuse: match voice control bounds.
             .then(
-                if (plain) Modifier else Modifier
+                if (fresh) Modifier.background(Color.White.copy(alpha = 0.07f), CircleShape) // nanoMuse
+                else if (plain) Modifier else Modifier
                     .background(ChatColors.inputIconBg, CircleShape)
                     .border(0.5.dp, ChatColors.inputIconBorder, CircleShape),
             )
@@ -410,16 +412,19 @@ internal fun MicButton(
     // slot switches back to text input — keyboard glyph (mirrors iOS "T").
     isVoiceActive: Boolean = false,
     plain: Boolean = false, // nanoMuse: bare glyph, no disc (Muse's composer pill)
+    fresh: Boolean = false, // nanoMuse: one neutral control style for the text and voice composers.
 ) {
-    val bg = if (isRecording) Color.Red.copy(alpha = 0.15f)
+    val bg = if (fresh) Color.White.copy(alpha = 0.07f) // nanoMuse: shared neutral mic.
+             else if (isRecording) Color.Red.copy(alpha = 0.15f)
              else if (plain) Color.Transparent
              else ChatColors.inputIconBg
-    val tint = if (isRecording) Color.Red
+    val tint = if (fresh) Color(0xFFDDDDDD) // nanoMuse: neutral glyph in both composer modes.
+               else if (isRecording) Color.Red
                else MaterialTheme.colorScheme.onSurfaceVariant
-    val borderColor = if (isRecording || plain) Color.Transparent else ChatColors.inputIconBorder // nanoMuse: plain composer
+    val borderColor = if (fresh || isRecording || plain) Color.Transparent else ChatColors.inputIconBorder // nanoMuse: plain composer
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(if (fresh) 40.dp else 38.dp) // nanoMuse: match voice control bounds.
             .background(bg, CircleShape)
             .border(0.5.dp, borderColor, CircleShape)
             .clip(CircleShape)
@@ -430,11 +435,11 @@ internal fun MicButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            if (isVoiceActive) Icons.Default.Keyboard else if (plain) Icons.Outlined.Mic else Icons.Default.Mic, // nanoMuse: plain composer
+            if (isVoiceActive) Icons.Default.Keyboard else if (plain || fresh) Icons.Outlined.Mic else Icons.Default.Mic, // nanoMuse: plain composer
             contentDescription = if (isVoiceActive) "Switch to keyboard"
             else if (isRecording) "Stop recording" else "Voice input",
             tint = tint,
-            modifier = Modifier.size(if (plain) 22.dp else 20.dp), // nanoMuse: Muse's outlined mic
+            modifier = Modifier.size(if (fresh) 24.dp else if (plain) 22.dp else 20.dp), // nanoMuse: Muse's outlined mic
         )
         if (!localeBadge.isNullOrEmpty()) {
             Text(
