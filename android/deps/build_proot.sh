@@ -26,7 +26,8 @@ set -e
 # Repository: https://github.com/OpenMinis/proot (fork of termux/proot)
 #
 # Prerequisites:
-#   - Android NDK r28+ (default path: ~/Library/Android/sdk/ndk/28.0.12433566,
+# nanoMuse: the app and CI use the same LTS NDK with 16 KB defaults.
+#   - Android NDK r30 (default path: ~/Library/Android/sdk/ndk/30.0.16248370,
 #     or set $ANDROID_NDK_HOME)
 #   - curl, tar, make, awk, sed
 #
@@ -274,7 +275,8 @@ build_proot() {
     # sources use paths like `#include "execve/elf.h"`.
     local cppflags="-D_FILE_OFFSET_BITS=64 -D_GNU_SOURCE -I. -DARG_MAX=131072 -I$TALLOC_DIR"
     local cflags="-O2 -Wall -Wextra -fPIE"
-    local ldflags="-Wl,-z,noexecstack -pie -L$BUILD_DIR -ltalloc"
+    # nanoMuse: align the host executable, also packaged as libproot.so, for 16 KB kernels.
+    local ldflags="-Wl,-z,noexecstack,-z,max-page-size=16384,-z,common-page-size=16384 -pie -L$BUILD_DIR -ltalloc"
 
     (
         cd "$PROOT_DIR/src"

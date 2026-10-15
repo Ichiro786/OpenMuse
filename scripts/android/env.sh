@@ -4,7 +4,7 @@
 #
 #   JAVA_HOME          JDK 17 or 21
 #   ANDROID_HOME       Android SDK with platforms;android-36, build-tools;35+, cmake;3.22.1
-#   ANDROID_NDK_HOME   NDK r27c (27.2.12479018) — also used by deps/build_proot.sh
+#   ANDROID_NDK_HOME   NDK r30 (30.0.16248370) — also used by deps/build_proot.sh
 #   GOROOT / GOPATH    Go 1.25+ with gomobile and gobind on PATH (rclone.aar)
 
 _default() { # var path
@@ -16,7 +16,9 @@ _default JAVA_HOME "$HOME/.local/toolchains/jdk-21.0.12.1+1"
 # then on macOS
 _default ANDROID_HOME "${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}"
 _default ANDROID_HOME "$HOME/Library/Android/sdk"
-_default ANDROID_NDK_HOME "$HOME/.local/toolchains/android-ndk-r27c"
+# nanoMuse: use the same 16 KB-capable NDK as Gradle and CI; exported paths still win.
+_default ANDROID_NDK_HOME "${ANDROID_HOME:+$ANDROID_HOME/ndk/30.0.16248370}"
+_default ANDROID_NDK_HOME "$HOME/.local/toolchains/android-ndk-r30"
 _default GOROOT "$HOME/.local/toolchains/go"
 _default GOPATH "$HOME/go"
 

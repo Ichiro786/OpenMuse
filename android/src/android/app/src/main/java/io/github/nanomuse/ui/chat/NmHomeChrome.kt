@@ -92,13 +92,14 @@ fun NmAssistantBubble(
     rawText: String,
     segment: NmBubbleSegment? = null,
     onBounds: ((LayoutCoordinates) -> Unit)? = null, // nanoMuse: include actual bubble padding in hits.
+    modifier: Modifier = Modifier, // nanoMuse: swipe input stays on the actual bubble surface.
     content: @Composable () -> Unit,
 ) {
     val bare = !enabled || (segment == null && isBareBlock(rawText))
     if (bare) {
         // nanoMuse: older code/table messages keep their frame and still expose message actions.
         if (enabled && onBounds != null) {
-            Box(Modifier.onGloballyPositioned { onBounds(it) }) { content() }
+            Box(modifier.onGloballyPositioned { onBounds(it) }) { content() }
         } else content()
         return
     }
@@ -106,7 +107,7 @@ fun NmAssistantBubble(
     val last = segment?.last ?: true
     Box(modifier = Modifier.fillMaxWidth().padding(top = if (first) 2.dp else 0.dp, bottom = if (last) 2.dp else 0.dp), contentAlignment = Alignment.TopStart) {
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .widthIn(max = 340.dp)
                 // nanoMuse: only connected rows need a common width; short standalone text wraps.
                 .then(if (segment != null && (!first || !last)) Modifier.fillMaxWidth() else Modifier)

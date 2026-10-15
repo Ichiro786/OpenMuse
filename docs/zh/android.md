@@ -254,13 +254,44 @@ base URL（从不包括中继的，从不包括局域网地址）它回答代理
 hub 只走 TLS。App 内的
 web view 不对其他 App 导出。
 
+长按消息后，菜单紧邻可见气泡；上方空间不足时移到下方，长消息滚出屏幕后也以按压点为准。
+将气泡向右拖动超过 64 dp 后松手即可引用回复，未达到阈值则回弹。连续流式片段一起移动，
+纵向滚动、文字选择以及代码和表格的横向滚动保持原有手势。表情保留原始颜色，菜单与标签背景仍为单色。
+
+## 原生库与 16 KB 内存页 {#native-libraries-and-16-kb-pages}
+
+Android 构建使用 AGP 8.7.3 和 [NDK r30](https://developer.android.com/ndk/downloads)。
+App 的 C/C++ 库、PRoot 可执行文件以及 Go/rclone 绑定按 16 KB 页链接。
+已打包的 ONNX Runtime、WebRTC、VAD、CameraX、AndroidX graphics、DataStore 和 C++ 运行库
+原本已经对齐，因此不改动这些依赖的版本。CI 检查每个原生库和 PRoot 资源的 ELF 加载段对齐、
+文件偏移与虚拟地址的一致性，并使用 Android SDK 检查 ZIP 对齐。压缩库在安装时解压，
+不要求 ZIP 内偏移为 16 KB，但 ELF 段仍须对齐。
+
+**尚未解决的上游限制：** lib/arm64-v8a/libproot-loader32.so 是旧 ARM32 客体加载器，
+不是 64 位 Android 共享库。现有 Termux 5.1.107-70 文件仍按 4 KB 对齐；
+当前官方 [Termux PRoot 5.1.107.96 包](https://packages.termux.dev/apt/termux-main/pool/main/p/proot/)
+中的 ARM32 加载器也仍为 4 KB，因此尚无已验证可直接替换的 16 KB 上游版本。
+保留固定哈希的已知可用文件，因为替换成分支自行构建的加载器曾在部分 ROM 上破坏沙箱执行。
+不修改 ELF 头，不关闭 Android 的兼容性警告。分析器仍可能标记这个文件，
+ColorOS 的警告也可能保留，直到上游更新该加载器。
+
+独立检查默认严格拒绝未对齐文件：
+
+    python3 scripts/android/check-native-alignment.py app-debug.apk
+
+CI 显式使用 --allow-legacy-proot32，仅接受文件名、ARM32 类型与 SHA-256 均符合固定值的旧加载器，
+并保留未解决的警告；其他任何未对齐原生库仍会导致失败。这不代表完整支持 16 KB，
+仍需在 ColorOS 或 16 KB 设备上实测。工具链升级后，用下列命令重新构建缓存的原生产物：
+
+    bash scripts/android/build-natives.sh --force
+
 ## 自己构建 {#building-it-yourself}
 
 JDK 17 或 21（CI 用 21）和 Android SDK（Android Studio 会把两个都装上）；`scripts/android/env.sh` 在一台空机器上
 设好环境。工程在 `android/src/android` 下：
 
 ```bash
-bash scripts/android/build-natives.sh   # 只需一次：proot、Alpine rootfs 和 rclone.aar（NDK r27c，Go 1.25+）
+bash scripts/android/build-natives.sh   # 只需一次：proot、Alpine rootfs 和 rclone.aar（NDK r30（30.0.16248370），Go 1.25+）
 cd android/src/android
 ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:assembleRelease      # signed with android/keystore.properties when present

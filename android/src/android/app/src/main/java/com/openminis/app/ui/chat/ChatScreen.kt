@@ -3676,6 +3676,19 @@ fun ChatScreen(
                 val selectionController = remember { SelectionController() }
                 // nanoMuse: ordinary coordinate holders avoid recomposing every message on scroll.
                 val nmRowBounds = remember(sessionId) { mutableMapOf<String, androidx.compose.ui.layout.LayoutCoordinates>() }
+                // nanoMuse: one shared offset moves every virtual row of the touched message once.
+                val nmSwipeThreshold = with(LocalDensity.current) { 64.dp.toPx() }
+                val nmSwipeState = remember(sessionId, nmSwipeThreshold) { NmSwipeToReplyState(nmSwipeThreshold) }
+                fun nmReplyToMessage(id: String) {
+                    viewModel.nmReplyToMessage(id)
+                    try { inputFocusRequester.requestFocus() } catch (_: IllegalStateException) {}
+                    keyboardController?.show()
+                }
+                fun nmBubbleSwipe(messageId: String, rowKey: String): Modifier =
+                    if (nmHome == null) Modifier else Modifier.nmSwipeToReplyGesture(
+                        nmSwipeState, messageId, rowKey,
+                        enabled = selectionController.selection.value == null && nmMessageMenu == null && !nmPlusState.present,
+                        scope = coroutineScope, onReply = ::nmReplyToMessage)
 
                 // [T-android-selection-readaloud] Player backing the selection
                 // toolbar's "Read Aloud". Screen-scoped and independent of the
@@ -3948,8 +3961,9 @@ fun ChatScreen(
                                 val coords = entry?.value
                                 if (nmHome != null && message != null && coords != null &&
                                     selectionController.selection.value == null) {
-                                    val bounds = androidx.compose.ui.geometry.Rect(coords.positionInWindow(),
-                                        androidx.compose.ui.geometry.Size(coords.size.width.toFloat(), coords.size.height.toFloat()))
+                                    // nanoMuse: offscreen parts of a tall bubble cannot anchor the menu.
+                                    val bounds = coords.boundsInWindow().intersect(
+                                        listRootCoords?.boundsInWindow() ?: coords.boundsInWindow())
                                     val hit = selectionController.hitTestStrict(point)?.takeIf {
                                         originalMessageId(it.shard.messageId) == id
                                     } ?: selectionController.currentShards().values.firstOrNull {
@@ -4135,6 +4149,15 @@ fun ChatScreen(
                         val isNewestItem = item == flatItems.lastOrNull()
                         // nanoMuse: dispose stale row coordinates before a recycled item can be hit.
                         DisposableEffect(item.key) { onDispose { nmRowBounds.remove(item.key) } }
+                        // nanoMuse: rich answer rows share one physical-right swipe and spring return.
+                        val nmSwipeMessageId = if (nmHome == null) null else when (item) {
+                            is FlatChatItem.UserBubble -> item.message.id
+                            is FlatChatItem.AssistantText -> item.messageId
+                            is FlatChatItem.AssistantMarkdownBlock -> item.messageId
+                            is FlatChatItem.AssistantLegacyContent -> item.messageId
+                            else -> null
+                        }
+                        NmSwipeToReplyRow(nmSwipeState, nmSwipeMessageId, item.key) {
                         Column(
                             modifier = Modifier
                                 .alpha(rowAlpha)
@@ -4200,6 +4223,7 @@ fun ChatScreen(
                                 message = item.message,
                                 // nanoMuse: user bubbles share the screen-level menu.
                                 nmMenuEnabled = nmHome != null,
+                                nmSwipeModifier = nmBubbleSwipe(item.message.id, item.key), // nanoMuse: swipe the whole user bubble.
                                 nmOnBounds = { nmRowBounds[item.key] = it },
                                 nmReactions = nmReactions[originalMessageId(item.message.id)] ?: NmReactionState(),
                                 nmAgentName = nmAgentName,
@@ -4294,7 +4318,7 @@ fun ChatScreen(
                                     streaming = item.isStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.block.content, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }, modifier = nmBubbleSwipe(item.messageId, item.key)) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -4334,7 +4358,7 @@ fun ChatScreen(
                                     streaming = item.messageIsStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.rawText, segment = nmAnswerSegments[item.key], onBounds = { nmRowBounds[item.key] = it }, modifier = nmBubbleSwipe(item.messageId, item.key)) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.messageIsStreaming,
@@ -4457,7 +4481,7 @@ fun ChatScreen(
                                     streaming = item.isStreaming,
                                     onSend = { answer -> safeMutate { viewModel.nmMarkPersonTurn(); viewModel.nmSendCardReply(answer) } },
                                 ) {
-                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content, onBounds = { nmRowBounds[item.key] = it }) {
+                                io.github.nanomuse.ui.chat.NmAssistantBubble(enabled = nmHome != null, rawText = item.content, onBounds = { nmRowBounds[item.key] = it }, modifier = nmBubbleSwipe(item.messageId, item.key)) {
                                 // nanoMuse: animate glyphs above the existing message background.
                                 io.github.nanomuse.ui.chat.NmStreamingText(
                                     isStreaming = item.isStreaming,
@@ -4489,6 +4513,7 @@ fun ChatScreen(
                             nmReactions[nmReactionId] ?: NmReactionState(),
                             onToggle = { viewModel.nmToggleReaction(nmReactionId, it) })
                         } // Column (alpha wrapper)
+                        } // nanoMuse: shared message swipe drawing.
 
                     }
                     // [T-android-larky-longsession-followup] "Load older
@@ -4601,11 +4626,7 @@ fun ChatScreen(
                     NmMessageLongPressMenu(target,
                         onDismiss = { nmMessageMenu = null },
                         onReact = { viewModel.nmToggleReaction(target.messageId, it) },
-                        onReply = {
-                            viewModel.nmReplyToMessage(target.messageId)
-                            try { inputFocusRequester.requestFocus() } catch (_: IllegalStateException) {}
-                            keyboardController?.show()
-                        },
+                        onReply = { nmReplyToMessage(target.messageId) }, // nanoMuse: same draft-preserving reply path as swipe.
                         onCopy = {
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("message", target.text))

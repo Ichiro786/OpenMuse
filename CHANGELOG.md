@@ -49,6 +49,9 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Anchored message menus beside the pressed bubble, added swipe-right replies, and restored full-color reaction emoji.
+- Linked app-built native code for 16 KB pages with NDK r30 and added APK alignment checks; documented the remaining upstream ARM32 PRoot-loader limitation.
+
 - Folded reasoning steps into a count when the answer appeared, with per-message expand/collapse, and kept answer bubbles sized to their visible content.
 - Added message reply previews and persisted quoted references, plus local emoji reaction counts and toggles; message menus retained copying and text selection.
 - Replaced the chat overflow dropdown with a grouped, draggable dark sheet; moved history clearing to confirmed drawer actions and hid the debug crash test behind a gesture.

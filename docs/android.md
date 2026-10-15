@@ -321,13 +321,54 @@ not taken for a private address. The same rule decides whether a relay of your o
 `http://`; nanoMuse Cloud and the hub to it are TLS only. The in-app web view is not exported
 to other apps.
 
+Message actions open beside the visible pressed bubble, flipping below it when there is no
+room above. Long-pressing a tall, partly scrolled-off answer anchors near the finger. Drag
+a bubble physically right by more than 64 dp and release to reply; shorter drags spring
+back. Connected streaming rows move together, and vertical scrolling, text selection and
+horizontal code/table scrolling retain their gestures. Reaction emoji keep their natural
+colors while the menu and reaction-pill surfaces remain monochrome.
+
+## Native libraries and 16 KB pages
+
+The Android build uses AGP 8.7.3 and [NDK r30](https://developer.android.com/ndk/downloads).
+The app's C/C++ libraries, PRoot executable and Go/rclone binding are linked for 16 KB
+pages. Packaged ONNX Runtime, WebRTC processing, VAD, CameraX, AndroidX graphics,
+DataStore and C++ runtime binaries were already aligned; their dependency versions stay unchanged.
+
+CI checks ELF load-segment alignment and offset/address congruence in every packaged
+library, checks the PRoot executable asset, and runs Android SDK ZIP alignment validation.
+Compressed libraries are extracted at install time and do not need a 16 KB ZIP offset;
+their ELF load segments still do.
+
+**Known upstream blocker:** lib/arm64-v8a/libproot-loader32.so is a legacy ARM32
+guest loader, not a 64-bit Android shared library. The vendored Termux 5.1.107-70
+binary still has 4 KB ELF load segments. The current official
+[Termux PRoot 5.1.107.96 package](https://packages.termux.dev/apt/termux-main/pool/main/p/proot/)
+also ships a 4 KB ARM32 loader, so there is no verified drop-in 16 KB-compatible
+upstream release. Keep the pinned working loader: substituting fork-built loaders
+previously broke sandbox execution on some Android ROMs. No ELF headers are patched
+and no Android compatibility warning is disabled. An all-libraries analyzer can still
+flag this file, and the ColorOS warning may remain until that upstream helper is updated.
+
+The standalone check is strict:
+
+    python3 scripts/android/check-native-alignment.py app-debug.apk
+
+CI's explicit --allow-legacy-proot32 exception accepts only the exact vendored
+file name, ARM32 class and pinned SHA-256, reports it as an unresolved warning, and
+continues to reject every other misaligned library. This is not a claim of full
+16 KB compatibility. A ColorOS/16 KB device test is still required.
+After upgrading the toolchain, rebuild cached native artifacts with:
+
+    bash scripts/android/build-natives.sh --force
+
 ## Building it yourself
 
 JDK 17 or 21 (CI uses 21) and the Android SDK (Android Studio installs both); `scripts/android/env.sh` sets
 the environment on a bare machine. The project is under `android/src/android`:
 
 ```bash
-bash scripts/android/build-natives.sh   # once: proot, the Alpine rootfs and rclone.aar (NDK r27c, Go 1.25+)
+bash scripts/android/build-natives.sh   # once: proot, the Alpine rootfs and rclone.aar (NDK r30 (30.0.16248370), Go 1.25+)
 cd android/src/android
 ./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:assembleRelease      # signed with android/keystore.properties when present

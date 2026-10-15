@@ -301,6 +301,7 @@ internal fun UserMessageBubble(
     nmReactions: io.github.nanomuse.ui.chat.NmReactionState = io.github.nanomuse.ui.chat.NmReactionState(),
     nmAgentName: String = "",
     nmOnReaction: (String) -> Unit = {},
+    nmSwipeModifier: Modifier = Modifier, // nanoMuse: the message's bounded swipe surface.
 ) {
     var showMenu by remember { mutableStateOf(false) }
     val isQueued = message.isQueued
@@ -329,6 +330,7 @@ internal fun UserMessageBubble(
         Box(
             modifier = Modifier
                 .widthIn(max = bubbleMaxWidth)
+                .then(nmSwipeModifier) // nanoMuse: child media/text gestures retain first refusal.
                 .onGloballyPositioned { nmOnBounds?.invoke(it) } // nanoMuse: anchor to the actual user bubble.
                 // pointerInput on the OUTER box (= MinisMenu's anchor). Long-press
                 // anywhere on the bubble (text or attachments) opens the menu;

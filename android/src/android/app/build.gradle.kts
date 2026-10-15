@@ -31,9 +31,9 @@ android {
     // Android 16 behavior changes; the Live Updates path is runtime-gated on
     // Build.VERSION.SDK_INT >= 36 (see DynamicIslandSupport / AgentForegroundService).
     compileSdk = 36
-    // nanoMuse: pin the NDK this repository is built and released with (r27c);
+    // nanoMuse: pin the current LTS NDK with 16 KB page support (r30);
     // deps/build_proot.sh uses the same one through ANDROID_NDK_HOME.
-    ndkVersion = "27.2.12479018"
+    ndkVersion = "30.0.16248370"
 
     // nanoMuse: release builds are signed with the project key when
     // android/keystore.properties exists (storeFile / storePassword / keyAlias /

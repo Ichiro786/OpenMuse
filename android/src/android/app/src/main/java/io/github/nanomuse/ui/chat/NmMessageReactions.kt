@@ -15,12 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -28,16 +23,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.openminis.app.R
 import kotlinx.coroutines.delay
-
-// nanoMuse: system emoji fonts are desaturated along with the neutral reaction surfaces.
-internal fun Modifier.nmMonochromeEmoji(): Modifier = drawWithCache {
-    val paint = Paint().apply { colorFilter = ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
-    onDrawWithContent {
-        drawContext.canvas.saveLayer(Rect(0f, 0f, size.width, size.height), paint)
-        drawContent()
-        drawContext.canvas.restore()
-    }
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -66,7 +51,8 @@ internal fun NmMessageReactions(state: NmReactionState, onToggle: (String) -> Un
                         .clickable { onToggle(emoji) }.semantics { contentDescription = label }
                         .padding(horizontal = 9.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(emoji, fontSize = 16.sp, modifier = Modifier.nmMonochromeEmoji())
+                        // nanoMuse: reaction glyphs retain their system emoji colors.
+                        Text(emoji, fontSize = 16.sp)
                         Text(count.toString(), fontSize = 12.sp, color = Color(0xFFCCCCCC))
                     }
                 }

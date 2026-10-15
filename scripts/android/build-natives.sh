@@ -21,7 +21,10 @@ fi
 
 if [ $force = 1 ] || [ ! -f "$ASSETS/proot-aarch64" ] || [ ! -f "$JNI/libproot-loader.so" ]; then
   echo "== proot (NDK: ${ANDROID_NDK_HOME:-unset})"
-  (cd "$NM_ANDROID" && bash deps/build_proot.sh)
+  # nanoMuse: changed NDK/linker flags require cleaning cached native object files.
+  proot_args=()
+  [ "$force" = 1 ] && proot_args+=(clean)
+  (cd "$NM_ANDROID" && bash deps/build_proot.sh "${proot_args[@]}")
 else
   echo "== proot: present"
 fi

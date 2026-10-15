@@ -32,11 +32,12 @@ mkdir -p "$BUILD"
 cd "$SRC"
 
 # arm64-v8a only, matching the app's existing ndk abiFilters.
+# nanoMuse: gomobile's Go/C shared library must use the same 16 KB ELF layout as the app.
 gomobile bind -v \
   -target=android/arm64 \
   -androidapi 24 \
   -javapkg=com.openminis.rclone \
-  -ldflags="-s -w" \
+  -ldflags="-s -w -linkmode=external -extldflags=-Wl,-z,max-page-size=16384,-z,common-page-size=16384" \
   -o "$BUILD/rclone.aar" \
   ./gomobile
 

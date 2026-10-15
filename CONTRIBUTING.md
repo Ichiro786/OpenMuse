@@ -34,7 +34,7 @@ Upstream is a mirror of a private tree, squashed roughly monthly, and does not t
 5. **Binary resources** (icon PNGs) are overwritten under the upstream name; on a pull conflict take ours (`git checkout --ours`).
 6. **iOS follows the same rules.** The iOS half of upstream lives at `android/src/ios` (see [docs/ios.md](docs/ios.md)); our Swift goes in `android/src/ios/NanoMuse/`, an edit inside an upstream Swift file carries a `// nanoMuse:` comment.
 
-Build steps are in [android/BUILDING.md](android/BUILDING.md) (upstream) and, for the toolchain this repository is built with, in `scripts/android/`: JDK 21, SDK CMake 3.22.1, NDK r27c, Go 1.25+, `gomobile`; `deps/build_proot.sh` builds proot from the `android/deps/proot` submodule (our fork; portable `awk`, no gawk needed) and must run before `scripts/prepare_android_sandbox.sh`.
+Build steps are in [android/BUILDING.md](android/BUILDING.md) (upstream) and, for the toolchain this repository is built with, in `scripts/android/`: JDK 21, SDK CMake 3.22.1, NDK r30, Go 1.25+, `gomobile`; `deps/build_proot.sh` builds proot from the `android/deps/proot` submodule (our fork; portable `awk`, no gawk needed) and must run before `scripts/prepare_android_sandbox.sh`.
 
 ### Pulling an upstream release
 
