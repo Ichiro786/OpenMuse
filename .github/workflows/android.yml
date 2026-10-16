@@ -86,6 +86,7 @@ jobs:
           bash scripts/android/build-natives.sh
 
       - name: assembleDebug
+        id: assemble
         working-directory: android/src/android
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
@@ -99,8 +100,15 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.ui.chat.*' --console=plain --no-daemon
 
+      - name: Android lint
+        if: ${{ !cancelled() && steps.assemble.outcome == 'success' }}
+        working-directory: android/src/android
+        run: ./gradlew :app:lintDebug --console=plain --no-daemon
+
       # nanoMuse: validate the actual installable file before publishing it.
       - name: APK integrity, native alignment, signature and badging
+        id: apk-checks
+        if: ${{ !cancelled() && steps.assemble.outcome == 'success' }}
         run: |
           bt="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           apk="android/src/android/app/build/outputs/apk/debug/app-debug.apk"
@@ -114,8 +122,15 @@ jobs:
 
       # nanoMuse: a direct APK avoids an outer ZIP that phone archive managers may reject.
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() && steps.apk-checks.outcome == 'success' }}
         with:
           archive: false
           path: android/src/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
           if-no-files-found: error
+
+      - name: Compile instrumentation tests
+        id: instrumentation-compile
+        if: ${{ !cancelled() && steps.assemble.outcome == 'success' }}
+        working-directory: android/src/android
+        run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain --no-daemon
