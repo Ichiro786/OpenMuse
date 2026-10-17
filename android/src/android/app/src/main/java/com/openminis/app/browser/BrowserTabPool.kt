@@ -13,6 +13,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+// nanoMuse: download registration now runs on concurrent IO workers.
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -22,6 +24,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import com.openminis.app.R
 import org.json.JSONObject
 import java.io.File
+// nanoMuse: one containment boundary for HTTP and blob downloads.
+import io.github.nanomuse.browser.BrowserDownloadFiles
 import java.util.Date
 import java.util.concurrent.ConcurrentHashMap
 
@@ -306,19 +310,20 @@ class BrowserTabPool(private val context: Context) {
         val entry = DownloadEntry(
             id = id,
             filename = dest.name,
-            destination = dest,
+            destination = null, // nanoMuse: private staging is published only after a successful transfer.
             bytesDone = 0L,
             totalBytes = totalBytes,
             state = DownloadState.DOWNLOADING,
             startedAt = System.currentTimeMillis(),
         )
-        _downloads.value = listOf(entry) + _downloads.value
+        _downloads.update { listOf(entry) + it } // nanoMuse: preserve concurrent download registrations.
         _activeDownload.value = DownloadUiState(dest.name, if (totalBytes > 0) 0f else -1f)
         return id
     }
 
     private fun updateDownloadEntry(id: Long, transform: (DownloadEntry) -> DownloadEntry) {
-        _downloads.value = _downloads.value.map { if (it.id == id) transform(it) else it }
+        // nanoMuse: progress, completion, and registration must not overwrite each other.
+        _downloads.update { entries -> entries.map { if (it.id == id) transform(it) else it } }
     }
 
     private fun updateDownloadProgress(id: Long, name: String, copied: Long, total: Long) {
@@ -354,40 +359,21 @@ class BrowserTabPool(private val context: Context) {
 
     /** Panel opened — terminal entries stop counting toward the badge. */
     fun markDownloadsSeen() {
-        _downloads.value = _downloads.value.map {
-            if (it.state != DownloadState.DOWNLOADING) it.copy(seen = true) else it
+        // nanoMuse: keep background download updates when the panel opens.
+        _downloads.update { entries ->
+            entries.map { if (it.state != DownloadState.DOWNLOADING) it.copy(seen = true) else it }
         }
     }
 
     /** "Clear" in the panel: drops ALL finished records (completed AND failed,
      *  iOS v3 semantics) — in-flight rows untouched. */
     fun clearFinishedDownloads() {
-        _downloads.value = _downloads.value.filter { it.state == DownloadState.DOWNLOADING }
+        // nanoMuse: clearing finished rows must not drop a concurrently registered download.
+        _downloads.update { entries -> entries.filter { it.state == DownloadState.DOWNLOADING } }
     }
 
 
-    /** The session's /var/minis/workspace/ host directory — downloads land here
-     *  so the agent can read and operate on them in follow-up turns. */
-    private fun sessionWorkspaceDir(): File? {
-        val sid = sessionId ?: return null
-        return File(File(File(context.filesDir, "minis-sessions"), sid), "workspace")
-            .apply { mkdirs() }
-    }
-
-    /** name.ext → name-1.ext → name-2.ext … until unused. */
-    private fun uniqueFile(dir: File, name: String): File {
-        var f = File(dir, name)
-        if (!f.exists()) return f
-        val base = name.substringBeforeLast('.', name)
-        val ext = name.substringAfterLast('.', "")
-        var i = 1
-        while (f.exists()) {
-            f = File(dir, if (ext.isEmpty()) "$base-$i" else "$base-$i.$ext")
-            i++
-        }
-        return f
-    }
-
+    // nanoMuse: both writers create and clean up files through one descriptor-pinned boundary.
     /** Stream an http/https download into the session workspace with progress. */
     internal fun startUrlDownload(
         url: String,
@@ -396,94 +382,105 @@ class BrowserTabPool(private val context: Context) {
         mimeType: String?,
         contentLength: Long,
     ) {
-        val dir = sessionWorkspaceDir() ?: run {
+        val sid = sessionId ?: run {
             Log.w(TAG, "download rejected: no session bound to pool")
             return
         }
         val name = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimeType)
-        val dest = uniqueFile(dir, name)
-        onDownloadEvent?.invoke("Downloading ${middleTruncated(dest.name)}…")
-        val id = registerDownload(dest, contentLength)
-        val job = downloadScope.launch {
+        if (!BrowserDownloadFiles.isValidName(name)) {
+            Log.w(TAG, "download rejected: invalid filename")
+            return
+        }
+        downloadScope.launch {
+            var id: Long? = null
             try {
-                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 15_000
-                conn.readTimeout = 30_000
-                conn.instanceFollowRedirects = true
-                userAgent?.takeIf { it.isNotEmpty() }?.let { conn.setRequestProperty("User-Agent", it) }
-                // Reuse the WebView's cookies so authenticated downloads work.
-                android.webkit.CookieManager.getInstance().getCookie(url)?.let {
-                    conn.setRequestProperty("Cookie", it)
-                }
-                val total = if (contentLength > 0) contentLength else conn.contentLengthLong
-                conn.inputStream.use { input ->
-                    dest.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        var copied = 0L
-                        while (true) {
-                            // Makes cancelDownload() actually stop mid-stream
-                            // instead of copying to completion.
-                            ensureActive()
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n)
-                            copied += n
-                            updateDownloadProgress(id, dest.name, copied, total)
+                val dest = BrowserDownloadFiles.write(context.filesDir, sid, name) { file, out ->
+                    val downloadId = registerDownload(file, contentLength)
+                    id = downloadId
+                    downloadJobs[downloadId] = checkNotNull(coroutineContext[Job])
+                    onDownloadEvent?.invoke("Downloading ${middleTruncated(file.name)}…")
+                    val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                    try {
+                        conn.connectTimeout = 15_000
+                        conn.readTimeout = 30_000
+                        conn.instanceFollowRedirects = true
+                        userAgent?.takeIf { it.isNotEmpty() }?.let { conn.setRequestProperty("User-Agent", it) }
+                        android.webkit.CookieManager.getInstance().getCookie(url)?.let {
+                            conn.setRequestProperty("Cookie", it)
                         }
+                        val total = if (contentLength > 0) contentLength else conn.contentLengthLong
+                        conn.inputStream.use { input ->
+                            val buf = ByteArray(64 * 1024)
+                            var copied = 0L
+                            while (true) {
+                                ensureActive()
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n)
+                                copied += n
+                                updateDownloadProgress(downloadId, file.name, copied, total)
+                            }
+                            ensureActive()
+                        }
+                    } finally {
+                        conn.disconnect()
                     }
                 }
-                conn.disconnect()
-                finishDownload(id, dest)
+                finishDownload(checkNotNull(id), dest)
             } catch (e: kotlinx.coroutines.CancellationException) {
-                // User cancel is not a failure notice-worthy event: delete the
-                // partial file, settle as cancelled, keep the chat quiet.
-                Log.i(TAG, "download cancelled: ${dest.name}")
-                runCatching { dest.delete() }
-                settleDownload(id, DownloadState.FAILED, reason = "Cancelled")
+                Log.i(TAG, "download cancelled: $name")
+                id?.let { settleDownload(it, DownloadState.FAILED, reason = "Cancelled") }
             } catch (t: Throwable) {
-                Log.w(TAG, "download failed: ${dest.name} — ${t.message}")
-                runCatching { dest.delete() }
-                settleDownload(id, DownloadState.FAILED, reason = t.message ?: "error")
-                onDownloadEvent?.invoke("Download failed: ${middleTruncated(dest.name)} — ${t.message}")
+                Log.w(TAG, "download failed: $name — ${t.message ?: "error"}")
+                id?.let { settleDownload(it, DownloadState.FAILED, reason = t.message ?: "error") }
+                onDownloadEvent?.invoke("Download failed: ${middleTruncated(name)} — ${t.message ?: "error"}")
             }
         }
-        downloadJobs[id] = job
     }
 
     /** Persist decoded blob: bytes (from the JS bridge) into the workspace. */
     internal fun saveBlobDownload(data: ByteArray, filename: String, mimeType: String?) {
-        val dir = sessionWorkspaceDir() ?: run {
+        val sid = sessionId ?: run {
             Log.w(TAG, "blob download rejected: no session bound to pool")
             return
         }
-        // guessFileName on a blob: URL yields "downloadfile.bin" — refine the
-        // extension from the blob's actual MIME type when we have one.
+        // Validate before MIME refinement can change the webpage's original input.
+        if (!BrowserDownloadFiles.isValidName(filename)) {
+            Log.w(TAG, "blob download rejected: invalid filename")
+            return
+        }
         var name = filename
         if ((name.endsWith(".bin") || !name.contains('.')) && mimeType != null) {
             android.webkit.MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType)?.let { ext ->
                 name = name.substringBeforeLast('.') + "." + ext
             }
         }
-        val dest = uniqueFile(dir, name)
-        val id = registerDownload(dest, data.size.toLong())
-        val job = downloadScope.launch {
+        val downloadName = name
+        downloadScope.launch {
+            var id: Long? = null
             try {
-                dest.writeBytes(data)
-                finishDownload(id, dest)
+                val dest = BrowserDownloadFiles.write(context.filesDir, sid, downloadName) { file, out ->
+                    val downloadId = registerDownload(file, data.size.toLong())
+                    id = downloadId
+                    downloadJobs[downloadId] = checkNotNull(coroutineContext[Job])
+                    ensureActive()
+                    out.write(data)
+                    ensureActive()
+                }
+                finishDownload(checkNotNull(id), dest)
             } catch (e: kotlinx.coroutines.CancellationException) {
-                runCatching { dest.delete() }
-                settleDownload(id, DownloadState.FAILED, reason = "Cancelled")
+                id?.let { settleDownload(it, DownloadState.FAILED, reason = "Cancelled") }
             } catch (t: Throwable) {
-                Log.w(TAG, "blob download save failed: ${t.message}")
-                runCatching { dest.delete() }
-                settleDownload(id, DownloadState.FAILED, reason = t.message ?: "error")
-                onDownloadEvent?.invoke("Download failed: ${middleTruncated(dest.name)} — ${t.message}")
+                Log.w(TAG, "blob download save failed: ${t.message ?: "error"}")
+                id?.let { settleDownload(it, DownloadState.FAILED, reason = t.message ?: "error") }
+                onDownloadEvent?.invoke("Download failed: ${middleTruncated(downloadName)} — ${t.message ?: "error"}")
             }
         }
-        downloadJobs[id] = job
     }
 
     private fun finishDownload(id: Long, dest: File) {
+        // nanoMuse: atomic publication decides the final collision suffix.
+        updateDownloadEntry(id) { it.copy(filename = dest.name, destination = dest) }
         val size = dest.length()
         settleDownload(id, DownloadState.COMPLETED, bytes = size)
         val sizeText = android.text.format.Formatter.formatShortFileSize(context, size)
