@@ -293,6 +293,8 @@ milliseconds. Unit tests: `ProviderReachTest`, `OwnProviderProxyTest`.
 
 ## Privacy and permissions
 
+Browser downloads stay in their chat session's workspace. Filenames cannot contain paths or control characters. Existing files, including symbolic links, are never overwritten; repeated names receive a numeric suffix. Downloads are staged in private app storage and published atomically, so failed transfers cannot delete another file. Directory handles prevent a substituted workspace path from redirecting a transfer. Devices whose kernel or filesystem lacks atomic no-replace rename support reject downloads rather than risking an overwrite.
+
 The relay keeps an account id, a masked identifier, usage counts and the agent's name and
 look (so your devices match) — and message content only as conversation sync, on by default
 when signed in and switched off under *Data controls* ([privacy.md](privacy.md),

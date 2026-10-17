@@ -92,13 +92,17 @@ jobs:
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
           ./gradlew :app:assembleDebug --console=plain --no-daemon
 
-      # Our unit tests (io.github.nanomuse.*: the guards, the hub client, the sandbox paths, the
-      # strings' parity), plus chat regression tests; the compiled classes are warm.
+      # nanoMuse: include browser regressions without coupling them to device-test compilation.
       - name: Unit tests
         working-directory: android/src/android
         run: |
           export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
-          ./gradlew :app:testDebugUnitTest --tests 'io.github.nanomuse.*' --tests 'com.openminis.app.ui.chat.*' --console=plain --no-daemon
+          ./gradlew :app:testDebugUnitTest \
+            --tests 'io.github.nanomuse.*' \
+            --tests 'com.openminis.app.browser.*' \
+            --tests 'com.openminis.app.ui.browser.*' \
+            --tests 'com.openminis.app.ui.chat.*' \
+            --console=plain --no-daemon
 
       - name: Android lint
         if: ${{ !cancelled() && steps.assemble.outcome == 'success' }}
@@ -131,6 +135,14 @@ jobs:
           python3 scripts/android/check-native-alignment.py "$apk" --allow-legacy-proot32
           sha256sum "$apk"
 
+          # nanoMuse: inspect the packaged ARM64 library, not an intermediate host build.
+          nm_llvm="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          nm_jni="$RUNNER_TEMP/nanomuse-download-arm64.so"
+          unzip -p "$apk" lib/arm64-v8a/libpty_bridge.so > "$nm_jni"
+          "$nm_llvm/llvm-readelf" --file-header "$nm_jni" | grep -E 'Machine:.*AArch64'
+          "$nm_llvm/llvm-nm" --dynamic --defined-only "$nm_jni" | \
+            grep -E ' T Java_io_github_nanomuse_browser_BrowserDownloadNative_renameNoReplace$'
+
       # nanoMuse: a direct APK avoids an outer ZIP that phone archive managers may reject.
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() && steps.apk-checks.outcome == 'success' }}
@@ -140,8 +152,56 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      # nanoMuse: report stale device-test failures without hiding independent JVM, lint, or JNI results.
       - name: Compile instrumentation tests
         id: instrumentation-compile
         if: ${{ !cancelled() && steps.assemble.outcome == 'success' }}
         working-directory: android/src/android
         run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain --no-daemon
+
+      # nanoMuse: keep the published APK ARM64; the existing chat-only x86_64 variant runs browser tests.
+      - name: Download security instrumentation (API 35, x86_64, enforcing SELinux)
+        if: ${{ !cancelled() && steps.instrumentation-compile.outcome == 'success' }}
+        working-directory: android/src/android
+        timeout-minutes: 20
+        run: |
+          test -c /dev/kvm
+          sudo chown "$(id -u)" /dev/kvm
+          # avdmanager and emulator must use the same runner XDG-based AVD directory.
+          export ANDROID_USER_HOME="${ANDROID_USER_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/.android}"
+          export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"
+          sdkmanager --install "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
+          avdmanager create avd --force --name nm-f02 \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_2"
+          "$ANDROID_HOME/emulator/emulator" -avd nm-f02 -no-window -gpu swiftshader \
+            -no-audio -no-boot-anim -no-snapshot -accel on \
+            > app/build/f02-emulator.log 2>&1 &
+          nm_emulator_pid=$!
+          # Diagnostics and process cleanup never override the instrumentation exit status.
+          trap 'timeout 15s adb logcat -d > app/build/f02-logcat.txt 2>&1 || true; kill "$nm_emulator_pid" 2>/dev/null || true' EXIT
+          timeout 240s adb wait-for-device
+          timeout 240s bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
+          test "$(adb shell getenforce | tr -d '\r')" = Enforcing
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          ./gradlew -Pnm.abi=x86_64 :app:connectedDebugAndroidTest \
+            -Pandroid.testInstrumentationRunnerArguments.class=io.github.nanomuse.browser.BrowserDownloadFilesInstrumentedTest,io.github.nanomuse.browser.BrowserDownloadIntegrationTest \
+            --console=plain --no-daemon
+
+      - name: Verification reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-verification-reports
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            android/src/android/app/build/reports/tests/
+            android/src/android/app/build/test-results/
+            android/src/android/app/build/reports/lint-results-debug.*
+            android/src/android/app/build/reports/androidTests/
+            android/src/android/app/build/outputs/androidTest-results/
+            android/src/android/app/build/f02-emulator.log
+            android/src/android/app/build/f02-logcat.txt
