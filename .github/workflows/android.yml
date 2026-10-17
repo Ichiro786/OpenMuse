@@ -159,25 +159,79 @@ jobs:
         working-directory: android/src/android
         run: ./gradlew :app:compileDebugAndroidTestKotlin --console=plain --no-daemon
 
-      # nanoMuse: keep the published APK ARM64; the existing chat-only x86_64 variant runs browser tests.
+      # nanoMuse: keep the published APK ARM64; x86_64 runs the F02 instrumentation on API 35.
       - name: Download security instrumentation (API 35, x86_64, enforcing SELinux)
-        if: ${{ !cancelled() && steps.instrumentation-compile.outcome == 'success' }}
+        if: \${{ !cancelled() && steps.instrumentation-compile.outcome == 'success' }}
         working-directory: android/src/android
         timeout-minutes: 20
         run: |
           test -c /dev/kvm
           sudo chown "$(id -u)" /dev/kvm
           sdkmanager --install "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          printf 'no\n' | avdmanager create avd --force --name nm-f02 \
-            --package "system-images;android-35;google_apis;x86_64"
+          avdmanager create avd --force --name nm-f02 \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_2"
+          if ! "$ANDROID_HOME/emulator/emulator" -list-avds | grep -Fxq nm-f02; then
+            echo "AVD nm-f02 was not created"
+            avdmanager list avd || true
+            exit 1
+          fi
+          "$ANDROID_HOME/emulator/emulator" -accel-check || true
+          adb start-server
           "$ANDROID_HOME/emulator/emulator" -avd nm-f02 -no-window -gpu swiftshader \
             -no-audio -no-boot-anim -no-snapshot -accel on \
             > app/build/f02-emulator.log 2>&1 &
           nm_emulator_pid=$!
-          # Diagnostics and process cleanup never override the instrumentation exit status.
-          trap 'timeout 15s adb logcat -d > app/build/f02-logcat.txt 2>&1 || true; kill "$nm_emulator_pid" 2>/dev/null || true' EXIT
-          timeout 240s adb wait-for-device
-          timeout 240s bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'
+          nm_collect_diagnostics() {
+            echo "=== emulator startup diagnostics ==="
+            uname -a
+            nproc
+            free -h || true
+            df -h "$ANDROID_HOME" || true
+            "$ANDROID_HOME/emulator/emulator" -accel-check || true
+            "$ANDROID_HOME/emulator/emulator" -list-avds || true
+            adb devices -l || true
+            if [ -n "$nm_emulator_pid" ]; then
+              ps -o pid,stat,cmd -p "$nm_emulator_pid" || true
+            fi
+            echo "=== emulator log (last 250 lines) ==="
+            tail -n 250 app/build/f02-emulator.log || true
+            timeout 15s adb logcat -b all -d > app/build/f02-logcat.txt 2>&1 || true
+            echo "=== logcat (last 200 lines) ==="
+            tail -n 200 app/build/f02-logcat.txt || true
+          }
+          nm_finish() {
+            nm_status=$?
+            trap - EXIT
+            if [ "$nm_status" -ne 0 ]; then
+              nm_collect_diagnostics
+            else
+              timeout 15s adb logcat -b all -d > app/build/f02-logcat.txt 2>&1 || true
+            fi
+            kill "$nm_emulator_pid" 2>/dev/null || true
+            exit "$nm_status"
+          }
+          trap nm_finish EXIT
+          nm_elapsed=0
+          while [ "$nm_elapsed" -lt 240 ]; do
+            if ! kill -0 "$nm_emulator_pid" 2>/dev/null; then
+              echo "Emulator process exited before ADB connected"
+              exit 1
+            fi
+            if adb devices | grep -Eq '^emulator-[0-9]+[[:space:]]+device$'; then
+              break
+            fi
+            sleep 2
+            nm_elapsed=$((nm_elapsed + 2))
+          done
+          if [ "$nm_elapsed" -ge 240 ]; then
+            echo "Timed out waiting for ADB to connect to the emulator"
+            exit 1
+          fi
+          if ! timeout 240s bash -c 'until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = 1 ]; do sleep 2; done'; then
+            echo "Emulator connected to ADB but did not complete boot"
+            exit 1
+          fi
           test "$(adb shell getenforce | tr -d '\r')" = Enforcing
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
