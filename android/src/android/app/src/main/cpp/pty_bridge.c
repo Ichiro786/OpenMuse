@@ -234,3 +234,44 @@ Java_com_openminis_app_sandbox_PtyBridge_waitFor(
     if (WIFSIGNALED(status)) return (jint) -(128 + WTERMSIG(status));
     return -1;
 }
+
+// nanoMuse: Android forbids hard links; publish browser downloads with an atomic no-replace rename.
+#include <sys/syscall.h>
+#include <linux/fs.h>
+
+JNIEXPORT jint JNICALL
+Java_io_github_nanomuse_browser_BrowserDownloadNative_renameNoReplace(
+    JNIEnv *env, jobject receiver, jint sourceDir, jbyteArray sourceName,
+    jint destinationDir, jbyteArray destinationName)
+{
+    (void) receiver;
+    if (sourceDir < 0 || destinationDir < 0 || !sourceName || !destinationName) return EINVAL;
+    jsize sourceLength = (*env)->GetArrayLength(env, sourceName);
+    jsize destinationLength = (*env)->GetArrayLength(env, destinationName);
+    if (sourceLength < 1 || sourceLength > 255 || destinationLength < 1 || destinationLength > 255)
+        return EINVAL;
+    char source[256], destination[256];
+    // Explicit UTF-8 bytes preserve supplementary Unicode; JNI's modified UTF-8 does not.
+    (*env)->GetByteArrayRegion(env, sourceName, 0, sourceLength, (jbyte *) source);
+    if ((*env)->ExceptionCheck(env)) return EINVAL;
+    (*env)->GetByteArrayRegion(env, destinationName, 0, destinationLength, (jbyte *) destination);
+    if ((*env)->ExceptionCheck(env)) return EINVAL;
+    source[sourceLength] = '\0';
+    destination[destinationLength] = '\0';
+    const char *names[] = { source, destination };
+    const jsize lengths[] = { sourceLength, destinationLength };
+    for (int i = 0; i < 2; i++) {
+        if (memchr(names[i], '\0', lengths[i]) || memchr(names[i], '/', lengths[i]) ||
+            memchr(names[i], '\\', lengths[i]) || !strcmp(names[i], ".") || !strcmp(names[i], ".."))
+            return EINVAL;
+    }
+#if defined(__NR_renameat2)
+    int result;
+    do {
+        result = (int) syscall(__NR_renameat2, sourceDir, source, destinationDir, destination, RENAME_NOREPLACE);
+    } while (result < 0 && errno == EINTR);
+    return result == 0 ? 0 : errno;
+#else
+    return ENOSYS; // Never fall back to rename(), which can overwrite another download.
+#endif
+}
