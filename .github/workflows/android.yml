@@ -168,8 +168,9 @@ jobs:
           test -c /dev/kvm
           sudo chown "$(id -u)" /dev/kvm
           sdkmanager --install "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
-          printf 'no\n' | avdmanager create avd --force --name nm-f02 \
-            --package "system-images;android-35;google_apis;x86_64"
+          avdmanager create avd --force --name nm-f02 \
+            --package "system-images;android-35;google_apis;x86_64" \
+            --device "pixel_2"
           "$ANDROID_HOME/emulator/emulator" -avd nm-f02 -no-window -gpu swiftshader \
             -no-audio -no-boot-anim -no-snapshot -accel on \
             > app/build/f02-emulator.log 2>&1 &
