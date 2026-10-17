@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.8.2">
+  <issue
+      id="MissingPermission"
+      message="Missing permissions required by BiometricPrompt.authenticate: android.permission.USE_BIOMETRIC">
+    <location
+        file="src/main/java/io/github/nanomuse/guard/DeviceCredential.kt"
+        line="48"
+        column="9"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 33 (current min is 26): `java.io.InputStream#readNBytes`">
+    <location
+        file="src/main/java/com/openminis/app/debug/DebugRPCHandler.kt"
+        line="394"
+        column="20"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 30 (current min is 26): `android.os.Environment#isExternalStorageManager`">
+    <location
+        file="src/main/java/com/openminis/app/data/MountedFoldersStore.kt"
+        line="153"
+        column="52"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 29 (current min is 26): `android.os.Environment#isExternalStorageLegacy`">
+    <location
+        file="src/main/java/com/openminis/app/data/MountedFoldersStore.kt"
+        line="166"
+        column="29"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 30 (current min is 26): `android.os.Environment#isExternalStorageManager`">
+    <location
+        file="src/main/java/com/openminis/app/sandbox/PRootKernel.kt"
+        line="449"
+        column="56"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 29 (current min is 26): `android.os.Environment#isExternalStorageLegacy`">
+    <location
+        file="src/main/java/com/openminis/app/sandbox/PRootKernel.kt"
+        line="462"
+        column="33"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 29 (current min is 26): `android.icu.text.Transliterator#getInstance`">
+    <location
+        file="src/main/java/com/openminis/app/speech/correction/PhoneticNormalizer.kt"
+        line="77"
+        column="45"/>
+  </issue>
+  <issue
+      id="NewApi"
+      message="Call requires API level 29 (current min is 26): `android.icu.text.Transliterator#transliterate`">
+    <location
+        file="src/main/java/com/openminis/app/speech/correction/PhoneticNormalizer.kt"
+        line="89"
+        column="37"/>
+  </issue>
+  <issue
+      id="SuspiciousIndentation"
+      message="Suspicious indentation: This is conditionally executed; expected it to be indented">
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/ChatScreen.kt"
+        line="3097"
+        column="25"/>
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/ChatScreen.kt"
+        line="3089"
+        column="25"/>
+  </issue>
+  <issue
+      id="SuspiciousIndentation"
+      message="Suspicious indentation: This is conditionally executed; expected it to be indented">
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/ChatScreen.kt"
+        line="6862"
+        column="29"/>
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/ChatScreen.kt"
+        line="6861"
+        column="29"/>
+  </issue>
+  <issue
+      id="SuspiciousIndentation"
+      message="Suspicious indentation: This is conditionally executed; expected it to be indented">
+    <location
+        file="src/main/java/com/openminis/app/ui/settings/ProviderDetailScreen.kt"
+        line="764"
+        column="9"/>
+    <location
+        file="src/main/java/com/openminis/app/ui/settings/ProviderDetailScreen.kt"
+        line="751"
+        column="9"/>
+  </issue>
+  <issue
+      id="RememberReturnType"
+      message="`remember` calls must not return `Unit`">
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/LargeContentGuard.kt"
+        line="227"
+        column="13"/>
+  </issue>
+  <issue
+      id="RememberReturnType"
+      message="`remember` calls must not return `Unit`">
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/LargeContentGuard.kt"
+        line="249"
+        column="13"/>
+  </issue>
+  <issue
+      id="RememberReturnType"
+      message="`remember` calls must not return `Unit`">
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/LargeContentGuard.kt"
+        line="281"
+        column="5"/>
+  </issue>
+  <issue
+      id="StateFlowValueCalledInComposition"
+      message="StateFlow.value should not be called within composition">
+    <location
+        file="src/main/java/com/openminis/app/ui/navigation/AppNavigation.kt"
+        line="1580"
+        column="60"/>
+  </issue>
+  <issue
+      id="StateFlowValueCalledInComposition"
+      message="StateFlow.value should not be called within composition">
+    <location
+        file="src/main/java/com/openminis/app/ui/chat/ChatScreen.kt"
+        line="3817"
+        column="64"/>
+  </issue>
+  <issue
+      id="StateFlowValueCalledInComposition"
+      message="StateFlow.value should not be called within composition">
+    <location
+        file="src/main/java/io/github/nanomuse/ui/models/UseItForScreen.kt"
+        line="81"
+        column="30"/>
+  </issue>
+  <issue
+      id="MissingTranslation"
+      message="&quot;compact_progress&quot; is not translated in &quot;pt&quot; (Portuguese), &quot;in&quot; (Indonesian), &quot;ms&quot; (Malay), &quot;fil&quot; (Filipino; Pilipino), &quot;th&quot; (Thai), &quot;pl&quot; (Polish), &quot;ro&quot; (Romanian), &quot;tr&quot; (Turkish)">
+    <location
+        file="src/main/res/values/strings.xml"
+        line="1939"
+        column="13"/>
+  </issue>
+  <issue
+      id="MissingTranslation"
+      message="&quot;compact_progress_split&quot; is not translated in &quot;pt&quot; (Portuguese), &quot;in&quot; (Indonesian), &quot;ms&quot; (Malay), &quot;fil&quot; (Filipino; Pilipino), &quot;th&quot; (Thai), &quot;pl&quot; (Polish), &quot;ro&quot; (Romanian), &quot;tr&quot; (Turkish)">
+    <location
+        file="src/main/res/values/strings.xml"
+        line="1940"
+        column="13"/>
+  </issue>
+  <issue
+      id="ImpliedQuantity"
+      message="The quantity `'one'` matches more than one specific number in this locale (0, 1), but the message did not include a formatting argument (such as `%d`). This is usually an internationalization error. See full issue explanation for more.">
+    <location
+        file="src/main/res/values-fr/nm_strings.xml"
+        line="27"
+        column="9"/>
+  </issue>
+  <issue
+      id="ImpliedQuantity"
+      message="The quantity `'one'` matches more than one specific number in this locale (0, 1), but the message did not include a formatting argument (such as `%d`). This is usually an internationalization error. See full issue explanation for more.">
+    <location
+        file="src/main/res/values-pt-rBR/nm_strings.xml"
+        line="27"
+        column="9"/>
+  </issue>
+  <issue
+      id="ImpliedQuantity"
+      message="The quantity `'one'` matches more than one specific number in this locale (0, 1), but the message did not include a formatting argument (such as `%d`). This is usually an internationalization error. See full issue explanation for more.">
+    <location
+        file="src/main/res/values-fr/nm_strings.xml"
+        line="33"
+        column="9"/>
+  </issue>
+  <issue
+      id="ImpliedQuantity"
+      message="The quantity `'one'` matches more than one specific number in this locale (0, 1), but the message did not include a formatting argument (such as `%d`). This is usually an internationalization error. See full issue explanation for more.">
+    <location
+        file="src/main/res/values-pt-rBR/nm_strings.xml"
+        line="33"
+        column="9"/>
+  </issue>
+  <issue
+      id="ImpliedQuantity"
+      message="The quantity `'one'` matches more than one specific number in this locale (0, 1), but the message did not include a formatting argument (such as `%d`). This is usually an internationalization error. See full issue explanation for more.">
+    <location
+        file="src/main/res/values-fr/nm_strings.xml"
+        line="106"
+        column="9"/>
+  </issue>
+  <issue
+      id="ImpliedQuantity"
+      message="The quantity `'one'` matches more than one specific number in this locale (0, 1), but the message did not include a formatting argument (such as `%d`). This is usually an internationalization error. See full issue explanation for more.">
+    <location
+        file="src/main/res/values-pt-rBR/nm_strings.xml"
+        line="106"
+        column="9"/>
+  </issue>
+</issues>

@@ -154,6 +154,7 @@ android {
     }
 
     lint {
+        baseline = file("lint-baseline.xml")
         // AGP 8.x ships a NonNullableMutableLiveData detector that throws
         // IncompatibleClassChangeError on Kotlin source during
         // lintVitalAnalyzeRelease, regardless of whether the project uses
