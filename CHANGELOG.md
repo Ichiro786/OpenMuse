@@ -49,6 +49,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- Contained browser downloads in their session workspace, rejected unsafe filenames, and prevented symlink and collision races without overwriting existing files.
+
 - Anchored message menus beside the pressed bubble, added swipe-right replies, and restored full-color reaction emoji.
 - Linked app-built native code for 16 KB pages with NDK r30 and added APK alignment checks; documented the remaining upstream ARM32 PRoot-loader limitation.
 
