@@ -46,20 +46,27 @@ class WebViewHolder(
 
     private var mobileUserAgent: String = ""
 
+    // nanoMuse: file URLs identify the source only; WebView loads a scoped HTTPS preview origin.
+    private val localPreview = if (android.net.Uri.parse(initialUrl).scheme == "file") {
+        io.github.nanomuse.preview.HtmlPreview(appContext, java.io.File(android.net.Uri.parse(initialUrl).path.orEmpty()))
+    } else null
+    private val loadUrl = localPreview?.url ?: initialUrl.takeIf {
+        android.net.Uri.parse(it).scheme in setOf("http", "https")
+    } ?: "about:blank"
+    private var destroyed = false
+
     @SuppressLint("SetJavaScriptEnabled")
     val webView: WebView = WebView(appContext).apply {
         settings.javaScriptEnabled = true       // sandbox HTML demos rely on JS
         settings.domStorageEnabled = true
-        settings.allowFileAccess = true         // file:// for sandbox previews
-        settings.allowContentAccess = true
-        // Same-origin file:// access is needed so `<script src="game.js">`
-        // sitting next to a sandbox HTML loads correctly. We accept the small
-        // attack surface because all paths come from PRoot-resolved sandbox
-        // outputs, never untrusted user content from the network.
+        // nanoMuse: web pages and generated HTML never receive Android file/content URL access.
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
         @Suppress("DEPRECATION")
-        settings.allowFileAccessFromFileURLs = true
+        settings.allowFileAccessFromFileURLs = false
         @Suppress("DEPRECATION")
-        settings.allowUniversalAccessFromFileURLs = true
+        settings.allowUniversalAccessFromFileURLs = false
+        localPreview?.configure(this)
         // T-htmlpreview-2d5c4f3d: pages that use viewport units (`100vh` /
         // `height: 100%`) combined with `overflow: hidden` would render
         // blank inside the bottom-sheet preview, because the WebView starts
@@ -79,27 +86,25 @@ class WebViewHolder(
         settings.useWideViewPort = true
         settings.loadWithOverviewMode = true
         mobileUserAgent = settings.userAgentString
-        // T-android-webview-v3-port: enable first- + third-party cookies so
-        // the in-chat preview matches Chrome cookie semantics. Without
-        // third-party cookies the embedded captcha/auth iframes that
-        // production sites use (hCaptcha, Cloudflare Turnstile, OAuth
-        // popups) silently drop tokens — the same flow the user clears in
-        // a real browser tab fails inside our preview. WebView ships with
-        // 3P cookies disabled by default; first-party defaults to true on
-        // every Android version we support, but we set both explicitly so
-        // the intent is grep-able. `this` here is the outer
-        // WebView(appContext).apply{…} receiver — capture it locally so
-        // the nested CookieManager.apply{} stays readable.
-        val wv = this
-        CookieManager.getInstance().apply {
-            setAcceptCookie(true)
-            setAcceptThirdPartyCookies(wv, true)
+        // nanoMuse: local previews use fresh origins and never alter the global cookie switch.
+        val previewView = this
+        if (localPreview == null) {
+            CookieManager.getInstance().apply {
+                setAcceptCookie(true)
+                setAcceptThirdPartyCookies(previewView, true)
+            }
         }
         webViewClient = object : WebViewClient() {
+            // nanoMuse: only the preview's directory handler can answer local resource requests.
+            override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest) =
+                localPreview?.intercept(request.url.toString(), request.method)
+
             override fun shouldOverrideUrlLoading(
                 view: WebView,
                 request: android.webkit.WebResourceRequest,
             ): Boolean {
+                // nanoMuse: generated HTML cannot turn the preview into a browser or launch intents.
+                localPreview?.let { return request.method != "GET" || !it.allows(request.url.toString()) }
                 val urlStr = request.url?.toString()
                 // T234: Google permanently disallows WebView for sign-in /
                 // OAuth. Hand auth-domain navigation to Chrome Custom Tab.
@@ -125,7 +130,8 @@ class WebViewHolder(
 
             override fun onPageStarted(view: WebView, url: String, favicon: Bitmap?) {
                 isLoading = true
-                currentUrl = url
+                // nanoMuse: keep sharing/pinning the source file, never the synthetic origin.
+                currentUrl = localPreview?.fileUrl(url) ?: if (localPreview == null) url else initialUrl
                 AppLogger.debug(TAG, "onPageStarted url=${url.take(160)}")
             }
 
@@ -149,6 +155,7 @@ class WebViewHolder(
                 // `resize` after first commit so vh/innerHeight readers
                 // recompute against the stabilised height.
                 view.postDelayed({
+                    if (destroyed) return@postDelayed
                     view.evaluateJavascript(
                         "window.dispatchEvent(new Event('resize'));",
                         null,
@@ -282,7 +289,7 @@ class WebViewHolder(
      * whole "shared holder" trick.
      */
     fun startIfNeeded() {
-        if (hasLoaded) return
+        if (hasLoaded || destroyed) return
         // T-htmlpreview-2d5c4f3d: defer the actual loadUrl until the
         // WebView is attached to a window AND has been laid out with a
         // positive width/height. Pages that compute `100vh` / `height: 100%`
@@ -296,7 +303,7 @@ class WebViewHolder(
         hasLoaded = true
         if (webView.isAttachedToWindow && webView.width > 0 && webView.height > 0) {
             AppLogger.info(TAG, "loadUrl (attached) ${currentUrl.take(160)}")
-            webView.loadUrl(currentUrl)
+            if (!destroyed) webView.loadUrl(loadUrl)
             return
         }
         webView.addOnAttachStateChangeListener(object : android.view.View.OnAttachStateChangeListener {
@@ -307,7 +314,7 @@ class WebViewHolder(
                 v.post {
                     if (v.width > 0 && v.height > 0) {
                         AppLogger.info(TAG, "loadUrl (post-attach) ${currentUrl.take(160)}")
-                        webView.loadUrl(currentUrl)
+                        if (!destroyed) webView.loadUrl(loadUrl)
                     } else {
                         v.viewTreeObserver.addOnGlobalLayoutListener(object :
                             android.view.ViewTreeObserver.OnGlobalLayoutListener {
@@ -315,7 +322,7 @@ class WebViewHolder(
                                 if (v.width > 0 && v.height > 0) {
                                     v.viewTreeObserver.removeOnGlobalLayoutListener(this)
                                     AppLogger.info(TAG, "loadUrl (post-layout) ${currentUrl.take(160)}")
-                                    webView.loadUrl(currentUrl)
+                                    if (!destroyed) webView.loadUrl(loadUrl)
                                 }
                             }
                         })
@@ -402,6 +409,11 @@ class WebViewHolder(
      * doesn't linger. Safe to call multiple times.
      */
     fun destroy() {
+        // nanoMuse: revoke the asset root even when AndroidView teardown throws or repeats.
+        if (destroyed) return
+        destroyed = true
+        runCatching { localPreview?.close() }
+            .onFailure { AppLogger.warning(TAG, "preview close failed: ${it.message}") }
         try {
             detach()
             webView.stopLoading()
@@ -433,5 +445,10 @@ class WebViewHolder(
 @Composable
 fun rememberWebViewHolder(url: String): WebViewHolder {
     val context = androidx.compose.ui.platform.LocalContext.current
-    return remember(url) { WebViewHolder(context.applicationContext, url) }
+    // nanoMuse: composition removal must revoke preview resources even without a dismiss callback.
+    val holder = remember(url) { WebViewHolder(context.applicationContext, url) }
+    androidx.compose.runtime.DisposableEffect(holder) {
+        onDispose { holder.destroy() }
+    }
+    return holder
 }

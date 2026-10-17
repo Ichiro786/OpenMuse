@@ -2440,7 +2440,8 @@ fun ChatScreen(
             // Reuse the same WebViewHolder as long as the file path doesn't
             // change. Tapping the same html link twice should pick up wherever
             // the user left off rather than reloading from scratch.
-            val url = "file://${file.absolutePath}"
+            // nanoMuse: preserve escaped filenames; the holder maps this source to an isolated origin.
+            val url = android.net.Uri.fromFile(file).toString()
             val existing = htmlPreviewHolder
             if (existing == null || existing.currentUrl != url) {
                 existing?.destroy()
@@ -2449,6 +2450,11 @@ fun ChatScreen(
             htmlPreviewFallbackTitle = title
             htmlPreviewFullscreen = false
         }
+    }
+    // nanoMuse: leaving the chat revokes its preview's open directory and renderer.
+    DisposableEffect(htmlPreviewHolder) {
+        val holder = htmlPreviewHolder
+        onDispose { holder?.destroy() }
     }
     // Pinned-shortcut deep link: minis://session/<id>/<resource-path>
     // consumes here on first composition iff this screen is showing the
@@ -2461,15 +2467,17 @@ fun ChatScreen(
         if (pending.sessionId != sessionId) return@LaunchedEffect
         com.openminis.app.deeplink.DeepLinkCoordinator.consumePendingHtmlPreview()
         val absPath = "/var/minis" + pending.resourcePath
-        val file = java.io.File(absPath)
-        if (!file.exists()) {
+        // nanoMuse: shortcut previews resolve against the requested session, not a raw host path.
+        val file = com.openminis.app.sandbox.PRootKernel.resolveSessionHostPath(pending.sessionId, absPath, appCtx)
+        if (file == null || !file.isFile) {
             com.openminis.app.logging.AppLogger.warning(
                 "ChatScreen",
                 "pinned HTML preview path missing: $absPath",
             )
             return@LaunchedEffect
         }
-        val url = "file://${file.absolutePath}"
+        // nanoMuse: file identity is not the WebView's loading origin.
+        val url = android.net.Uri.fromFile(file).toString()
         htmlPreviewHolder?.destroy()
         htmlPreviewHolder = com.openminis.app.ui.preview.WebViewHolder(appCtx, url)
         htmlPreviewFallbackTitle = pending.title
