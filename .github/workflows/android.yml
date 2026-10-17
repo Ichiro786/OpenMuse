@@ -109,6 +109,17 @@ jobs:
         working-directory: android/src/android
         run: ./gradlew :app:lintDebug --console=plain --no-daemon
 
+      - name: Archive lint reports
+        if: ${{ !cancelled() && steps.assemble.outcome == 'success' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: lint-reports
+          path: |
+            android/src/android/app/build/reports/lint-results-debug.html
+            android/src/android/app/build/reports/lint-results-debug.xml
+          if-no-files-found: warn
+          retention-days: 14
+
       # nanoMuse: validate the actual installable file before publishing it.
       - name: APK integrity, native alignment, signature and badging
         id: apk-checks
