@@ -1,13 +1,11 @@
 package com.openminis.app.webapp
 
-import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.MotionEvent
 import android.view.ViewGroup
-import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -63,7 +61,6 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import androidx.webkit.WebViewAssetLoader
 import com.openminis.app.MainActivity
 import com.openminis.app.ui.components.MinisButton
 import com.openminis.app.MinisApp
@@ -80,9 +77,8 @@ import java.io.File
  * WebApp shortcut. Receives the `webapp_shortcut_id` intent extra (sent
  * by [ShortcutPinner]'s launchIntent), resolves the backing HTML file
  * via [WebAppPathResolver], and renders it
- * via [WebViewAssetLoader] under `https://appassets.androidplatform.net/`.
- * External navigations are blocked — only the asset-loader host and
- * `about:` URIs are allowed.
+ * via the shared, directory-scoped HTML preview loader on a fresh local origin.
+ * External navigations and HTTP(S) resources are blocked.
  *
  * T-pwa-preview-polish: replaces the bare full-bleed WebView with a
  * Compose host that overlays a translucent floating toolbar (close,
@@ -98,6 +94,8 @@ class WebAppActivity : ComponentActivity() {
     private val logTag = "WebAppActivity"
     private var webViewRef: WebView? = null
     private var resolvedFile: File? = null
+    // nanoMuse: own the pinned asset directory for exactly this WebView's lifetime.
+    private var previewAssets: io.github.nanomuse.preview.HtmlPreview? = null
     private var isFullscreen: Boolean = false
 
     // T-n01-andmenu-l10n: pre-Tiramisu locale override (see MainActivity).
@@ -209,6 +207,9 @@ class WebAppActivity : ComponentActivity() {
      */
     @OptIn(ExperimentalMaterial3Api::class)
     private fun renderSourceMissing(sourceSessionId: String?) {
+        // nanoMuse: a missing/replaced source must not retain its previous asset capability.
+        previewAssets?.close()
+        previewAssets = null
         webViewRef?.apply {
             stopLoading()
             (parent as? ViewGroup)?.removeView(this)
@@ -290,11 +291,7 @@ class WebAppActivity : ComponentActivity() {
                 modifier = Modifier.fillMaxSize(),
                 factory = { ctx ->
                     val wv = WebView(ctx)
-                    CookieManager.getInstance().apply {
-                        setAcceptCookie(false)
-                        setAcceptThirdPartyCookies(wv, false)
-                    }
-                    configureWebView(wv)
+                    // nanoMuse: loadHtml applies per-preview isolation without changing global cookies.
                     // Tap-to-show — return false so WebView still handles the input.
                     wv.setOnTouchListener { _, ev ->
                         if (ev.actionMasked == MotionEvent.ACTION_DOWN) {
@@ -479,61 +476,30 @@ class WebAppActivity : ComponentActivity() {
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
-    private fun configureWebView(webView: WebView) {
-        webView.settings.apply {
-            javaScriptEnabled = true
-            domStorageEnabled = true
-            allowFileAccess = false
-            allowContentAccess = false
-            allowFileAccessFromFileURLs = false
-            allowUniversalAccessFromFileURLs = false
-            mediaPlaybackRequiresUserGesture = false
-        }
-    }
-
+    // nanoMuse: pinned WebApps share the same no-follow resource and origin boundary as chat previews.
     private fun loadHtml(webView: WebView, file: File) {
-        val parent = file.parentFile ?: run {
-            renderSourceMissing(sourceSessionId = null)
-            return
-        }
-        val loader = WebViewAssetLoader.Builder()
-            .addPathHandler(
-                "/",
-                WebViewAssetLoader.InternalStoragePathHandler(this, parent),
-            )
-            .build()
-
+        previewAssets?.close()
+        val assets = io.github.nanomuse.preview.HtmlPreview(this, file)
+        previewAssets = assets
+        assets.configure(webView)
+        webView.settings.mediaPlaybackRequiresUserGesture = false
         webView.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(
-                view: WebView,
-                request: WebResourceRequest,
-            ) = loader.shouldInterceptRequest(request.url)
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest) =
+                assets.intercept(request.url.toString(), request.method)
 
-            override fun shouldOverrideUrlLoading(
-                view: WebView,
-                request: WebResourceRequest,
-            ): Boolean {
-                val url = request.url ?: return true
-                val scheme = url.scheme?.lowercase()
-                val host = url.host?.lowercase()
-                if (scheme == "https" && host == ASSET_LOADER_HOST) return false
-                if (scheme == "about") return false
-                AppLogger.info(logTag, "Blocked external navigation: $url")
-                Toast.makeText(
-                    this@WebAppActivity,
-                    R.string.webapp_external_nav_blocked,
-                    Toast.LENGTH_SHORT,
-                ).show()
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                if (request.method == "GET" && assets.allows(request.url.toString())) return false
+                Toast.makeText(this@WebAppActivity, R.string.webapp_external_nav_blocked, Toast.LENGTH_SHORT).show()
                 return true
             }
         }
-
-        val url = "https://$ASSET_LOADER_HOST/${file.name}"
-        webView.loadUrl(url)
+        webView.loadUrl(assets.url)
     }
 
     override fun onDestroy() {
+        // nanoMuse: revoke local file descriptors before destroying the renderer.
+        previewAssets?.close()
+        previewAssets = null
         webViewRef?.apply {
             stopLoading()
             (parent as? ViewGroup)?.removeView(this)
@@ -547,7 +513,6 @@ class WebAppActivity : ComponentActivity() {
         const val EXTRA_SHORTCUT_ID = "webapp_shortcut_id"
         const val ACTION_OPEN_WEBAPP = "com.openminis.app.action.OPEN_WEBAPP"
         const val EXTRA_TARGET_SESSION_ID = "target_session_id"
-        private const val ASSET_LOADER_HOST = "appassets.androidplatform.net"
         private const val AUTO_HIDE_MS = 4000L
     }
 }
