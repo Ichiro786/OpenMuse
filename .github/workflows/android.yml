@@ -167,6 +167,9 @@ jobs:
         run: |
           test -c /dev/kvm
           sudo chown "$(id -u)" /dev/kvm
+          # avdmanager and emulator must use the same runner XDG-based AVD directory.
+          export ANDROID_USER_HOME="${ANDROID_USER_HOME:-${XDG_CONFIG_HOME:-$HOME/.config}/.android}"
+          export ANDROID_AVD_HOME="${ANDROID_AVD_HOME:-$ANDROID_USER_HOME/avd}"
           sdkmanager --install "platform-tools" "emulator" "system-images;android-35;google_apis;x86_64"
           avdmanager create avd --force --name nm-f02 \
             --package "system-images;android-35;google_apis;x86_64" \
