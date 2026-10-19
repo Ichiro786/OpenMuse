@@ -461,31 +461,24 @@ private fun MarkdownPreview(item: FileItem) {
 
 // ==================== HTML Preview (WebView) ====================
 
+// nanoMuse: reuse the same isolated holder for the file browser's HTML entry point.
 @Composable
 private fun HtmlPreview(item: FileItem) {
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = { ctx ->
-            WebView(ctx).apply {
-                settings.javaScriptEnabled = false
-                settings.allowFileAccess = true
-                // T-webview-popup-d3c6e10f: mirror ffc85ad's WebPreviewBottomSheet
-                // fix. Pages using `height: 100vh` + `overflow: hidden` were
-                // collapsing to a 0-height clipped box (white screen) on first
-                // compose because Blink resolved CSS viewport units against a
-                // 0×0 measured container. useWideViewPort + loadWithOverviewMode
-                // decouple the CSS viewport from initial measured size, and
-                // deferring loadUrl via `post {}` guarantees the WebView has
-                // been laid out (positive width/height) before Blink resolves
-                // viewport units.
-                settings.useWideViewPort = true
-                settings.loadWithOverviewMode = true
-                webViewClient = WebViewClient()
-                val targetUrl = "file://${item.file.absolutePath}"
-                post { loadUrl(targetUrl) }
-            }
-        },
-    )
+    val context = LocalContext.current
+    val holder = remember(item.file) {
+        com.openminis.app.ui.preview.WebViewHolder(context, Uri.fromFile(item.file).toString()).also {
+            it.webView.settings.javaScriptEnabled = false
+        }
+    }
+    androidx.compose.runtime.DisposableEffect(holder) {
+        onDispose { holder.destroy() }
+    }
+    androidx.compose.runtime.key(holder) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = { holder.webView.also { holder.startIfNeeded() } },
+        )
+    }
 }
 
 // ==================== Audio Preview ====================
@@ -1229,14 +1222,26 @@ private fun shareFile(context: Context, item: FileItem) {
  * and clear it once the adapter is handed to PrintManager.
  */
 private fun printFile(context: Context, item: FileItem) {
+    // nanoMuse: HTML printing must not bypass the preview's restricted resource loader.
+    val assets = if (item.isHtmlFile) io.github.nanomuse.preview.HtmlPreview(context, item.file) else null
+    var printView: WebView? = null
     try {
         val webView = WebView(context).apply {
             settings.javaScriptEnabled = false
-            settings.allowFileAccess = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            assets?.configure(this, javaScript = false)
         }
+        printView = webView
         // Keep a reference alive until the print job is dispatched.
         var holder: WebView? = webView
         webView.webViewClient = object : WebViewClient() {
+            // nanoMuse: a print preview has the same local-only navigation and resource policy.
+            override fun shouldInterceptRequest(view: WebView, request: android.webkit.WebResourceRequest) =
+                assets?.intercept(request.url.toString(), request.method)
+            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest) =
+                assets == null || request.method != "GET" || !assets.allows(request.url.toString())
+
             override fun onPageFinished(view: WebView, url: String) {
                 val printManager =
                     context.getSystemService(Context.PRINT_SERVICE) as PrintManager
@@ -1244,14 +1249,26 @@ private fun printFile(context: Context, item: FileItem) {
                 val adapter = view.createPrintDocumentAdapter(jobName)
                 printManager.print(
                     jobName,
-                    adapter,
+                    // nanoMuse: keep the resource capability until printing finishes or is cancelled.
+                    object : android.print.PrintDocumentAdapter() {
+                        override fun onStart() = adapter.onStart()
+                        override fun onLayout(old: PrintAttributes?, new: PrintAttributes?,
+                            signal: android.os.CancellationSignal?, callback: LayoutResultCallback?, extras: android.os.Bundle?) =
+                            adapter.onLayout(old, new, signal, callback, extras)
+                        override fun onWrite(pages: Array<out android.print.PageRange>?, destination: ParcelFileDescriptor?,
+                            signal: android.os.CancellationSignal?, callback: WriteResultCallback?) =
+                            adapter.onWrite(pages, destination, signal, callback)
+                        override fun onFinish() {
+                            try { adapter.onFinish() } finally { assets?.close(); view.destroy() }
+                        }
+                    },
                     PrintAttributes.Builder().build(),
                 )
                 holder = null
             }
         }
-        if (item.isHtmlFile) {
-            webView.loadUrl("file://${item.file.absolutePath}")
+        if (assets != null) {
+            webView.loadUrl(assets.url)
         } else {
             val raw = item.file.readBytes().let { bytes ->
                 val cap = if (bytes.size > MAX_TEXT_PREVIEW_BYTES) MAX_TEXT_PREVIEW_BYTES else bytes.size
@@ -1271,6 +1288,9 @@ private fun printFile(context: Context, item: FileItem) {
         @Suppress("UNUSED_VALUE")
         holder = webView
     } catch (e: Exception) {
+        // nanoMuse: failed print setup must also revoke its directory descriptor.
+        assets?.close()
+        printView?.destroy()
         AppLogger.warning("FilePreview", "print failed for ${item.name}: ${e.message}")
         Toast.makeText(context, context.getString(R.string.file_print_failed_toast, e.message ?: ""), Toast.LENGTH_SHORT).show()
     }
