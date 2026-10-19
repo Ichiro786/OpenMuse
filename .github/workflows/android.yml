@@ -187,7 +187,7 @@ jobs:
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
           ./gradlew -Pnm.abi=x86_64 :app:connectedDebugAndroidTest \
-            -Pandroid.testInstrumentationRunnerArguments.class=io.github.nanomuse.browser.BrowserDownloadFilesInstrumentedTest,io.github.nanomuse.browser.BrowserDownloadIntegrationTest \
+            -Pandroid.testInstrumentationRunnerArguments.class=io.github.nanomuse.browser.BrowserDownloadFilesInstrumentedTest,io.github.nanomuse.browser.BrowserDownloadIntegrationTest,io.github.nanomuse.preview.HtmlPreviewIsolationInstrumentedTest \
             --console=plain --no-daemon
 
       - name: Verification reports

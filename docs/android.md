@@ -291,6 +291,29 @@ Provider clients carry `OwnProviderProxy.authenticator` for a proxy that asks fo
 *Test* fetches `https://chatgpt.com/` through the proxy as entered and reports the status and the
 milliseconds. Unit tests: `ProviderReachTest`, `OwnProviderProxyTest`.
 
+## Local HTML previews
+
+Chat previews, the file viewer, pinned WebApps, and HTML printing use a fresh local
+HTTPS origin for each preview. Opening an HTML artifact authorizes its containing
+folder and non-hidden descendants as preview assets. Keep relative CSS, images,
+scripts, and data files in that folder or below it; parent-directory references,
+encoded traversal, and symbolic links are refused. The loader accepts artifact
+folders in session workspaces, browser outputs and attachments, shared files,
+sandbox home, or explicitly mounted external storage. It never mounts the app's
+private settings, databases, memory, or whole files directory.
+
+JavaScript remains available in chat and pinned WebApp previews. The file viewer
+and printing retain their existing JavaScript-disabled behavior. Local previews
+have no application JavaScript bridge and do not reuse another preview's origin,
+website cookies, or permission grants. Closing a preview revokes its open asset
+directory; sheet/fullscreen handoffs keep the same holder.
+
+External navigation, HTTP(S) resources (including CDNs), forms, embedded frames,
+and workers are blocked. Use bundled assets for previews; the explicit **Open in
+browser** action remains available. This is a file-access boundary, not a guarantee
+of complete network isolation: WebRTC can use channels outside WebView request
+interception and CSP. Do not put secrets in the directory authorized for a preview.
+
 ## Privacy and permissions
 
 Browser downloads stay in their chat session's workspace. Filenames cannot contain paths or control characters. Existing files, including symbolic links, are never overwritten; repeated names receive a numeric suffix. Downloads are staged in private app storage and published atomically, so failed transfers cannot delete another file. Directory handles prevent a substituted workspace path from redirecting a transfer. Devices whose kernel or filesystem lacks atomic no-replace rename support reject downloads rather than risking an overwrite.
