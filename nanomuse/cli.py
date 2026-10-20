@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
 import shutil
 import tomllib
+from collections.abc import Coroutine
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -20,11 +22,17 @@ from rich.table import Table
 from nanomuse import __version__
 from nanomuse.channels.cli import channels_app
 from nanomuse.chatgpt_cli import chatgpt_app
-from nanomuse.config import DEFAULT_DATA_DIR, Settings, find_config_file, load_settings
+from nanomuse.config import (
+    DEFAULT_DATA_DIR,
+    Settings,
+    find_config_file,
+    load_settings,
+    unknown_keys,
+)
 
 app = typer.Typer(
     name="nanomuse",
-    help="nanoMuse: an open-source personal AI agent with a Sentinel gatekeeper.",
+    help="nanoMuse: an open-source personal agent for every device you own. This is its runtime: the agent, the Sentinel that decides what may run, and the web app.",
     no_args_is_help=True,
     rich_markup_mode="rich",
     pretty_exceptions_show_locals=False,
@@ -83,7 +91,7 @@ def _root(
         is_eager=True,
     ),
 ) -> None:
-    """nanoMuse: an open-source personal AI agent with a Sentinel gatekeeper."""
+    """nanoMuse: an open-source personal agent for every device you own. This is its runtime: the agent, the Sentinel that decides what may run, and the web app."""
     from nanomuse import loopback
 
     loopback.install()  # Windows: a self-pipe that fails with a reason instead of hanging
@@ -138,13 +146,16 @@ def _settings(config: Path | None, auto: bool = False) -> Settings:
     return settings
 
 
-def _run_async(coro) -> None:  # noqa: ANN001
+def _run_async(coro: Coroutine[Any, Any, Any]) -> None:
     """Run a coroutine, turning failures into a short message instead of a traceback."""
     try:
         asyncio.run(coro)
     except KeyboardInterrupt:
         console.print("\n[yellow]interrupted[/yellow]")
         raise typer.Exit(130) from None
+    except typer.Exit:
+        # a command's own exit code (doctor's summary); click's Exit is a RuntimeError
+        raise
     except Exception as exc:  # noqa: BLE001
         console.print(f"[bold red]error:[/bold red] {type(exc).__name__}: {exc}")
         raise typer.Exit(1) from None
@@ -408,7 +419,13 @@ def _print_goals(goals) -> None:  # noqa: ANN001
 
 @goals_app.command("list")
 def goals_list(
-    config: ConfigOpt = None, status: str | None = None, category: str | None = None
+    config: ConfigOpt = None,
+    status: Annotated[
+        str | None, typer.Option(help="Only this status: active | paused | done | cancelled")
+    ] = None,
+    category: Annotated[
+        str | None, typer.Option(help="Only this category, e.g. health, finance, learning")
+    ] = None,
 ) -> None:
     """List goals."""
     from nanomuse.goals import GoalStore
@@ -434,7 +451,7 @@ def goals_show(goal_id: str, config: ConfigOpt = None) -> None:
 def goals_add(
     title: str,
     config: ConfigOpt = None,
-    description: str = "",
+    description: Annotated[str, typer.Option(help="A longer note on what the goal is about")] = "",
     step: Annotated[
         list[str] | None, typer.Option("--step", "-s", help="Plan step (repeatable)")
     ] = None,
@@ -513,7 +530,7 @@ def _calendar(config: Path | None):  # noqa: ANN202
 def calendar_agenda(
     config: ConfigOpt = None,
     day: Annotated[str, typer.Option(help="'today', 'tomorrow' or YYYY-MM-DD")] = "today",
-    days: Annotated[int, typer.Option(min=1, max=31)] = 1,
+    days: Annotated[int, typer.Option(min=1, max=31, help="How many days from --day")] = 1,
     refresh: Annotated[
         bool, typer.Option("--refresh", help="Fetch the feeds even if fresh")
     ] = False,
@@ -665,9 +682,9 @@ def _contacts(config: Path | None):  # noqa: ANN202
 def contacts_search(
     query: str,
     config: ConfigOpt = None,
-    limit: Annotated[int, typer.Option("--limit", "-n")] = 8,
+    limit: Annotated[int, typer.Option("--limit", "-n", help="At most this many people")] = 8,
 ) -> None:
-    """Find people by name, nickname, company, email or phone — as the agent does."""
+    """Find people by name, nickname, company, email or phone, as the agent does."""
     _, book = _contacts(config)
     hits = book.search(query, limit=limit)
     if not hits:
@@ -678,7 +695,8 @@ def contacts_search(
 
 @contacts_app.command("list")
 def contacts_list(
-    config: ConfigOpt = None, limit: Annotated[int, typer.Option("--limit", "-n")] = 20
+    config: ConfigOpt = None,
+    limit: Annotated[int, typer.Option("--limit", "-n", help="At most this many people")] = 20,
 ) -> None:
     """The first people alphabetically."""
     _, book = _contacts(config)
@@ -694,11 +712,11 @@ def contacts_list(
 def contacts_add(
     name: str,
     config: ConfigOpt = None,
-    email: Annotated[str, typer.Option("--email", "-e")] = "",
-    phone: Annotated[str, typer.Option("--phone", "-p")] = "",
-    org: Annotated[str, typer.Option("--org")] = "",
-    note: Annotated[str, typer.Option("--note")] = "",
-    birthday: Annotated[str, typer.Option("--birthday")] = "",
+    email: Annotated[str, typer.Option("--email", "-e", help="E-mail address")] = "",
+    phone: Annotated[str, typer.Option("--phone", "-p", help="Phone number")] = "",
+    org: Annotated[str, typer.Option("--org", help="Company or organisation")] = "",
+    note: Annotated[str, typer.Option("--note", help="A line about them, e.g. 'landlord'")] = "",
+    birthday: Annotated[str, typer.Option("--birthday", help="YYYY-MM-DD or MM-DD")] = "",
 ) -> None:
     """Put a person in the agent's own book (<data_dir>/contacts.vcf), or update them."""
     _, book = _contacts(config)
@@ -903,19 +921,21 @@ def triggers_list(
 
 @triggers_app.command("add")
 def triggers_add(
-    kind: Annotated[str, typer.Argument(help="mail | event | hook")],
+    kind: Annotated[str, typer.Argument(help="mail | event | hook | device")],
     text: Annotated[str, typer.Argument(help="What to do each time it fires")],
     config: ConfigOpt = None,
     match: Annotated[
         str,
         typer.Option(
-            help="Words that must all appear in the sender/subject (mail) or title/place "
-            "(event); a name for a hook. Empty: anything."
+            help="Words that must all appear in the sender/subject (mail), title/place "
+            "(event) or the device's name and kind (device); a name for a hook. "
+            "Empty: anything."
         ),
     ] = "",
     lead: Annotated[int, typer.Option(help="event: minutes before the start")] = 30,
 ) -> None:
-    """Add a trigger. Mail triggers need the email connector, event triggers a calendar."""
+    """Add a trigger. Mail triggers need the email connector, event triggers a calendar,
+    device triggers the hub."""
     from nanomuse.triggers import TriggerStore
 
     s = _settings(config)
@@ -924,6 +944,9 @@ def triggers_add(
         raise typer.Exit(1)
     if kind == "event" and not (s.connectors.calendar.enabled and s.connectors.calendar.feeds):
         console.print("[red]no calendar feed is set up (connectors.calendar)[/red]")
+        raise typer.Exit(1)
+    if kind == "device" and not s.hub.enabled:
+        console.print("[red]the hub is turned off (hub.enabled)[/red]")
         raise typer.Exit(1)
     try:
         item = TriggerStore(s.triggers_db).create(kind, text, match=match, lead_minutes=lead)
@@ -973,7 +996,13 @@ def memory_list(config: ConfigOpt = None) -> None:
 
 
 @memory_app.command("add")
-def memory_add(content: str, config: ConfigOpt = None, category: str = "profile") -> None:
+def memory_add(
+    content: str,
+    config: ConfigOpt = None,
+    category: Annotated[
+        str, typer.Option(help="profile | preference | contact | project | routine | other")
+    ] = "profile",
+) -> None:
     """Add a memory manually."""
     from nanomuse.memory import MemoryStore
 
@@ -983,9 +1012,12 @@ def memory_add(content: str, config: ConfigOpt = None, category: str = "profile"
 
 
 @memory_app.command("recall")
-def memory_recall(query: str, config: ConfigOpt = None, limit: int = 10) -> None:
-    """What the agent would recall for a message: keyword hits and, when an embedding
-    endpoint is set up, hits by meaning, fused — with each memory's closeness shown."""
+def memory_recall(
+    query: str,
+    config: ConfigOpt = None,
+    limit: Annotated[int, typer.Option(help="At most this many memories")] = 10,
+) -> None:
+    """What the agent would recall for a message: keyword hits and, when an embedding endpoint is set up, hits by meaning, fused, with each memory's closeness shown."""
     from nanomuse.app import NanoMuseApp
     from nanomuse.console import ConsoleUI
 
@@ -1052,8 +1084,7 @@ def memory_tidy(
 ) -> None:
     """Merge lines that say the same thing, keep the newer fact, drop what was never a fact.
 
-    The model proposes, nanoMuse checks (nothing invented, nothing you wrote dropped),
-    and every change is logged so `memory restore` can undo it.
+    The model proposes, nanoMuse checks (nothing invented, nothing you wrote dropped), and every change is logged so `memory restore` can undo it.
     """
     from nanomuse.app import NanoMuseApp
     from nanomuse.console import ConsoleUI
@@ -1089,7 +1120,10 @@ def memory_tidy(
 
 
 @memory_app.command("changes")
-def memory_changes(config: ConfigOpt = None, limit: int = 20) -> None:
+def memory_changes(
+    config: ConfigOpt = None,
+    limit: Annotated[int, typer.Option(help="At most this many changes")] = 20,
+) -> None:
     """What tidy-ups and updates changed, newest first."""
     from nanomuse.memory import MemoryStore
 
@@ -1124,7 +1158,10 @@ def memory_restore(change_id: str, config: ConfigOpt = None) -> None:
 
 
 @memory_app.command("clear")
-def memory_clear(config: ConfigOpt = None, yes: bool = typer.Option(False, "--yes", "-y")) -> None:
+def memory_clear(
+    config: ConfigOpt = None,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Do not ask for confirmation")] = False,
+) -> None:
     """Delete all memories."""
     from nanomuse.memory import MemoryStore
 
@@ -1180,8 +1217,7 @@ def skills_show(name: str, config: ConfigOpt = None) -> None:
 
 @skills_app.command("add")
 def skills_add(source: str, config: ConfigOpt = None) -> None:
-    """Add a skill from a SKILL.md file, a skill folder, or an https link (a raw file, or a
-    GitHub folder/file page)."""
+    """Add a skill from a SKILL.md file, a skill folder, or an https link (a raw file, or a GitHub folder/file page)."""
     _, lib = _skills(config)
     try:
         if source.startswith("https://"):
@@ -1390,7 +1426,7 @@ def config_init(
             'api_key = "${DEEPSEEK_API_KEY}"\n\n[sentinel]\nmode = "ask"\n',
             "utf-8",
         )
-    console.print(f"wrote [cyan]{path}[/cyan] – edit llm.api_key / model, then run `nanomuse chat`")
+    console.print(f"wrote [cyan]{path}[/cyan]; edit llm.api_key / model, then run `nanomuse chat`")
 
 
 @config_app.command("show")
@@ -1402,19 +1438,28 @@ def config_show(config: ConfigOpt = None) -> None:
     )
 
 
-_SECRET_KEY_RE = re.compile(r"(api_key|password|secret|token|app_key|passwd)$", re.IGNORECASE)
+_SECRET_KEY_RE = re.compile(
+    r"(api_key|password|passwd|secret|token|app_key|authorization|cookie|(^|[_-])key)$",
+    re.IGNORECASE,
+)
 
 
 def mask_secrets(data: Any) -> Any:
     """The same structure with every value under a key that names a credential
-    (``api_key``, ``password``, ``secret``, ``token`` and the like) shortened to its first
-    and last characters, in every section: the image and video slots, the mail account,
-    the search connector and the chat channels hold keys too, not only ``[llm]``."""
+    (``api_key``, ``password``, ``secret``, ``token``, any ``*_KEY`` an MCP server's ``env``
+    carries, an ``Authorization`` header and the like) shortened to its first and last
+    characters, in every section: the image and video slots, the mail account, the search
+    connector and the chat channels hold keys too, not only ``[llm]``. A proxy URL keeps
+    its host and loses its password."""
+    from nanomuse.server.connections import mask_proxy
+
     if isinstance(data, dict):
         out: dict[str, Any] = {}
         for k, v in data.items():
             if isinstance(v, str) and v and _SECRET_KEY_RE.search(str(k)):
                 out[k] = v if v.startswith("{{vault:") else _masked(v)
+            elif isinstance(v, str) and str(k) == "proxy":
+                out[k] = mask_proxy(v)
             else:
                 out[k] = mask_secrets(v)
         return out
@@ -1431,11 +1476,12 @@ def _masked(value: str) -> str:
 def config_path() -> None:
     """Show which config file would be used."""
     found = find_config_file()
-    console.print(
-        str(found)
-        if found
-        else f"[dim]none found (defaults + env). Data dir: {DEFAULT_DATA_DIR}[/dim]"
-    )
+    if found:
+        console.print(str(found))
+        return
+    # no file: the data directory still follows NANOMUSE_DATA_DIR, as every command does
+    data_dir = Path(os.environ.get("NANOMUSE_DATA_DIR") or DEFAULT_DATA_DIR).expanduser()
+    console.print(f"[dim]none found (defaults + env). Data dir: {data_dir}[/dim]")
 
 
 # ============================================================================ phone
@@ -1444,7 +1490,10 @@ def _traces_dir(s: Settings) -> Path:
 
 
 @phone_app.command("traces")
-def phone_traces(config: ConfigOpt = None, limit: int = 20) -> None:
+def phone_traces(
+    config: ConfigOpt = None,
+    limit: Annotated[int, typer.Option(help="At most this many tasks")] = 20,
+) -> None:
     """The phone tasks on record, newest first: what was asked, how it ended, how many steps."""
     from nanomuse.phone.trace import list_traces
 
@@ -1528,10 +1577,7 @@ def version() -> None:
 def mcp(config: ConfigOpt = None) -> None:
     """Serve this computer's screen and hands over MCP on stdio (for the desktop app).
 
-    Another host, such as nanoMuse on DeepSeek Harness (docs/harness.md), connects here. The
-    connectors config.toml turns on (mailbox, calendar, contacts) are served too. Nothing is
-    printed on stdout but the protocol; the hands, gui and connectors sections of the config
-    are read when it exists."""
+    Another host, such as nanoMuse on DeepSeek Harness (docs/harness.md), connects here. The connectors config.toml turns on (mailbox, calendar, contacts) are served too. Nothing is printed on stdout but the protocol; the hands, gui and connectors sections of the config are read when it exists."""
     import sys
 
     from nanomuse.bridge.mcp_server import connector_tools, hands_tools, serve
@@ -1575,9 +1621,13 @@ async def _doctor(settings: Settings, check_model: bool) -> None:
 
     from nanomuse.app import NanoMuseApp
     from nanomuse.console import ConsoleUI
+    from nanomuse.logger import setup_logging
     from nanomuse.schema import Message
     from nanomuse.tools.browser import playwright_available
 
+    # the report says each thing once: the INFO lines the app logs while it starts (the
+    # embeddings probe, the tools) would repeat the rows below in another shape
+    setup_logging("WARNING", settings.data_dir / "logs")
     problems: list[str] = []
 
     def line(ok: bool | None, text: str, problem: str | None = None) -> None:
@@ -1590,6 +1640,19 @@ async def _doctor(settings: Settings, check_model: bool) -> None:
         f"{platform.system()} {platform.release()} · {sys.executable}"
     )
     line(settings.source != "defaults+env" or None, f"config: {settings.source}")
+    if settings.source and settings.source != "defaults+env":
+        try:
+            with open(settings.source, "rb") as fh:
+                stray = unknown_keys(tomllib.load(fh))
+        except (OSError, tomllib.TOMLDecodeError):
+            stray = []
+        if stray:
+            shown = ", ".join(stray[:6]) + (" …" if len(stray) > 6 else "")
+            line(
+                False,
+                f"config keys nothing reads (ignored): {shown}",
+                f"config.toml has keys nothing reads: {shown} (a typo, or from another version)",
+            )
     data_ok = os.access(settings.data_dir, os.W_OK)
     line(data_ok, f"data dir: {settings.data_dir}", "data dir is not writable")
     ws = settings.agent.workspace

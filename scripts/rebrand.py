@@ -25,6 +25,9 @@ What it changes, and only this:
   Soul emoji, the accent colour. Icons: scripts/gen-ios-icons.py.
 
 Anything else is a hand edit marked `// nanoMuse:` in the file.
+
+    python scripts/rebrand.py            # apply, then report what is still upstream's
+    python scripts/rebrand.py --check    # report only, write nothing
 """
 
 from __future__ import annotations
@@ -45,8 +48,8 @@ IOS = ROOT / "android" / "src" / "ios"
 
 APP_ID = "io.github.nanomuse.app"
 NAME = "nanoMuse"
-VERSION_NAME = "1.0.0"
-VERSION_CODE = 43
+VERSION_NAME = "1.0.5"
+VERSION_CODE = 48
 REPO = "nano-muse/nanoMuse"
 REPO_URL = f"https://github.com/{REPO}"
 PRIVACY_URL = f"{REPO_URL}/blob/main/docs/privacy.md"
@@ -126,6 +129,20 @@ def soul_defaults() -> None:
             (r'const val DISPLAY_EMOJI = "✨"', 'const val DISPLAY_EMOJI = "🐾"'),
         ],
     )
+    # The default-name round-trip follows DEFAULT; explicit stored-name fixtures stay intact.
+    test = APP / "src" / "test" / "java" / "com" / "openminis" / "app" / "agent"
+    test /= "SoulIconConfigEdgeTest.kt"
+    if test.is_file():
+        edit(
+            test,
+            [
+                (
+                    r'^([ \t]*)assertEquals\("Minis", back\.metadata\.name\)$',
+                    r"\1// nanoMuse: round-trip the rebranded default name.\n"
+                    r"\1assertEquals(SoulMetadata.DEFAULT.name, back.metadata.name)",
+                ),
+            ],
+        )
 
 
 def links() -> None:
@@ -155,6 +172,18 @@ def links() -> None:
     )
 
 
+SYSTEM_SCHEME = "nanomuse"  # what the system knows the app by; inside, links stay minis://
+
+
+def schemes() -> None:
+    """The scheme registered with the system is ours, so a phone with OpenMinis installed too
+    never has two apps claiming `minis://`; the in-app vocabulary (`minis://…`) does not change."""
+    edit(
+        MAIN / "AndroidManifest.xml",
+        [(r'<data android:scheme="minis" />', f'<data android:scheme="{SYSTEM_SCHEME}" />')],
+    )
+
+
 # (pattern, replacement); applied to Theme.kt only.
 THEME_MAP = [
     ("0xFF528AD2", "0xFF015CFB"),  # primary
@@ -180,16 +209,16 @@ THEME_MAP = [
     ("0xFF899390", "0xFF8E8E93"),  # dark outline
 ]
 
-# Applied to ChatColors.kt only; light palette first, then dark.
+# Applied to ChatColors.kt only; light palette first, then dark. The user's own
+# message is a black pill in the light theme and a white one in the dark theme
+# (docs/design.md); the send button keeps upstream's black / white, so no entry.
 CHAT_MAP = [
-    ("userBubble = Color(0x1E787880)", "userBubble = Color(0xFFE5F0FF)"),
-    ("sendButton = Color(0xFF000000)", "sendButton = Color(0xFF015CFB)"),
+    ("userBubble = Color(0x1E787880)", "userBubble = Color(0xFF000000)"),
     ("codeBlockText = Color(0xFF34C759)", "codeBlockText = Color(0xFFE5E5EA)"),
     ("inlineCodeText = Color(0xFFFF9500)", "inlineCodeText = Color(0xFF015CFB)"),
     ("blockquoteBar = Color(0x80FF9500)", "blockquoteBar = Color(0x80015CFB)"),
     ("fabAccent = Color(0xFFB7AF96)", "fabAccent = Color(0xFF015CFB)"),
-    ("userBubble = Color(0xFF2F3A5C)", "userBubble = Color(0xFF1A2B4A)"),
-    ("sendButton = Color(0xFFFFFFFF)", "sendButton = Color(0xFF58A6FF)"),
+    ("userBubble = Color(0xFF2F3A5C)", "userBubble = Color(0xFFFFFFFF)"),
     ("codeBlockText = Color(0xFF8CF38C)", "codeBlockText = Color(0xFFE5E5EA)"),
     ("inlineCodeText = Color(0xFFFF9F0A)", "inlineCodeText = Color(0xFF58A6FF)"),
     ("blockquoteBar = Color(0x80FF9F0A)", "blockquoteBar = Color(0x8058A6FF)"),
@@ -321,6 +350,22 @@ def ios_ids() -> None:
     edit(
         IOS / "MinisApp.swift",
         [(r'contains\("com\.openminis"\)', 'contains("io.github.nanomuse")')],
+    )
+
+
+def ios_schemes() -> None:
+    """Same as `schemes()` for the phone's other half: Info.plist registers `nanomuse` and
+    `nanomuse-mcp`, the share extension opens `nanomuse://share`; `minis://` stays in-app."""
+    edit(
+        IOS / "Info.plist",
+        [
+            (r"<string>minis</string>", f"<string>{SYSTEM_SCHEME}</string>"),
+            (r"<string>minis-mcp</string>", f"<string>{SYSTEM_SCHEME}-mcp</string>"),
+        ],
+    )
+    edit(
+        IOS / "ShareExtension" / "ShareViewController.swift",
+        [(r"minis://share", f"{SYSTEM_SCHEME}://share")],
     )
 
 
@@ -486,6 +531,7 @@ def ios() -> None:
     if not IOS.is_dir():
         return
     ios_ids()
+    ios_schemes()
     ios_project()
     ios_product_name()
     ios_links()
@@ -511,11 +557,28 @@ def ios_check() -> int:
         if path.name != "PrivacyInfo.xcprivacy" and WORD.search(path.read_text(encoding="utf-8")):
             print(f"  ! Minis left in {path.relative_to(ROOT)}")
             problems += 1
+    plist = (IOS / "Info.plist").read_text(encoding="utf-8")
+    if re.search(r"<string>minis(-mcp)?</string>", plist):
+        print("  ! Info.plist still registers upstream's URL scheme")
+        problems += 1
+    share = (IOS / "ShareExtension" / "ShareViewController.swift").read_text(encoding="utf-8")
+    if "minis://share" in share:
+        print("  ! the share extension still opens minis://share")
+        problems += 1
     return problems
 
 
 def check() -> int:
     problems = 0
+    gradle_text = (APP / "build.gradle.kts").read_text(encoding="utf-8")
+    for want in (
+        f'applicationId = "{APP_ID}"',
+        f"versionCode = {VERSION_CODE}",
+        f'versionName = "{VERSION_NAME}"',
+    ):
+        if want not in gradle_text:
+            print(f"  ! app/build.gradle.kts lacks {want}")
+            problems += 1
     for path in sorted(RES.glob("values*/strings.xml")):
         if WORD.search(path.read_text(encoding="utf-8")):
             print(f"  ! Minis left in {path.relative_to(ROOT)}")
@@ -528,17 +591,32 @@ def check() -> int:
             if leftovers.search(line):
                 print(f"  ! {path.relative_to(ROOT)}:{i}: {line.strip()[:80]}")
                 problems += 1
+    if 'android:scheme="minis"' in (MAIN / "AndroidManifest.xml").read_text(encoding="utf-8"):
+        print("  ! AndroidManifest.xml still registers upstream's URL scheme")
+        problems += 1
     return problems
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    args = sys.argv[1:] if argv is None else argv
+    if args in (["-h"], ["--help"]):
+        print(__doc__.strip())
+        return 0
+    if args not in ([], ["--check"]):
+        print(f"usage: {sys.argv[0]} [--check]  (unknown: {' '.join(args)})", file=sys.stderr)
+        return 2
     if not APP.is_dir():
         sys.exit(f"{APP} not found")
+    if args == ["--check"]:
+        problems = check() + ios_check()
+        print("clean" if problems == 0 else f"{problems} leftovers")
+        return 1 if problems else 0
     gradle()
     package_ids()
     product_name()
     soul_defaults()
     links()
+    schemes()
     colours()
     notification_icons()
     notification_faces()

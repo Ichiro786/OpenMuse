@@ -706,7 +706,8 @@ class OpenAIProvider private constructor(
                 memBefore, serStartNs, failure = null,
             )
         }
-        val request = buildRequest(bodyStr)
+        // nanoMuse: OpenCode Go wants one stable id per conversation (io.github.nanomuse.net.OpenCodeSession)
+        val request = buildRequest(bodyStr, if (io.github.nanomuse.net.OpenCodeSession.wants(basePath)) derivePromptCacheKey(messages) else null)
         val headerMap = mutableMapOf<String, String>()
         for (name in request.headers.names()) {
             headerMap[name] = request.headers[name] ?: ""
@@ -2389,7 +2390,7 @@ class OpenAIProvider private constructor(
      * the OAuth byte build, and the OkHttp RequestBody. Per-call peak heap
      * dropped by ~2× the body size (often tens of MB on long agent loops).
      */
-    private suspend fun buildRequest(bodyStr: String): Request {
+    private suspend fun buildRequest(bodyStr: String, opencodeSession: String? = null): Request { // nanoMuse: + opencodeSession
         val token = getToken()
 
         if (isOAuth && !forceChatCompletions) {
@@ -2458,6 +2459,8 @@ class OpenAIProvider private constructor(
         for ((key, value) in extraHeaders) {
             builder.header(key, value)
         }
+        // nanoMuse: the conversation's id for OpenCode, before the per-call overrides so those still win
+        opencodeSession?.let { builder.header(io.github.nanomuse.net.OpenCodeSession.HEADER, it) }
         // [T-android-model-use-passthrough-mode] Per-call chat header overrides,
         // applied AFTER the ctor extraHeaders → same-name REPLACE over any
         // default (incl. Authorization/Content-Type). Empty on normal calls.
@@ -3284,6 +3287,41 @@ class OpenAIProvider private constructor(
                     put("role", msg.role.value)
                     put("content", msg.content)
                 })
+            }
+        }
+        // nanoMuse: Responses rejects duplicate function_call call_id values across the
+        // whole input. Rename later calls deterministically and queue each rewritten id so
+        // parallel/repeated function_call_output items keep the same pairing. Deliberately
+        // inspect call_id only: reasoning item ids and function_call item ids are untouched.
+        val responseCallIdCounts = HashMap<String, Int>()
+        val usedResponseCallIds = HashSet<String>()
+        val pendingResponseOutputs = HashMap<String, java.util.ArrayDeque<String>>()
+        for (i in 0 until input.length()) {
+            val item = input.optJSONObject(i) ?: continue
+            val rawId = item.optString("call_id", "")
+            if (rawId.isEmpty()) continue
+            when (item.optString("type")) {
+                "function_call" -> {
+                    var occurrence = (responseCallIdCounts[rawId] ?: 0) + 1
+                    var rewritten: String
+                    while (true) {
+                        val suffix = if (occurrence == 1) "" else "-$occurrence"
+                        rewritten = rawId.take(64 - suffix.length) + suffix
+                        if (rewritten !in usedResponseCallIds) break
+                        occurrence += 1
+                    }
+                    responseCallIdCounts[rawId] = occurrence
+                    usedResponseCallIds.add(rewritten)
+                    pendingResponseOutputs
+                        .getOrPut(rawId) { java.util.ArrayDeque() }
+                        .addLast(rewritten)
+                    item.put("call_id", rewritten)
+                }
+                "function_call_output" -> {
+                    pendingResponseOutputs[rawId]?.pollFirst()?.let {
+                        item.put("call_id", it)
+                    }
+                }
             }
         }
         body.put("input", input)

@@ -6,10 +6,10 @@ the TestFlight pipeline needs, and what is still to be ported from the Android a
 
 **Status.** The tree, the branding, the nanoMuse Cloud sign-in, the hub client and the pipeline
 were written on a Linux machine. The app **builds, signs and is on TestFlight**: the first build,
-0.1.31 (2), went through the *iOS · TestFlight* workflow on 2026-10-03; 1.0.0 is build 16, with
-the internal testers and submitted to Apple's beta review for the public link
-(`https://testflight.apple.com/join/ZHexbDqc`, which delivers the build once the review has
-passed — *Where it stands* below). The testers' reports have driven the fixes in the release
+0.1.31 (2), went through the *iOS · TestFlight* workflow on 2026-10-03; 1.0.0 is build 16, which
+passed Apple's beta review, so the public link
+(`https://testflight.apple.com/join/ZHexbDqc`) installed it first; 1.0.1 is build 18 and 1.0.2 is build 19, both through the review
+since 2026-10-12; 1.0.3 is build 22 and 1.0.4 is build 26, both through the review since 2026-10-13, so the link installs build 26 today; 1.0.5 is build 28, submitted on 2026-10-14 (*Where it stands* below). Builds 20 and 21 (1.0.2), 23, 24 and 25 (1.0.3 with fixes merged after the tag) and 27 (1.0.4 the same way) went to the internal testers only. The testers' reports have driven the fixes in the release
 notes (the composer, onboarding, sign-out); the Devices section and notifications from other
 devices still have the fewest hours on a real device. The first archive taught the pipeline
 that automatic signing wants a registered device, which is why it signs manually now.
@@ -49,8 +49,13 @@ Applied by `python scripts/rebrand.py` (idempotent; run after every upstream pul
   `.FileProvider`), the app group `group.io.github.nanomuse.app`, the iCloud container
   `iCloud.io.github.nanomuse.app`, the background-task, UTType and URL-scheme ids that carry the
   bundle id. Unlike Android there is no source-package constraint on iOS, so the whole family
-  moves. The `minis://` and `minis-mcp://` schemes stay: they are upstream's contract with its
-  own sandbox.
+  moves. The URL schemes the system knows the app by are `nanomuse` (the share extension opens
+  `nanomuse://share`) and `nanomuse-mcp`, so a phone that also has OpenMinis installed never has
+  two apps claiming one scheme. Inside the app, links stay `minis://…`: that is upstream's
+  contract with its own sandbox, the system prompt and the model; a `nanomuse://` link arriving
+  from the system is read as its `minis://` form (`NanoMuse/NanoMuseOwnScheme.swift`), and a
+  button of ours outside the chat opens such a link through the deep-link router, never through
+  the system.
 - **Names.** Display name nanoMuse, "Share to nanoMuse", "nanoMuse Files"; "Minis" → "nanoMuse"
   in Swift string literals, in `Localizable.xcstrings` (keys renamed, all nine translations
   updated) and in the Info.plist usage descriptions in every language. The OpenRouter
@@ -65,16 +70,22 @@ Applied by `python scripts/rebrand.py` (idempotent; run after every upstream pul
 
 Ours, in `NanoMuse/`:
 
+- **Cache-stable agent instructions.** The system prompt keeps its fixed tool and safety guidance
+  in a stable prefix, then appends model capabilities, skills and MCP metadata, memory,
+  `USER.md` and conversation steering, and finally the current time, language and available-model
+  count as a deterministic volatile suffix. A memory write or hourly time refresh no longer
+  invalidates the static instructions for providers that support prefix caching; fallback models
+  rebuild the same layout.
 - **nanoMuse Cloud.** *Providers* opens with a "nanoMuse Cloud" row: a phone number or an
   e-mail address, a code, and the relay ([cloud.md](cloud.md)) is an ordinary OpenAI-compatible
   provider in the app, with a model group of its own that becomes the default when there is none.
   Same wire format and the same rules as the Android client (`io.github.nanomuse.cloud`): one
   instance per relay, nothing of the user's own replaced, a 401 on refresh removes the provider
-  (and keeps the account's data aside — Contract C12 below).
-  Any build can point at another relay (*Use a different server*, below). Since 0.1.32 the page is the whole account — the
+  (and keeps the account's data aside, Contract C12 below).
+  Any build can point at another relay (*Use a different server*, below). Since 0.1.32 the page is the whole account: the
   password as the other way in, a friend's invite code, the pool in yuan with the ways on when it
   runs low (your own key, an invitation, a star once), usage by kind and by model, the devices
-  holding a key, the timeline, deletion — the same sections as the phone's `CloudAccountScreen`.
+  holding a key, the timeline, deletion, the same sections as the phone's `CloudAccountScreen`.
 - **The agent's steps, the status line.** *Settings → Chat → Steps* keeps the tool capsules out of
   finished messages unless asked for; the typing line reads *〈name〉 is on it*, not *is thinking*.
   Both are one-line edits in upstream's `AssistantBlockView` / `ContentView`, marked `// nanoMuse:`.
@@ -83,21 +94,32 @@ Ours, in `NanoMuse/`:
   name in the chat header*), and the OpenMinis layout stays one tap away in the drawer. The chat's
   navigation title becomes **face · name · status line** (`NanoMuseHeader.swift`): the status
   reads *waiting for you* while a question or an approval is up, then the running tool's
-  `tool_title` — the model's own words for the step, *打开携程网站* — then *writing the reply*,
+  `tool_title` (the model's own words for the step, *打开携程网站*), then *writing the reply*,
   then *On it: 〈brief〉*, and the model's name when idle; while a new face is being drawn it
   reads the avatar flow's line. The face (`NanoMuseFaces.swift`, the drawn face from Application
-  Support or the dragon from the bundle, five moods with the breath, bob, tilt, pop and shake of
-  the other clients) is tapped into **the agent's page**. The drawer holds the sessions, search,
+  Support, else an emoji on its colour when the desktop or the web console set one (kept in
+  `avatar/emoji.json`, rendered as a still; the phone has no picker for it yet), else the dragon
+  from the bundle, five moods with the breath, bob, tilt, pop and shake of
+  the other clients; with Reduce Motion on the still keeps still and only the mood's crossfade
+  remains) is tapped into **the agent's page**. A short clip of your own can play as the
+  face instead (`NanoMuseOwnClip.swift`: *Your own clip…* under the pen on the agent's page and in
+  the avatar studio; MP4 or MOV with H.264 or HEVC video, up to 15 seconds and 30 MB, previewed
+  before it is used, kept on that phone only under `Application Support/nanomuse/avatar/own-clip.mp4`
+  and left out of the iCloud and computer backups with its still, and *Default face* removes it;
+  the section in [avatar.md](avatar.md) has the fallback rule).
+  After choosing a video, the photo picker closes before the preview appears. The preview stays
+  open until *Use* or *Cancel* is tapped, so closing animations cannot discard the pending clip.
+  The drawer holds the sessions, search,
   a new side chat, *Pin as the main chat*, *All chats* and the nanoMuse settings; it opens from
   the round button and, on the main chat, from a swipe in at the left edge
   (`NanoMuseEdgeSwipe.swift`, a screen-edge pan on the window, as Android's drawer on the Chat
   tab; a pushed side chat keeps the system's back swipe).
 - **The agent's page (0.1.34)** (`NanoMuseAgentPage.swift`, Android `ui/profile`): the big face
   with the pen badge (*Change avatar* puts "Change your avatar to " in the main chat's composer,
-  *Edit name*, *Avatar studio*), the name, *online*, and four panes — **Activity** (what you asked
+  *Edit name*, *Avatar studio*), the name, *online*, and four panes, **Activity** (what you asked
   and what the agent did, from the last two days of sessions), **Approvals** (the standing
   "always allow" answers, revocable), **Daily** (the routines and the goal check-ins with their
-  next run, *Manage routines*), **Soul & memory** (SOUL.md and GLOBAL.md, editable) — and the
+  next run, *Manage routines*), **Soul & memory** (SOUL.md and GLOBAL.md, editable), and the
   share sheet (`NanoMuseAvatarShareSheet`, Android `ui/avatar/AvatarShareSheet.kt`).
 - **The avatar, from the chat (0.1.34)** (`NanoMuseAvatarFlow.swift`, Android `avatar/AvatarFlow.kt`):
   "换成一只橘猫" / "change your avatar to a red panda" is read before the model sees it (the same
@@ -107,14 +129,16 @@ Ours, in `NanoMuse/`:
   relay with a cost card first (`/v1/estimate`), or through the person's own Bailian key
   (`NanoMuseImageGen.swift`, DashScope's native image endpoint) when the phone has one; the studio
   (`NanoMuseAvatarStudio.swift`) uses the same path and lets the image model be picked.
-- **The scheduler (0.1.34)** (`NanoMuseScheduler.swift`): routines — a label, a prompt, a time,
-  daily / weekdays / once or every N hours — run as a headless turn in a conversation of their own
-  (`NanoMuseHeadless`). Honestly: the iPhone runs them when the app is open (every due one on
-  becoming active), asks iOS for a `BGAppRefreshTask` (`io.github.nanomuse.app.scheduler`) when
-  it goes to the background and runs what is due if iOS grants it, and posts a local notification
-  at each due time (*Check-in: 〈goal〉 — open to run it*) whose tap opens the conversation. Every
-  piece of copy about routines says so. *Settings → nanoMuse → Scheduled tasks* lists them all,
-  the goal check-ins and the feed's included.
+- **The scheduler (0.1.34)** (`NanoMuseScheduler.swift`): routines (a label, a prompt, a time,
+  daily / weekdays / once or every N hours) run as a headless turn in a conversation of their own
+  (`NanoMuseHeadless`). Honestly: the iPhone runs them only while the app is open (every due
+  one on becoming active, then a check every minute), and posts a local notification at each
+  due time (*Check-in: 〈goal〉. Open to run it*) whose tap opens the conversation. The
+  `BGAppRefreshTask` it asks for when it goes to the background
+  (`io.github.nanomuse.app.scheduler`) never runs a routine: when iOS grants it, the handler
+  posts the reminder for whatever came due and asks for the next slot, nothing more. Every piece
+  of copy about routines says so. *Settings → nanoMuse → Scheduled tasks* lists them all, the
+  goal check-ins and the feed's included.
 - **Goals (0.1.34)** (`NanoMuseGoals.swift`, Android `goals/`): *Create a goal › category* sends
   the opener to the main chat with a system addendum for a few turns; the model's
   ` ```nanomuse-goal ` block becomes the goal and its check-in routine, ` ```nanomuse-goal-update `
@@ -128,8 +152,8 @@ Ours, in `NanoMuse/`:
   editor opens) and *Start goal* beside *Send to chat*.
 - **First run and settings (0.1.34)** (`NanoMuseFirstRun.swift`, `NanoMuseSettings.swift`,
   `NanoMuseCoding.swift`, `NanoMuseSystemFiles.swift`): the four pages of the Android first run
-  (welcome → sign in — free → a password once for a fresh account → which model answers → meet
-  〈name〉), with *I have my own API key* opening the own-key sheet (the whole catalogue —
+  (welcome → sign in · free → a password once for a fresh account → which model answers → meet
+  〈name〉), with *I have my own API key* opening the own-key sheet (the whole catalogue;
   see *Your own key* below), and the first conversation afterwards (the
   opening lines, "what should I call you?", the name chooser from the model's ` ```nanomuse-naming `
   block, GLOBAL.md and SOUL.md written). *Settings → nanoMuse*: the account, **Coding agents**
@@ -141,11 +165,11 @@ Ours, in `NanoMuse/`:
   (the one marked recommended *for chat*; `qwen3.8-27b` is the hands' model and never the chat
   default); a pick made in the chat's picker moves to the front of the Cloud group so new chats
   follow it, as Android's `followPick`. DeepSeek ids are text-only unless they name `v4.1` or
-  later, `vision` or `ocr` — a `// nanoMuse:` step at the top of `LLMModel.withInferredModality()`.
+  later, `vision` or `ocr`: a `// nanoMuse:` step at the top of `LLMModel.withInferredModality()`.
 - **Models as four slots (0.1.41)** (`NanoMuseModelSlots.swift`, `NanoMuseModelsView.swift`;
   Android `ui/models/ModelsScreen.kt`): the first card of *Settings → nanoMuse* is *Models* and
-  opens four rows — *Chat*, *Operating the screen* (disabled on iPhone, *Not on iPhone*, *Your
-  computer uses its own setting.*), *Making pictures*, *Making clips* — each showing
+  opens four rows: *Chat*, *Operating the screen* (disabled on iPhone, *Not on iPhone*, *Your
+  computer uses its own setting.*), *Making pictures*, *Making clips*, each showing
   `<provider> · <model>` and opening a picker grouped *nanoMuse Cloud* first (the relay's
   recommended one marked *Recommended*) and then one group per provider of your own that can do
   it; an empty row says what is missing and offers *Add a provider*, and so does the page's last
@@ -157,9 +181,9 @@ Ours, in `NanoMuse/`:
   new chat, so on 0.1.41 it stayed on nanoMuse Cloud after a key of your own was chosen while
   side chats answered through the key); the page says *Applies to the main chat and to new
   chats; a side chat keeps its model.*; a pick made in a chat's own picker sticks the same way,
-  for any provider, not only Cloud. Pictures and clips resolve in one order — your choice, else the chat
+  for any provider, not only Cloud. Pictures and clips resolve in one order (your choice, else the chat
   provider's own default when it is a Model Studio key that draws, else nanoMuse Cloud when
-  signed in, else the first key that can — so Cloud is no longer passed over for a Bailian key
+  signed in, else the first key that can), so Cloud is no longer passed over for a Bailian key
   you did not pick; the image and video models come from the catalogue's `defaults`, not from
   names in the code. The pictures and clips pickers open with an *Automatic* entry (*Currently
   〈provider · model〉*) that forgets the stored choice and lets the slot follow that order
@@ -182,7 +206,7 @@ Ours, in `NanoMuse/`:
   `NanoMuseConnectors.swift`): the profile's `connectors` list says which device connected what
   (id, label, address without the query string, how it signs in, enabled, when, the device) and
   never a token; this phone puts its own entries, reads the others' back, and the Connectors page
-  lists them under *On your other devices* — *Connected on 〈device〉 — sign in here to use it on
+  lists them under *On your other devices*: *Connected on 〈device〉. Sign in here to use it on
   this phone*. The ways-on card in the account follows the region: Bailian first in mainland
   China, *Sign in with OpenRouter* first elsewhere.
 - **Connectors** (`NanoMuseConnectors.swift`): the desktop's catalogue from the bundled
@@ -194,30 +218,50 @@ Ours, in `NanoMuse/`:
   its end is upstream's MCP page.
 - **Data controls** (`NanoMuseDataControls.swift`): the relay's switch, the kept-turns count, the
   privacy page, deletion with a confirmation. **Reach** (`NanoMuseReach.swift`): a sheet per device
-  of the account — open a link, send a note, a shell line, a screenshot — over the hub.
+  of the account (open a link, send a note, a shell line, a screenshot) over the hub.
+  **A task for another device** (`NanoMuseDeviceMention.swift`, `NanoMuseRemoteApproval.swift`):
+  a message that starts with `@〈device〉` goes to that device's Muse as a hub `task` (the `@` menu
+  lists the online devices above the files when the `@` opens the message); when a step
+  there needs a yes, the `approval` event is answered here, where the task was typed
+  ([hub.md](hub.md)), on a card with the Android phone's four answers: *Allow once*, *Allow for
+  this chat* (held in memory for that chat), *Always allow this on 〈device〉* (the same step on
+  that device, kept on this phone under the device's id and listed with *Revoke* under
+  *Approvals* on the agent's page), *Deny*; a payment gets only *Allow once* and *Deny*. No
+  answer within the time the other side names (180 seconds when it names none) is a no, and a
+  question the person at the other device answered first (`approval_result`) leaves the card
+  without an answer from here. The card is a sheet at the root, so one already open (Settings,
+  the studio) covers it until it closes. Up to 1.0.3 the phone declined every such question.
 - **When the provider cannot be reached** (`NanoMuseProviderReach.swift`,
-  `NanoMuseProviderReachCard.swift`): a failed turn whose error is the transport's — *Could not
+  `NanoMuseProviderReachCard.swift`): a failed turn whose error is the transport's (*Could not
   connect to the server*, *A server with the specified hostname could not be found*, a TLS or
-  timeout line — or OpenAI's *region not supported* shows a card instead of the red banner: what
+  timeout line) or OpenAI's *region not supported* shows a card instead of the red banner: what
   happened, what helps (a VPN, the proxy under *Settings → Network*, another provider with a key
   of your own), *Try again*, the raw line behind *Details*. `LLMError` appends the failing host
   as `[host: …]` to a network error so the card can name it; the 401/403/429 whose bodies
   `mapHTTPError` drops are kept for a few seconds by `NanoMuseReachSignal` and written into the
-  message as a canonical `nm_reach:` line by `friendlyErrorMessage` — an expired ChatGPT
+  message as a canonical `nm_reach:` line by `friendlyErrorMessage`: an expired ChatGPT
   sign-in reads *Sign in again*, a spent plan window *The ChatGPT plan has nothing left for now*
   with OpenAI's sentence and the reset time. The same kinds, lines and rules as Android's
   `ProviderReach`.
 - **When the relay refuses a turn** (`NanoMuseRelayRefusal.swift`,
   `NanoMuseRelayRefusalCard.swift`): every refusal nanoMuse Cloud sends is one plain sentence in
-  the phone's language and the button that fits — never a status code, the relay's JSON or
+  the phone's language and the button that fits, never a status code, the relay's JSON or
   upstream's *Rate limited*. `NanoMuseReachSignal` hands each non-2xx reply of a model call to
   `NanoMuseRelaySignal` first (the same existing `// nanoMuse:` spot in `mapHTTPError`, nothing
-  new in upstream's files); a reply with `type: nanomuse_cloud` or one of the relay's codes — or a
-  bare 413 / 401 / 5xx from the relay's host — becomes a canonical `nm_relay:` line in the
+  new in upstream's files); a reply with `type: nanomuse_cloud` or one of the relay's codes (or a
+  bare 413 / 401 / 5xx from the relay's host) becomes a canonical `nm_relay:` line in the
   message, which `NanoMuseProviderReachCard` draws as the refusal card. The sentence is
   `NanoMuseCloud.describe`'s, the same the sign-in and account pages use, in all nine locales:
   `413 too_large` → *That message is too large for the model. Shorten it, leave out some
-  attachments, or start a new chat.* with *New chat*; `401 bad_key` / `account_deleted` → *Sign
+  attachments, or start a new chat.* with *New chat*; `400 content_rejected` (the provider's
+  content check declined the words; also a provider's own `DataInspectionFailed` on a key of
+  one's own) → *The model provider's content check declined this request. Try different words,
+  or start a new chat if it keeps happening: the words it objects to can be earlier in the
+  conversation.* with *New chat* and *Try again*, and the compaction's split-retry
+  (`isSegmentRetryableError`) leaves it alone, since the same words come back refused however
+  small the request; an error the relay puts inside a stream (`data: {"error": …}` on a 200)
+  now ends the turn with its card instead of an empty reply (a `// nanoMuse:` spot in
+  `OpenAIProvider`'s stream loop); `401 bad_key` / `account_deleted` → *Sign
   in*; `403 not_invited` / `account_disabled` / `signup_closed` → *Open Settings*; `429
   too_many_in_flight` / `locked` / `rate_limited` and `provider_busy` (with the wait from
   `retry_after`) → *Try again*; `404 model_not_offered` → *Open Settings*; `503 service_paused`,
@@ -225,33 +269,36 @@ Ours, in `NanoMuse/`:
 - **The allowance in the chat** (`NanoMuseAllowance.swift`, `NanoMuseAllowanceCard.swift`;
   Android `AllowanceSignal` + `AllowanceWaysCard`): a turn refused with `429 allowance_exhausted`
   or `daily_cap` pins a card under the chat header the way the star card is pinned (the shell's
-  top inset, no new link on `AIChatView.body`): the lead — *The free allowance is used up.*,
-  *Today's share …*, or with `paused: true` (relay 0.22) *paused on this relay for now — not
-  used up* and that what is left stays as it is — then the ways on and *Try again* (the open
+  top inset, no new link on `AIChatView.body`): the lead, which is *The free allowance is used up.*,
+  *Today's share …*, or with `paused: true` (relay 0.22) *paused on this relay for now, not
+  used up* and that what is left stays as it is; then the ways on and *Try again* (the open
   chat's last turn once more). At 80 % of the pool (`spend.warn` from `/v1/me`) one line sits
-  above the composer in `NanoMuseChatCardsHost` — *Nearly used up: ¥… of ¥… left …* — once per
+  above the composer in `NanoMuseChatCardsHost`, *Nearly used up: ¥… of ¥… left …*, once per
   pool size (a new grant says it again), waved away with the ×; the card replaces it.
 - **Your own key** (`NanoMuseCatalogue.swift`, `NanoMuseVendorSheet.swift`,
   `NanoMuseOwnKeySheet` in `NanoMuseModels.swift`; [own-key.md](own-key.md)): the vendors are
   the bundled `NanoMuse/Resources/providers.json` (`node scripts/providers-json.mjs` keeps it
-  current, `--check` in CI) — and the relay's `spend.guidance` first when it sent one (relay
+  current, `--check` in CI), and the relay's `spend.guidance` first when it sent one (relay
   0.21; also beside a `429 allowance_exhausted`), kept in `UserDefaults` between runs, so a
   vendor added on the relay shows before the app is updated. `NanoMuseWaysList` is the one list
-  on the pinned card, Settings → nanoMuse Cloud and the own-key sheet: *Use your own model key*
-  — the region's lead first (Alibaba Cloud Bailian on the mainland, OpenRouter and OpenAI
+  on the pinned card, Settings → nanoMuse Cloud and the own-key sheet: *Use your own model key*:
+  the region's lead first (Alibaba Cloud Bailian on the mainland, OpenRouter and OpenAI
   elsewhere), three at a time behind *More providers*, every row saying what it covers (*chat ·
   screen · pictures · clips*), *Get a key* opening the vendor's key page, *Add* opening
   `NanoMuseVendorSheet` on that vendor (the key pasted, the instance added with the vendor's
   endpoint and `/v1` setting, its models fetched, a group named after it the default when there
-  was none); *A subscription you already pay for* — ChatGPT through upstream's `CodexOAuthManager`,
-  Claude, OpenRouter, Kimi's device code through `KimiDeviceLoginSheet` — with the line under the
+  was none); *A subscription you already pay for*: ChatGPT through upstream's `CodexOAuthManager`,
+  Claude, OpenRouter, Kimi's device code through `KimiDeviceLoginSheet`, with the line under the
   ChatGPT row that OpenAI's terms cover a plan inside OpenAI's own Codex, that other apps have had
   this access cut off before (OpenCode, January 2026), and that an API key works if it stops (the
-  relay's own wording when it sent one); *On a computer of your own* — Ollama, LM Studio, vLLM —
+  relay's own wording when it sent one); *On a computer of your own* (Ollama, LM Studio, vLLM)
   takes the address. No vendor is recommended.
 - **Network** (`NanoMuseProxy.swift`, `NanoMuseNetworkView.swift`, *Settings → nanoMuse →
-  Network*): the HTTP proxy for own providers — host, port, optional user name and password, off
-  by default, in `UserDefaults` on this phone only. `URLSession` has no per-host proxy switch, so
+  Network*): the HTTP proxy for own providers: host, port, optional user name and password, off
+  by default, on this phone only: the address and the user name in `UserDefaults`, the password
+  in the Keychain as a device-only item (`io.github.nanomuse.app.proxy`, the relay key's rules;
+  a password a 1.0.3 build kept in `UserDefaults` moves over at the first read). `URLSession`
+  has no per-host proxy switch, so
   the proxy reaches a session as a proxy auto-configuration script in
   `connectionProxyDictionary` that answers the proxy for the catalogue's hosts, `chatgpt.com`,
   `auth.openai.com` and the provider instances' custom hosts (never the relay's, never a LAN
@@ -260,18 +307,22 @@ Ours, in `NanoMuse/`:
   sign-in and the model list. The credentials go to the shared `URLCredentialStorage` for the
   proxy's protection space. *Test* fetches `https://chatgpt.com/` through the proxy as entered.
 - **The phone's chrome (0.1.35)** (`NanoMuseChrome.swift`, `NanoMuseAppearance.swift`, Android
-  `ui/chat/MuseHeader.kt` and `ui/settings`): the Muse header — the face disc, the name pill with
-  the live status line under it, round drawer and ••• buttons — on the chat and on Feed, Ideas,
+  `ui/chat/MuseHeader.kt` and `ui/settings`): the Muse header (the face disc, the name pill with
+  the live status line under it, round drawer and ••• buttons) on the chat and on Feed, Ideas,
   Goals and Library; the side drawer after Android's; the agent's grey bubble for its replies
   (`NanoMuseAssistantBubble` in `NanoMuseChatCards.swift`); the agent page's toolbar as round
   buttons; *Settings → nanoMuse* rebuilt as Muse cards in the Android order
-  (`NanoMuseSettingsHomeView`: Image & video models, Avatar, Computers, Appearance — avatar size,
-  the model under the name, the steps, the theme — Notifications, Account, Coding, Scheduled
+  (`NanoMuseSettingsHomeView`: Image & video models, Avatar, Computers, Appearance (avatar size,
+  the model under the name, the steps, the theme), Notifications, Account, Coding, Scheduled
   tasks, Shared folders, Chat files, System files, Version). A `nmOnChange` helper keeps
-  `onChange` on iOS 16, the app's deployment target.
+  `onChange` on iOS 16, the app's deployment target. *New Chat* in the ••• menu, ⌘N, the
+  *Context Full* alert and the refusal cards all post upstream's `.newChatRequested`;
+  `NanoMuseHomeView` answers it with a fresh draft side chat, the same as the drawer's new chat
+  button, since upstream's `ContentView` is not on screen in this layout (1.0.2 had no listener
+  there, so the entry did nothing, #392).
 - **Motion clips (0.1.35)** (`NanoMuseVideoGen.swift`, `NanoMuseAvatarMotion.swift`,
   `NanoMuseMediaModels.swift`; Android `avatar/VideoGen.kt`, `avatar/AvatarMotion.kt`): a drawn
-  face gets four 4-second clips — idle, working, waiting, happy — from `wan2.2-i2v-flash`
+  face gets four 4-second clips (idle, working, waiting, happy) from `wan2.2-i2v-flash`
   (DashScope's async API through the relay, or your own Bailian key), the phone's prompts word
   for word, kept per device under `avatar/motion/`; the face plays them with an `AVQueuePlayer`
   and an `AVPlayerLooper` (suspended in the background), the dragon's clips come from the bundle.
@@ -279,42 +330,51 @@ Ours, in `NanoMuse/`:
   and *Make / Redo clips*; the studio's cost estimate counts the clips.
 - **Version, star asks, the feed's first day (0.1.35)** (`NanoMuseUpdateCheck.swift`,
   `NanoMuseNudges.swift`): the Version row shows the installed build and the latest release
-  (`nanomuse.cn/dl/index.json` first, GitHub second, a day's cache — *Latest 0.1.x — you have it*
-  / *0.1.x is out* / *Could not check — tap to try again*). The star asks follow the relay's
+  (`nanomuse.cn/dl/index.json` first, GitHub second, a day's cache: *Latest 0.1.x, you have it*
+  / *0.1.x is out* / *Could not check, tap to try again*). The star asks follow the relay's
   policy (`/v1/nudges`, `nudges` in `/v1/me`, the same defaults built in): never in the first
   conversation, then the 3rd / 10th / 30th task (`NanoMuseStarWatch`: a person-started session
   leaving `activeSessions` without an error), the 7th / 30th day, a goal reached, a new look,
-  sign-in, the allowance spent — seven days apart, four per phone — as a card pinned under the
+  sign-in, the allowance spent (seven days apart, four per phone), as a card pinned under the
   header (the message list is a UICollectionView, so nothing can be placed under the last
   message); the card's sentence is the one set in the relay's console (`star.text`, `star.text_zh`
-  for a Chinese UI) when there is one, else the app's own line for the moment — the title and the
+  for a Chinese UI) when there is one, else the app's own line for the moment; the title and the
   buttons stay the app's. The Feed opens on the intro card, says when the daily routine runs while it is
   empty, and writes its first day after the first conversation; a Notifications page joined the
   first run.
 - **The composer (0.1.38, 0.1.40)** (`NanoMuseShell.swift` → `NanoMuseHomeView.body`,
   `NanoMuseChatModifiers.swift`, `NanoMuseComposerField.swift`, `NanoMuseComposerWatch.swift`,
   `NanoMuseComposerCheck.swift`, the `// nanoMuse:` lines in `Views/Chat/AIChatView.swift`). Four
-  releases reported a chat with no input field — 0.1.36 and 0.1.37 on the maintainer's iPhone after
-  the first conversation's naming, 0.1.39 on the iPad — and the 0.1.37 watchdog, the 0.1.38 native
+  releases reported a chat with no input field (0.1.36 and 0.1.37 on the maintainer's iPhone after
+  the first conversation's naming, 0.1.39 on the iPad), and the 0.1.37 watchdog, the 0.1.38 native
   field and the 0.1.38 fail-safe (a second host when the overlay reported nothing) were all written
   against screenshots of a composer that was, in fact, there. What the maintainer saw in the end:
   the field shows when the app opens and is gone for good once the keyboard has been dismissed; the
   0.1.36 screenshot has the top edge of the composer peeking out above the bottom bar. The shell's
   bottom bar was a `safeAreaInset` on the `NavigationStack`'s ancestor, hidden while the keyboard is
   up; the chat respected that inset at launch and no longer after the bar had left and come back,
-  so the whole chat ran under the bar and the composer — bottom-aligned, laid out, healthy by every
-  measure the watchdog had — sat behind it. Since 0.1.40 the **bar is a row under the rooms** (a
-  `VStack`, as on Android), and the composer column (the cards, the tool strip, the input bar) is
-  likewise **a row under the message list**: `NanoMuseComposerHost` is a plain `VStack`, the list is
-  passed a bottom inset of 0, the `/` and `@` popup is an overlay of the list's bottom edge and so
-  stands on the column's top edge by layout. Nothing lies over the UIKit list and there is no
-  second host to switch to. The watch stays as the last net (a column that detaches or measures 0
+  so the whole chat ran under the bar and the composer, bottom-aligned, laid out, healthy by every
+  measure the watchdog had, sat behind it. Since 0.1.40 the **bar is never an inset of the chat's
+  ancestor** (a `VStack` row in 0.1.40; bottom padding of the bar's height on the chat layer from
+  the floating pill bar to 1.0.3; since then the bar's height reaches the chat as an environment
+  value, `nmBottomOverlay`, and the chat stands its composer that much above the bottom). From
+  0.1.40 to 1.0.3 the composer column (the cards, the tool strip, the input bar) was a row under a
+  shorter message list, which left a plain canvas behind the pill bar's glass; **since 1.0.4 the
+  column is a layer over the list's bottom edge again**: `NanoMuseComposerHost` is a `ZStack`, the
+  list keeps the chat's full height and is passed a bottom inset of the column's measured height
+  plus the bar, so the rows scroll under the column and the bar and the last row stops above the
+  column at rest; the `/` and `@` popup shares a `VStack` with the column and so stands on its top
+  edge by layout. Behind the composer pill, Android's rounded vignette (`NanoMuseComposerVignette`):
+  once the list is scrolled away from the latest row, a 90 pt rounded halo of the canvas colour
+  follows the composer pill's 26 pt contour and fades to clear in the gap above the bar so the
+  glass keeps its rows without a solid rectangular strip. There is no second host to
+  switch to. The watch stays as the last net (a column that detaches or measures 0
   while the chat is on screen is rebuilt through `.id(rebuildTick)`, at most twice per appearance so
   a mis-measured healthy composer cannot take the keyboard away repeatedly), and it keeps what it
   sees: **Settings → Appearance → Composer check** draws a red frame around the column (the probe
-  view in its background) and writes a report — the window and its safe area, the column's frame,
+  view in its background) and writes a report (the window and its safe area, the column's frame,
   every UIKit ancestor of the probe with its frame, hidden flag and alpha, the text fields and
-  collection views in the window, the watch's events — with a *Copy* row for a bug report. That
+  collection views in the window, the watch's events) with a *Copy* row for a bug report. That
   page is the view hierarchy a device can give without a Mac. The pill's field is SwiftUI's own
   `TextField(axis: .vertical)` with `@FocusState` and `lineLimit(1...6)`, not upstream's
   `UIViewRepresentable` text view. What the representable did and the native field does not: an
@@ -331,7 +391,7 @@ Ours, in `NanoMuse/`:
   an update the old one can show a few more times, a reinstall shows the new one at once.
 - **Side chats and presence (0.1.38, Contract C9)** (`NanoMuseSync.swift`, `NanoMusePresence.swift`,
   `NanoMuseSyncSettings.swift`, `NanoMuseFromDeviceCaption.swift`): *Data controls → Also sync
-  side chats* is per device and off by default — only the main conversation goes up and the pull
+  side chats* is per device and off by default: only the main conversation goes up and the pull
   asks `scope=main`; side rows that still arrive are ignored. Turning it on pulls once from
   `since=0&scope=all&tail=300` (idempotent by `mid`) and the side chats go up with the next push;
   turning it off narrows the traffic again and deletes nothing. A table's first pull is
@@ -353,15 +413,15 @@ Ours, in `NanoMuse/`:
   `100.64/10` Tailscale hands out, loopback, link-local, IPv6 ULA, `localhost`, a name without a
   dot and the suffixes `.local`, `.lan`, `.home`, `.internal`, `.home.arpa`, `.localdomain`,
   `.ts.net` count as one's own. Signed in, the account page shows *Server:
-  〈host〉* with *Change*, which signs this phone out first — a key belongs to the relay that
+  〈host〉* with *Change*, which signs this phone out first: a key belongs to the relay that
   issued it.
 - **One account's conversations, not the last person's (0.1.39, Contract C10)**
   (`NanoMuseSync.swift`, `NanoMuseShell.swift`): a conversation belongs to the account that first
-  pushed or pulled it — the sync table that maps it is that account's, and every account that has
+  pushed or pulled it: the sync table that maps it is that account's, and every account that has
   synced on the phone keeps its table (`nanomuse-sync-accounts.json`, keyed by the relay's opaque
   `account.id`, never the phone number or e-mail). Signed in, the chat lists and the Chat tab show
   the account's own conversations and the ones no account has synced yet; another account's stay
-  on the phone, hidden, and are never pushed under the signed-in account — an unowned one becomes
+  on the phone, hidden, and are never pushed under the signed-in account; an unowned one becomes
   the account's with its first push. Signing in as a different account than last time starts
   that account's cursor over (the `tail=300` pull) and forgets presence; signing back in as the
   first account brings its conversations and its main chat back. Signed out, everything on the
@@ -371,15 +431,15 @@ Ours, in `NanoMuse/`:
   `NanoMuseSignOutSheet.swift`): every chat has an owner row (`nanomuse-owners.json`), synced or
   not, and the lists, the Chat tab, the Library, *Today's chats*, the Siri shortcuts and the
   push show the signed-in owner's only; signed out, only the chats made while signed out. A
-  sign-out — here, everywhere, *Use a different server* — is a sheet with one switch, *Keep this
+  sign-out (here, everywhere, *Use a different server*) is a sheet with one switch, *Keep this
   account's chats on this device*, off by default: off, the account's chats, memory, feed, goals,
   routines and face leave the phone (its sync table too, so a later sign-in never tombstones
   them on its other devices); on, they are put aside under `MinisConfig/nanomuse/accounts/<hash>/`
   and come back with the account. Signing in as another account goes through the same path.
   *Delete the account* removes all of it with no question. A key the relay refuses on a refresh
-  (`401 bad_key` — revoked from another device, a relay reset) takes the *keep* path instead:
+  (`401 bad_key`: revoked from another device, a relay reset) takes the *keep* path instead:
   the data goes aside, the key goes, and the sign-in form says *Your sign-in on this phone was
-  ended — sign in again to continue; your chats are kept on this device until then* until the
+  ended. Sign in again to continue; your chats are kept on this device until then* until the
   next sign-in (`NanoMuseCloud.signInEnded`); only `401 account_deleted` deletes
   (`NanoMuseAccountData.keepOnRefusedKey`, tested in `NanoMuseAccountsTests`). The relay's key is saved on this
   device only (`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, never iCloud Keychain); a
@@ -390,7 +450,7 @@ Ours, in `NanoMuse/`:
   sign-in sheet opens with the app's mark above the field, the field says *Mainland China phone
   number or e-mail*, and a number with another country code gets *Text-message codes reach
   mainland-China numbers only…* under the field while it is typed, not after a tap; the footer
-  carries Android's fine print (what the relay keeps — an account id, a masked identifier, usage
+  carries Android's fine print (what the relay keeps: an account id, a masked identifier, usage
   counts, the agent's name and look) and links the privacy policy, not the GitHub page. The
   Notifications page of the first run shows the mark, as the welcome and sign-in do. After a
   new face is picked with a video model set, the reply says the four clips follow in the
@@ -400,11 +460,11 @@ Ours, in `NanoMuse/`:
   whether the setup is due, so a fresh install never shows the shell for a frame before the
   welcome page. The first conversation's fourth line no longer says the messages go *only* to
   the   model: signed in, the main conversation also follows the person to their other devices,
-  and *Data controls* switches that off — the same words on Android, in every language.
+  and *Data controls* switches that off, the same words on Android, in every language.
 - **The audit's second pass (round 10)** (`NanoMuseHub.swift`, `NanoMuseDevicesSection.swift`,
   `NanoMuseScheduler.swift`, `NanoMuseSync.swift`, `NanoMuseAccountData.swift`,
   `NanoMuseProxy.swift`, `NanoMuseImageGen.swift`, `NanoMuseVideoGen.swift`): the hub client
-  reads the relay's close codes ([hub.md](hub.md)) — 4001 and 4002 end the attempts until a new
+  reads the relay's close codes ([hub.md](hub.md)): 4001 and 4002 end the attempts until a new
   sign-in and the Devices row says *Sign in again*; 4003 waits 30 s; a close with the reason
   `hub_paused` waits two minutes and the row says *Paused by the relay*; everything else keeps
   the 1 → 30 s backoff and reads *Reconnecting…*. An `open` call from another device opens
@@ -416,8 +476,8 @@ Ours, in `NanoMuse/`:
   the store waits for the next call rather than starting empty and writing that over every
   account's table. The image and video generators go through the Network proxy like a chat
   turn on the same provider (`NanoMuseProxy.SessionSlot`), and their failures are sentences in
-  every language — *The provider refused this key (HTTP 401)*, *The video took longer than 12
-  minutes* — with the vendor's own words after *The provider says:* when it sent some.
+  every language, *The provider refused this key (HTTP 401)*, *The video took longer than 12
+  minutes*, with the vendor's own words after *The provider says:* when it sent some.
 - **The audit's third pass (round 11)** (`NanoMuseHubTasks.swift`, `NanoMuseHub.swift`): a
   `stop` from another device finds the run by the task frame's id (`stop {call}`, what the
   desktop sends) as well as by conversation, only the device that asked may stop it, and the
@@ -504,6 +564,148 @@ Ours, in `NanoMuse/`:
   *Not set* state is no longer reachable through this switch. A provider of your own switched off
   on its page keeps upstream's path: the chat re-resolves through the default group and, when
   nothing is left, says *No model configured. Add a provider in Settings.*
+- **The bottom bar is a floating pill** (`NanoMuseShell.swift` → `NanoMuseBottomBar`,
+  `NanoMuseTones.tabIndicator` / `tabIndicatorGlyph` in `NanoMuseFaces.swift`; Android's
+  `MuseBottomBar`, #329 by @Ichiro786): the five tabs sit in a `Capsule` 12 pt above the bottom
+  safe area, as wide as the composer above it (the same 16 pt margins; 420 pt at most on a compact
+  width, which no phone reaches; on a regular width, the iPad, it is the chat column's width less
+  the margins, 728 pt, as the composer is, see the column note below), icons only, with the five
+  tab shapes aligned to Android's `MuseBottomBar` (`bubble.left`, `doc.text`, `lightbulb`,
+  `checkmark.square`, and the three-shape `Category` glyph for Library) and the same accessibility
+  labels and selected trait as before. The pill is `.ultraThinMaterial` under the shell's surface tone at 55 percent opacity (the
+  tint carries the contrast, the material carries the blur, as Android's 55 percent surface over its
+  backdrop blur) with a 1 pt `NanoMuseTones.hairline` edge; the old full-width strip and its hairline
+  on top are gone. The five tabs share the pill's width equally, each slot tappable across; the
+  current one shows the filled symbol in `tabIndicatorGlyph` on a 60 by 46 pt capsule of
+  `tabIndicator` (the chat's ink: black with a white symbol in light, white with a black symbol
+  in dark, as Android's `MuseBottomBar`) that slides to the tab tapped next with a spring
+  (`matchedGeometryEffect`; with Reduce Motion on it moves without the spring); the others show
+  the outlined symbol in the secondary colour. The bar
+  still leaves while the keyboard or the chat's voice panel is up. Layout: the pill lies over the
+  rooms and the chat in a `ZStack` aligned to the bottom. The chat gets the bar's height (70 pt: 46
+  plus 6 above and below plus the 12 pt gap) as the `nmBottomOverlay` environment value, stands its
+  composer that much above the bottom and scrolls its rows under both (the composer note above);
+  nothing is an inset of the `NavigationStack`'s ancestor. The rooms, plain SwiftUI scroll views,
+  take the same height as a `safeAreaInset`. Either way the glass has the transcript or the room
+  behind it to blur; up to 1.0.3 the chat was padded above the bar instead, and over the plain
+  canvas the pill read as a white one (seen on the iPad on 1.0.3).
+- **The chat is monochrome** (`NanoMuseTones.ink` / `onInk` / `agentPill` in `NanoMuseFaces.swift`,
+  `NanoMuseHeaderScrim` in `NanoMuseHeader.swift`, `NanoMuseComposer.swift`,
+  `NanoMuseChatCards.swift`, and `// nanoMuse:` lines in `Views/Chat/ChatMessageViews.swift` and
+  `Views/Chat/AIChatView.swift`; Android's #331 by @Ichiro786). With the Muse shell on, your
+  messages are pills in the ink colour with text in the canvas colour: black with white text on
+  the white canvas in light, white with black text on the black canvas in dark, no blue and no
+  grey. The agent's replies sit in a pill a shade off
+  the canvas, `#F2F2F7` in light and `#1C1C1E` in dark, in the theme's text colour; code, tables
+  and raw markup stay bare as before. The send arrow in the composer pill is a 30 pt disc of the
+  same ink with the arrow in the canvas colour (a faint wash of the ink and a 40 percent arrow
+  while there is nothing to send), and the stop square while the agent answers sits on the same
+  disc; the composer pill itself keeps its grey. The scroll-to-latest
+  disc under the list is the same ink with the chevron in the canvas colour; the walk-back
+  button above it keeps its light disc. The header over the main chat is no longer a blur: a
+  scrim of the canvas colour from 80 percent at the top edge, 35 percent a little past the
+  middle, to clear at the bottom, so the conversation scrolls under the face and dissolves
+  instead of stopping at a line, and while the list is scrolled away from the latest message a
+  second fade in the full canvas colour comes in over 250 ms from the top edge (the shell's
+  `safeAreaInset` background, bound to the main chat's `isNearBottom` the way the header binds
+  its mood). A queued message keeps upstream's dashed outline and grey text, the *From {device}*
+  caption and the attachments stay outside the pill, and the long-press preview is the opaque
+  card it was. Side chats pushed from the drawer keep the system bar for the back button and
+  the title, but since 1.0.4 the bar's own background and hairline are hidden and the same
+  scrim stands behind it (`NavBarStyleModifier` in `AIChatView.swift`, switched on by the
+  `nmSystemBarScrim` environment value the shell sets on the pushed chat; up to 1.0.3 the bar sat
+  on `.ultraThinMaterial`). The rooms since 1.0.4 stand on the chat's canvas, white and black,
+  as Android's tabs and [design.md](design.md): Ideas as plain rows with a hairline under each,
+  Goals with its cards outlined by a hairline, Library as a plain list; only the Feed keeps the
+  grey page its white cards sit on, as Android's FeedTab does. Written on Linux without a Mac:
+  the iOS check compiles it, and no device has shown it yet.
+- **The iPad's chat is one column** (`NanoMuseColumn` in `NanoMuseShell.swift`; the
+  `maxContentWidth` line and the composer's frame in `AIChatView.swift`, the agent's pill in
+  `NanoMuseChatCards.swift`). 1.0.3 on an iPad in portrait showed three widths: upstream caps
+  the message list and the composer at 900 pt on a regular width, so the composer ran across
+  the 768 pt window, the pill bar sat 420 pt wide under it, and the agent's replies stayed in
+  their 340 pt pill at the left edge. On a regular width size class the list, the composer and
+  the pill bar now share one centred column of 760 pt, the web console's chat column
+  (`max-w-[760px]`); the rows keep their 16 pt padding inside it, the composer and the pill bar
+  are both the column less the margins, 728 pt, so their edges meet the bubbles' and each other's,
+  and the agent's pill grows to 600 pt, the web's wide value. A compact width, every iPhone and
+  a narrow Split View pane, is unchanged. The cells of the message list are hosted by
+  `UIHostingConfiguration`, which does not carry our environment objects but does carry the
+  size class from the cell's traits; the agent's pill reads it from there. In 1.0.4 the
+  agent's rows alone padded outside the column, so their pill began 16 pt left of the
+  composer's edge; the three assistant cells in `CollectionViewMessageListV3.swift` (header,
+  block, footer) now pad inside it, as the user's rows always did.
+- **The rows pass under the header.** The shell measures its Muse header and hands the height
+  to the chat as the `nmTopOverlay` environment value (`NanoMuseChatModifiers.swift`); the
+  message list ignores the container safe area at its top and keeps its rows down by that much
+  (`topOverlay` on `CollectionViewMessageListV3`, added to `contentInset.top`), the way it
+  already runs under the composer and the pill bar. So the rows scroll under the face and the
+  scrim behind the header fades them, as on Android. 1.0.3 and 1.0.4 had the header as a
+  `safeAreaInset` and nothing more, which is enough for a SwiftUI `ScrollView` but shortens a
+  UIKit view: the list ended under the header and the rows were cut at a hard edge there,
+  with the scrim fading nothing. A pushed side chat, which keeps the system bar, has the value
+  at 0 and instead runs its content up under the bar the way upstream's iOS 26 layout does
+  (`NavBarStyleModifier`); the bar is UIKit's, so the list's own inset adjustment keeps the
+  first row below it, and its rows fade under the scrim behind the bar too.
+- **The feed is written quietly, and a routine speaks first** (`NanoMuseRoutineWakes.swift`;
+  `NanoMuseSync.shows`, `NanoMuseHeadless.run`, the `nmRoutine` spots of `ChatModels.swift`,
+  `AIChatViewModel.swift`, `AIChatViewModel+Persistence.swift` and `ChatMessageViews.swift`).
+  Up to 1.0.4 the daily feed was a conversation titled *Feed* in the drawer, with *Write
+  today's feed.* as a bubble in the person's voice and the model's answer under it, and every
+  routine the person set up began its turn the same way. The feed's conversation is the agent's
+  working room now and the lists leave it out (`shows` says no to it, as it does to another
+  account's chats); the posts arrive in the Feed room as before. A routine's turn is marked as the
+  routine's: the row that carried its prompt is one quiet line, *Routine · 〈label〉 · 08:00*
+  (`NanoMuseRoutineWakeRow`, kept under the row's id so it stays after a reload), and the model
+  gets a one-turn addendum (`NanoMuseSessionAddenda`) saying the person did not type it, so it
+  opens with the result instead of thanking them for asking. The prompt's text is unchanged, so
+  the turn runs as it did.
+- **The fourth audit (1.0.x)** (`*.lproj/AppShortcuts.strings`, `NanoMuseChrome.swift`,
+  `NanoMuseShell.swift`, `NanoMuseAgentPage.swift`, `NanoMuseHub.swift`,
+  `NanoMuseBackgroundSettings.swift`, `Localizable.xcstrings`): the Siri phrases are in all nine
+  languages (they were in English and the two Chinese tables; a phone in Japanese, Korean, German,
+  Spanish, French or Russian got the English ones). The Muse pages' titles and the agent's name in
+  the drawer and on the agent's page follow Dynamic Type, capped at 1.35 times their base as the
+  header's lines are (`NanoMuseHeaderMetrics`); before, they were fixed at 17 and 24 pt. *Create
+  routine* on an idea opens the routine's editor as it was meant to: the shell owns that sheet
+  now, where before the Goals room was asked to open it and that room is not on screen while the
+  Ideas room is, so the routine was made at the idea's time and nothing opened. *Background &
+  notifications* says what the phone does: a notification is a routine's reminder or a note from
+  another device, and Background App Refresh lets iOS post the reminder, never run the routine
+  (the page used to say the app got slots to finish a routine). A failure from the hub or a
+  computer (*Coding agents*, the Reach sheet, an `@device` message) is one sentence in the phone's
+  language from the hub's code, as Android's `HubErrors.describe` (`NanoMuseHubErrors`): *That
+  computer is offline.*, *The computer did not answer in time.*, *The computer runs an older
+  nanoMuse that does not know this action.*; before, the English line the relay or the runtime
+  sent was shown as it came. The Library's and the account page's segmented pickers and the •••
+  menus of a goal, a routine and a feed post carry a VoiceOver label.
+
+## Voice prompts from the Action Button
+
+*Voice Prompt* is a Shortcut the app registers (`NanoMuse/VoicePromptIntent.swift`): it opens
+nanoMuse and starts listening, so a prompt can be spoken instead of typed. Bind it once in the
+Shortcuts app, to the Action Button (Settings › Action Button › Shortcut), to Back Tap or to a
+widget; one press and the composer is in voice mode with the mic running, and what you say
+appears in the composer as it is recognised. Sending stays a tap on the send button: a sentence
+the recogniser misheard must not start the agent on a pause. The Shortcut takes an optional
+*Session*; left empty, the prompt goes to the chat that is open, which in the Muse layout is the
+main chat (a side chat pushed over it is popped first). The first press asks for the microphone
+and for speech recognition the way the mic button does; a refusal shows in the panel, nothing is
+recorded.
+
+How it is built: the intent cannot drive the voice panel itself (on a cold start it runs before
+the window exists, and SwiftUI owns the panel), so it leaves a request in `NanoMuseVoicePrompt`
+and, when a session is named, routes to it the way a notification tap does
+(`NotificationNavigationStore`, `.openSessionFromIntent`). The chat's hooks
+(`NanoMuseChatHooks`) take the request addressed to their chat, switch the composer into the
+inline voice panel on the mic button's path and press the panel's mic once it is up, through
+`VoiceInputViewModel.handleMainButtonTap` and its permission flow. One recording path, one
+transcription stack; the transcript reaches `inputText` the way it always does. A request older
+than 30 seconds is dropped. iOS gives an App Intent no way to take free-form speech, which is
+why this is a voice entry rather than "ask nanoMuse something" in one breath, and why the app
+opens: a microphone running with nothing on screen would read as a fault. The Siri phrases are
+in the nine `AppShortcuts.strings` tables (one per `<lang>.lproj`, legacy `.strings` because the
+deployment target is iOS 16), the intent's own strings in `Localizable.xcstrings` (#296, #298).
 
 ## Building on a Mac
 
@@ -522,16 +724,16 @@ open src/ios/Minis.xcodeproj
 
 Pick the **Minis** scheme, set your team under *Signing & Capabilities* (the project ships with an
 empty `DEVELOPMENT_TEAM`), build for a device: the native libraries are device-only, so the
-simulator does not link — see the troubleshooting section of BUILDING.md.
+simulator does not link; see the troubleshooting section of BUILDING.md.
 
 One rule of the chat screen, learnt from build 9 of 0.1.38: **nothing new goes on the end of
 `AIChatView.body`'s modifier chain.** The body is one expression of some sixty chained
 modifiers; its getter keeps copies of the growing value on the stack, and the four links 0.1.38
 added were enough to overflow the main thread's 1 MB on an iPad the moment the chat appeared
-after onboarding — a crash on every launch, in `AIChatView.body.getter` →
+after onboarding: a crash on every launch, in `AIChatView.body.getter` →
 `__swift_instantiateConcreteTypeFromMangledNameV2`. Chat-wide behaviour of ours lives in
 `NanoMuse/NanoMuseChatModifiers.swift` (`NanoMuseChatHooks`, `NanoMuseComposerHost`): add to
-those, or add a third modifier — one link. The composer stack is an `AnyView` there on purpose.
+those, or add a third modifier, one link. The composer stack is an `AnyView` there on purpose.
 `MinisTests/NanoMuseRound6Tests.swift` measures the body's value size and type depth and fails
 when either grows past its ceiling.
 
@@ -564,18 +766,20 @@ Set up on 2026-10-03, all of it under the account holder's developer account (te
   one);
 - **the first build**: 0.1.31 (2), archived and uploaded by the workflow on 2026-10-03, processed
   by App Store Connect (`VALID`, export compliance answered by the Info.plist key) and in beta
-  testing with the internal group — the first thing that can be installed from TestFlight;
+  testing with the internal group: the first thing that can be installed from TestFlight;
 - the test information an external group needs, in English and Simplified Chinese: the beta app
   description, the feedback address, the marketing and privacy-policy links, and *What to Test*
   on each build (none of it names other products); the external group *nanoMuse Beta* with its
   public link, `https://testflight.apple.com/join/ZHexbDqc`; the beta-review contact and a
   review account on the relay in *Beta App Review Information*;
-- **build 16 (1.0.0)** is with the internal testers and was added to *nanoMuse Beta* and
-  submitted to Apple's beta review on 2026-10-09 (build 14, 0.1.41, was approved and is what the
-  public link delivers until then); the public link delivers a build only once a
-  review has passed, so until then it shows the TestFlight page without an app. Each later
-  version repeats the step (the review is per version). Nothing towards the App Store: the app
-  is not going there.
+- **build 16 (1.0.0)** was added to *nanoMuse Beta* and submitted to Apple's beta review on
+  2026-10-09 and passed it, so the public link installs it (build 14, 0.1.41, was what the link
+  delivered before); build 17, 1.0.0 with the fixes merged after the tag, went to the internal
+  testers only. **Build 18 (1.0.1)** was added to *nanoMuse Beta* and submitted to the review on
+  2026-10-10 and **build 19 (1.0.2)** on 2026-10-11; both passed on 2026-10-12, so the link installs build 19. **Build 22 (1.0.3)** was submitted on 2026-10-12 and **build 26 (1.0.4)** on 2026-10-13; both passed on 2026-10-13, so the link installs build 26. **Build 28 (1.0.5)** was submitted on 2026-10-14; builds 23, 24 and 25 (1.0.3 with fixes merged after the tag) and 27 (1.0.4 the same way) went to the internal testers only. The public link delivers a build only
+  once a review has passed, and each new version repeats the step (the review is per version;
+  later builds of an approved version need none).
+  Nothing towards the App Store: the app is not going there.
 
 ### Once, in App Store Connect
 
@@ -610,12 +814,12 @@ Set up on 2026-10-03, all of it under the account holder's developer account (te
 Xcode's automatic signing (`-allowProvisioningUpdates` with the key) was the first plan and does
 not work for a team like this one: an archive is signed with an *iOS App Development* profile
 before the export re-signs it for the store, and a development profile has to list at least one
-device — a team that only ships through TestFlight has registered none, so the archive stops at
+device; a team that only ships through TestFlight has registered none, so the archive stops at
 *Your team has no devices from which to generate a provisioning profile*. The lane therefore
 signs manually with the store's own material, which needs no devices: the Apple Distribution
 certificate from the two secrets above, and the four *App Store* provisioning profiles (the app
 and its three extensions) that `get_provisioning_profile` downloads from the account with the key
-at the start of every run — and repairs there if the certificate they name is not the one in the
+at the start of every run, and repairs there if the certificate they name is not the one in the
 keychain.
 
 The certificate was made without a Mac, and can be made again the same way when it expires or
@@ -642,10 +846,12 @@ certificate); the lane makes them again if they are missing.
 
 ### Does it compile?
 
-*Actions → iOS · build check → Run workflow* (`.github/workflows/ios-check.yml`) builds the app
-for a device on a Mac runner with signing turned off — no Apple account, no secrets. It shares
-the native-dependency cache with the TestFlight workflow, so run it first: a compile error costs
-minutes there, not an upload. The full `xcodebuild` log is attached to the run. The run fails
+*iOS · build check* (`.github/workflows/ios-check.yml`) builds the app for a device on a Mac
+runner with signing turned off: no Apple account, no secrets. It runs on every pull request
+that touches `android/src/ios/`, and *Actions → iOS · build check → Run workflow* starts it by
+hand for anything else (a change under `android/deps/`, a branch without a pull request). It
+shares the native-dependency cache with the TestFlight workflow, so let it go green first: a
+compile error costs minutes there, not an upload. The full `xcodebuild` log is attached to the run. The run fails
 when a warning is reported in a file under `NanoMuse/` (upstream's files are not held to this),
 so the zero-warnings rule above is checked, not just asked for.
 
@@ -670,25 +876,25 @@ The runner is `macos-26`; if the label is not available on your GitHub plan, `ma
 ## What follows
 
 The Android app is where nanoMuse's shape lives; since 0.1.34 the iPhone carries the same shape
-over OpenMinis — the agent's page, the chat-driven avatar, goals, feed, routines, the first run —
+over OpenMinis (the agent's page, the chat-driven avatar, goals, feed, routines, the first run),
 with iOS's limits on background work spelled out in the copy. Where the Android code is, and
 what became of it here:
 
 | Android (`io.github.nanomuse.*`) | On iOS |
 |---|---|
-| `cloud` — relay client, sign-in, account | Done: `NanoMuse/NanoMuseCloud*.swift`, `NanoMuseAccount*.swift` (0.1.32: password, invite code, the allowance in yuan, usage, sessions, timeline, delete) |
-| `ui.onboarding` — the first run with *Sign in — free* | Done (0.1.34): `NanoMuseFirstRun.swift`, the first conversation included; 0.1.35 the Notifications page; no Hands page on iOS |
-| `community.StarPrompt`, `community.Nudges` — the star asks from the relay's policy | Done (0.1.35): `NanoMuseNudges.swift`, `NanoMuseStar` — the moments, the cooldown and the cap from `/v1/nudges` |
-| `community.UpdateCheck`, the Version row | Done (0.1.35): `NanoMuseUpdateCheck.swift` — installed and latest, `nanomuse.cn/dl/index.json` then GitHub |
-| `avatar.VideoGen`, `avatar.AvatarMotion` — the motion clips | Done (0.1.35): `NanoMuseVideoGen.swift`, `NanoMuseAvatarMotion.swift`, `NanoMuseMediaModels.swift` |
-| `nm.show_steps` — the agent's steps, on by default since 0.1.37 | 0.1.32: `NanoMuseSteps.swift`; finished messages keep to the conversation, a running one shows its steps |
-| `connectors` — the catalogue, `SharedConnectors` | Done: `NanoMuseConnectors.swift` (0.1.33 the catalogue, 0.1.34 the other devices' entries) |
-| `ui.home`, `ui.chat`, `ui.settings`, `ui.profile` — the shell, header, agent page | Done: `NanoMuseShell.swift`, `NanoMuseHeader.swift`, `NanoMuseAgentPage.swift`, `NanoMuseSettings.swift`; 0.1.35 the Muse header on every room, the settings as Muse cards (`NanoMuseChrome.swift`, `NanoMuseAppearance.swift`) |
-| `avatar` — the drawn face, the chat-driven change, the studio | Done (0.1.34): `NanoMuseAvatarFlow.swift`, `NanoMuseAvatarStudio.swift`, `NanoMuseImageGen.swift` |
-| `goals`, `feed`, the scheduler | Done (0.1.34) as far as iOS allows: foreground catch-up, `BGAppRefreshTask`, local notifications. No alarm-exact runs while the app is asleep — the copy says so |
-| `coding` — the computers' coding agents over the hub | Done (0.1.34): `NanoMuseCoding.swift`; the computer must run nanoMuse signed in with the same account |
-| `reach` — the phone drives the computer | Done: `NanoMuseReach.swift` over the hub |
-| `hands` — the phone's own screen | No equivalent: iOS does not let an app drive another. App Intents / Shortcuts are the door there |
+| `cloud`: relay client, sign-in, account | Done: `NanoMuse/NanoMuseCloud*.swift`, `NanoMuseAccount*.swift` (0.1.32: password, invite code, the allowance in yuan, usage, sessions, timeline, delete) |
+| `ui.onboarding`: the first run with *Sign in · free* | Done (0.1.34): `NanoMuseFirstRun.swift`, the first conversation included; 0.1.35 the Notifications page; no Hands page on iOS |
+| `community.StarPrompt`, `community.Nudges`: the star asks from the relay's policy | Done (0.1.35): `NanoMuseNudges.swift`, `NanoMuseStar` (the moments, the cooldown and the cap from `/v1/nudges`) |
+| `community.UpdateCheck`, the Version row | Done (0.1.35): `NanoMuseUpdateCheck.swift` (installed and latest, `nanomuse.cn/dl/index.json` then GitHub) |
+| `avatar.VideoGen`, `avatar.AvatarMotion`: the motion clips | Done (0.1.35): `NanoMuseVideoGen.swift`, `NanoMuseAvatarMotion.swift`, `NanoMuseMediaModels.swift` |
+| `nm.show_steps`: the agent's steps, on by default since 0.1.37 | 0.1.32: `NanoMuseSteps.swift`; finished messages keep to the conversation, a running one shows its steps |
+| `connectors`: the catalogue, `SharedConnectors` | Done: `NanoMuseConnectors.swift` (0.1.33 the catalogue, 0.1.34 the other devices' entries) |
+| `ui.home`, `ui.chat`, `ui.settings`, `ui.profile`: the shell, header, agent page | Done: `NanoMuseShell.swift`, `NanoMuseHeader.swift`, `NanoMuseAgentPage.swift`, `NanoMuseSettings.swift`; 0.1.35 the Muse header on every room, the settings as Muse cards (`NanoMuseChrome.swift`, `NanoMuseAppearance.swift`) |
+| `avatar`: the drawn face, the chat-driven change, the studio | Done (0.1.34): `NanoMuseAvatarFlow.swift`, `NanoMuseAvatarStudio.swift`, `NanoMuseImageGen.swift` |
+| `goals`, `feed`, the scheduler | Done (0.1.34) as far as iOS allows: foreground catch-up, `BGAppRefreshTask`, local notifications. No alarm-exact runs while the app is asleep; the copy says so |
+| `coding`: the computers' coding agents over the hub | Done (0.1.34): `NanoMuseCoding.swift`; the computer must run nanoMuse signed in with the same account |
+| `reach`: the phone drives the computer | Done: `NanoMuseReach.swift` over the hub |
+| `hands`: the phone's own screen | No equivalent: iOS does not let an app drive another. App Intents / Shortcuts are the door there |
 | Widgets | Upstream's `AgentWidget` as it is |
 
 Still to check on a device, in order: the first run end to end with a fresh account; a chat-driven

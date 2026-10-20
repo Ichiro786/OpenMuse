@@ -6,16 +6,19 @@ import androidx.annotation.StringRes
 import com.openminis.app.R
 import com.openminis.app.logging.AppLogger
 import io.github.nanomuse.ui.avatar.AgentMood
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -56,7 +59,18 @@ object AvatarStudio {
     data class MoodProgress(val done: Int, val total: Int, val failed: List<AgentMood>, val running: Boolean)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private var candidateJob: Job? = null
+    /** The run drawing the current candidates (tests join it). */
+    internal var candidateJob: Job? = null
+        private set
+    /**
+     * Which call to [generateCandidates] the slots belong to. A new call cancels the old run,
+     * but the old run's coroutines still finish on their own threads; only a result carrying
+     * the current generation reaches the slots, so a cancelled run never writes "failed" (or
+     * a late picture) into its replacement's tiles (#337).
+     */
+    @Volatile private var generation = 0
+    /** A replacement and a completed slot must agree on ownership in one critical section. */
+    private val candidateLock = Any()
     private var moodJob: Job? = null
     /** Image endpoints throttle hard; two in flight is what most of them tolerate. */
     private val lane = Semaphore(2)
@@ -75,6 +89,8 @@ object AvatarStudio {
         while (true) {
             try {
                 return lane.withPermit { block() }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 if (attempt >= 2 || !looksRateLimited(e)) throw e
                 attempt += 1
@@ -132,19 +148,35 @@ object AvatarStudio {
         style.value = chosen
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putString("avatar.description", text).putString("avatar.style", chosen.id).apply()
-        candidateJob?.cancel()
-        _selected.value = null
-        _error.value = null
-        _slots.value = List(CANDIDATES) { Slot.Loading }
-        lastRequest = Triple(text, chosen, ep)
-        reference = referenceImage
-        candidateJob = scope.launch {
-            (0 until CANDIDATES).map { i -> async { drawCandidate(context, ep, text, chosen, i) } }.awaitAll()
-            if (_slots.value.all { it is Slot.Failed }) {
-                _error.value = (_slots.value.first() as Slot.Failed).message
+        startCandidates(context, ep, text, chosen, referenceImage)
+        return true
+    }
+
+    /** The run itself, once the endpoint and the words are settled; tests enter here with a fake [drawer]. */
+    internal fun startCandidates(context: Context, ep: ImageGen.Endpoint, text: String, chosen: Style, referenceImage: Bitmap?) {
+        synchronized(candidateLock) {
+            candidateJob?.cancel()
+            val gen = ++generation
+            _selected.value = null
+            _error.value = null
+            _slots.value = List(CANDIDATES) { Slot.Loading }
+            lastRequest = Triple(text, chosen, ep)
+            reference = referenceImage
+            candidateJob = scope.launch {
+                (0 until CANDIDATES).map { i -> async { drawCandidate(context, ep, text, chosen, i, gen) } }.awaitAll()
+                synchronized(candidateLock) {
+                    if (gen == generation && _slots.value.all { it is Slot.Failed }) {
+                        _error.value = (_slots.value.first() as Slot.Failed).message
+                    }
+                }
             }
         }
-        return true
+    }
+
+    /** Draws one picture: from [reference] through the edit endpoint, else from the prompt alone. Tests swap it. */
+    internal var drawer: suspend (Context, ImageGen.Endpoint, Bitmap?, String) -> Bitmap = { context, ep, ref, prompt ->
+        if (ref != null) ImageGen.edit(context, ep, ref, REFERENCE_PREFIX + prompt)
+        else ImageGen.generate(context, ep, prompt)
     }
 
     /** The same sentence again — a fresh set of four. */
@@ -155,37 +187,53 @@ object AvatarStudio {
 
     /** One tile again, after a failure. */
     fun retrySlot(context: Context, index: Int) {
-        val (text, chosen, ep) = lastRequest ?: return
-        if (_slots.value.getOrNull(index) !is Slot.Failed) return
-        _slots.update { list -> list.toMutableList().also { it[index] = Slot.Loading } }
-        scope.launch { drawCandidate(context, ep, text, chosen, index) }
+        synchronized(candidateLock) {
+            val (text, chosen, ep) = lastRequest ?: return
+            if (_slots.value.getOrNull(index) !is Slot.Failed) return
+            _slots.update { list -> list.toMutableList().also { it[index] = Slot.Loading } }
+            val gen = generation
+            scope.launch { drawCandidate(context, ep, text, chosen, index, gen) }
+        }
     }
 
-    private suspend fun drawCandidate(context: Context, ep: ImageGen.Endpoint, text: String, chosen: Style, i: Int) {
+    private suspend fun drawCandidate(context: Context, ep: ImageGen.Endpoint, text: String, chosen: Style, i: Int, gen: Int) {
         val dir = AvatarStore.candidatesDir()
         val prompt = buildPrompt(text, chosen, i)
         val ref = reference
-        val result = runCatching {
-            throttled {
-                if (ref != null) ImageGen.edit(context, ep, ref, REFERENCE_PREFIX + prompt)
-                else ImageGen.generate(context, ep, prompt)
+        val result = runCatching { throttled { drawer(context, ep, ref, prompt) } }
+        // Cancelled, or a new set was asked for meanwhile: nothing to say about this tile any more.
+        if (result.exceptionOrNull() is CancellationException || !currentCoroutineContext().isActive || gen != generation) return
+        val jobContext = currentCoroutineContext()
+        var pending: File? = null
+        try {
+            // Encoding and decoding can be slow. Each draw owns its temporary files, so
+            // Again can replace it without waiting or letting an old writer overwrite a tile.
+            val prepared = result.mapCatching { bmp ->
+                val f = File.createTempFile("candidate-$gen-$i-", ".png", dir)
+                pending = f
+                AvatarStore.write(f, bmp)
+                Slot.Ready(AvatarStore.decodeBitmap(f) ?: bmp, File(dir, "$i.png"))
+            }
+            synchronized(candidateLock) {
+                // Only the ownership check, same-directory rename and slot publication share
+                // the replacement lock. A stale draw never touches the published PNG path.
+                if (gen != generation || !jobContext.isActive) return
+                val slot = prepared.mapCatching { ready ->
+                    check(pending!!.renameTo(ready.file)) { "could not save candidate $i" }
+                    ready
+                }.getOrElse { e ->
+                    AppLogger.warning(TAG, "candidate $i failed: ${e.message}")
+                    // a provider still busy after the retries: a sentence, not its status line
+                    Slot.Failed(if (looksRateLimited(e)) context.getString(R.string.nm_avatar_provider_busy) else e.message ?: "failed")
+                }
+                _slots.update { list -> list.toMutableList().also { it[i] = slot } }
+            }
+        } finally {
+            pending?.let { f ->
+                f.delete()
+                File(f.parentFile, f.name + ".tmp").delete()
             }
         }
-        val slot = result.fold(
-            onSuccess = { bmp ->
-                val f = File(dir, "$i.png")
-                AvatarStore.write(f, bmp)
-                Slot.Ready(AvatarStore.decodeBitmap(f) ?: bmp, f)
-            },
-            onFailure = { e ->
-                AppLogger.warning(TAG, "candidate $i failed: ${e.message}")
-                // a provider still busy after the retries: a sentence, not its status line
-                Slot.Failed(if (looksRateLimited(e)) context.getString(R.string.nm_avatar_provider_busy) else e.message ?: "failed")
-            },
-        )
-        // Atomic: the four candidates finish on different threads, and a plain
-        // read-modify-write here would let one tile's result overwrite another's.
-        _slots.update { list -> list.toMutableList().also { it[i] = slot } }
     }
 
     /** The picked candidate becomes the face; the moods follow in the background. */

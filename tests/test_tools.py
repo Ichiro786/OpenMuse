@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import socket
 import sys
 from pathlib import Path
 
@@ -121,11 +123,13 @@ async def test_shell_timeout_stops_the_whole_tree(tmp_path: Path):
     """A timed-out command used to lose only the shell: `sleep` in a pipeline, a server put
     in the background, lived on. The command runs in its own session now and the group goes."""
     import os
+    import subprocess
     import time
 
     marker = tmp_path / "pid"
     shell = Shell(workspace=tmp_path)
-    r = await shell.execute(command=f"sh -c 'echo $$ > {marker}; sleep 30' | cat", timeout=1)
+    # two seconds, so a loaded runner has forked the grandchild before the timeout fires
+    r = await shell.execute(command=f"sh -c 'echo $$ > {marker}; sleep 30' | cat", timeout=2)
     assert r.error and "timed out" in r.error
     for _ in range(50):
         if marker.is_file() and marker.read_text().strip():
@@ -134,12 +138,21 @@ async def test_shell_timeout_stops_the_whole_tree(tmp_path: Path):
     pid = int(marker.read_text().strip())
 
     def alive() -> bool:
+        """Running, as opposed to gone or a zombie waiting for init to reap it (as good as gone;
+        init is not always prompt): Linux reads /proc, macOS asks ps."""
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
             return False
-        stat = Path(f"/proc/{pid}/stat")  # Linux: a zombie waiting for init is as good as gone
-        return not (stat.is_file() and stat.read_text().rsplit(")", 1)[-1].split()[0] == "Z")
+        stat = Path(f"/proc/{pid}/stat")
+        if stat.is_file():
+            try:
+                return stat.read_text().rsplit(")", 1)[-1].split()[0] != "Z"
+            except (FileNotFoundError, ProcessLookupError):
+                return False  # reaped between the two calls
+        ps = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True, text=True)
+        state = ps.stdout.strip()
+        return bool(state) and not state.startswith("Z")
 
     for _ in range(100):  # the kill is delivered at once; the reap takes a moment
         if not alive():
@@ -273,6 +286,57 @@ async def test_web_fetch_refuses_redirects_into_private_networks():
         "http://public.example/old", timeout=5, transport=httpx.MockTransport(fine)
     )
     assert resp.status_code == 200 and resp.text == "moved here" and str(resp.url).endswith("/new")
+
+
+async def test_web_fetch_refuses_local_names_without_dns(monkeypatch: pytest.MonkeyPatch):
+    """``localhost`` and ``.internal`` names are refused by name; the resolver is never asked,
+    so the refusal does not depend on what the machine's DNS would answer (#339)."""
+
+    def no_dns(*args: object, **kwargs: object) -> object:
+        raise AssertionError(f"the resolver was asked: {args!r}")
+
+    monkeypatch.setattr(socket, "getaddrinfo", no_dns)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="should never be reached")
+
+    transport = httpx.MockTransport(handler)
+    for url in ("http://localhost/admin", "http://metadata.internal/latest"):
+        with pytest.raises(PermissionError, match="private/internal host"):
+            await fetch_public(url, timeout=5, transport=transport)
+
+
+def test_private_host_guard_refuses_every_non_global_address():
+    """Numeric literals go to the resolver as they are, so the guard's answer depends on the
+    address alone: every range that is not globally routable is refused, the carrier-grade
+    NAT block (a Tailscale network) and IPv4-mapped IPv6 addresses among them; decimal and
+    IPv6 spellings of loopback count as loopback."""
+    from nanomuse.tools.web import _is_private_host
+
+    refused = [
+        "127.0.0.1",
+        "10.1.2.3",
+        "172.16.0.9",
+        "192.168.1.1",
+        "169.254.169.254",
+        "100.64.0.1",
+        "0.0.0.0",
+        "224.0.0.1",
+        "240.0.0.1",
+        "::1",
+        "::ffff:127.0.0.1",
+        "::ffff:10.0.0.1",
+        "fe80::1",
+        "fd00::1",
+    ]
+    for host in refused:
+        assert _is_private_host(host), host
+    # 127.0.0.1 written as one number: loopback where the platform's resolver reads it so
+    with contextlib.suppress(socket.gaierror):
+        socket.getaddrinfo("2130706433", None)
+        assert _is_private_host("2130706433")
+    assert not _is_private_host("93.184.216.34")
+    assert not _is_private_host("2606:2800:220:1:248:1893:25c8:1946")
 
 
 async def test_web_fetch_stops_reading_at_the_body_cap(monkeypatch: pytest.MonkeyPatch):

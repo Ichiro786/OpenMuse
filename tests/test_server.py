@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import threading
 import time
 from collections.abc import Iterator
@@ -121,6 +122,47 @@ def test_the_startup_watchdog_writes_where_every_thread_is(capsys):
     _watch_startup(served, after=(0.05,))
     time.sleep(0.2)
     assert "still not serving" not in capsys.readouterr().err
+
+
+def test_a_taken_port_is_named_before_the_service_starts():
+    """A second ``nanomuse serve`` on a busy port says who holds it, instead of announcing
+    itself as ready and dying on the bind: another nanoMuse by its /api/health, anything
+    else as another program; a free port is None."""
+    import http.server
+    import socket
+
+    from nanomuse.server import port_taken
+
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        free_port = free.getsockname()[1]
+    assert port_taken("127.0.0.1", free_port) is None
+
+    class Health(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - the handler's name
+            body = json.dumps({"ok": True, "version": "9.9.9", "auth": True}).encode()
+            self.send_response(200 if self.path == "/api/health" else 404)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    ours = http.server.HTTPServer(("127.0.0.1", 0), Health)
+    threading.Thread(target=ours.serve_forever, daemon=True).start()
+    try:
+        # "0.0.0.0" is probed on the loopback, the address a person's browser would use
+        assert port_taken("0.0.0.0", ours.server_address[1]) == "nanoMuse 9.9.9"
+    finally:
+        ours.shutdown()
+        ours.server_close()
+
+    with socket.socket() as other:
+        other.bind(("127.0.0.1", 0))
+        other.listen(1)
+        assert port_taken("127.0.0.1", other.getsockname()[1]) == "another program"
 
 
 # ----------------------------------------------------------------------------- chat
@@ -1045,6 +1087,9 @@ def test_llm_models_live_then_catalogue(server, monkeypatch):
     client, _, _ = server
 
     class FakeResponse:
+        is_redirect = False
+        has_redirect_location = False
+
         def __init__(self, status: int, data=None):
             self.status_code = status
             self._data = data
@@ -1110,6 +1155,78 @@ def test_llm_models_live_then_catalogue(server, monkeypatch):
         "source": "catalogue",
     }
     assert len(calls) == before
+
+
+def test_an_address_with_a_password_in_it_is_refused(server):
+    """``user:pass@host`` in an endpoint address would be stored in app-settings.json,
+    logged at every model switch and shown in the console as typed: every place that
+    takes an address from the app says no, with the reason, and a key goes in its field."""
+    from nanomuse.server.connections import check_base_url, has_userinfo
+
+    assert has_userinfo("https://me:secret@gateway.example/v1")
+    assert has_userinfo("me:secret@gateway.example")  # no scheme typed yet
+    assert has_userinfo("https://me@gateway.example/v1")
+    assert not has_userinfo("https://gateway.example/v1?token=a@b")
+    assert check_base_url("gateway.example") == "https://gateway.example/v1"
+    with pytest.raises(ValueError, match="user name or password"):
+        check_base_url("https://me:secret@gateway.example/v1")
+
+    client, _, _ = server
+    bad = "https://me:secret@gateway.example/v1"
+    for path in ("/api/connections/llm", "/api/connections/gui", "/api/connections/image"):
+        r = client.put(path, json={"base_url": bad, "model": "m"})
+        assert r.status_code == 400 and "user name or password" in r.json()["detail"], path
+    r = client.post("/api/llm/models", json={"base_url": bad, "api_key": "sk-1"})
+    assert r.status_code == 400 and "user name or password" in r.json()["detail"]
+    r = client.post("/api/connections/endpoints", json={"base_url": bad, "api_key": "sk-1"})
+    assert r.status_code == 400 and "user name or password" in r.json()["detail"]
+    # nothing of it was kept
+    assert "secret" not in json.dumps(client.get("/api/connections").json())
+
+
+async def test_fetch_models_keeps_the_key_on_its_host():
+    """A gateway that answers ``/models`` with a redirect: one to its own origin is
+    followed, one to another host is not when the request carries the key, and the key
+    never reaches the other host. An address with ``user:pass@`` is not asked at all."""
+    import httpx
+
+    from nanomuse.server.connections import fetch_models
+
+    seen: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((str(request.url), request.headers.get("Authorization", "")))
+        host, path = request.url.host, request.url.path
+        if host == "same.example" and path == "/v1/models":
+            return httpx.Response(307, headers={"Location": "/v1/models/"})
+        if host == "same.example" and path == "/v1/models/":
+            return httpx.Response(200, json={"data": [{"id": "b"}, {"id": "a"}]})
+        if host == "away.example":
+            return httpx.Response(302, headers={"Location": "https://other.example/v1/models"})
+        if host == "loop.example":
+            return httpx.Response(302, headers={"Location": "/v1/models"})
+        if host == "other.example":
+            return httpx.Response(200, json={"data": [{"id": "stolen"}]})
+        return httpx.Response(404)
+
+    transport = httpx.MockTransport(handler)
+    ids, err = await fetch_models("https://same.example/v1", "sk-1", transport=transport)
+    assert (ids, err) == (["a", "b"], "")
+    assert [h for _, h in seen] == ["Bearer sk-1", "Bearer sk-1"]
+
+    seen.clear()
+    ids, err = await fetch_models("https://away.example/v1", "sk-1", transport=transport)
+    assert (ids, err) == ([], "redirect to another host")
+    assert all("other.example" not in url for url, _ in seen)
+    # without a key there is nothing to protect: the redirect is followed
+    ids, err = await fetch_models("https://away.example/v1", "", transport=transport)
+    assert (ids, err) == (["stolen"], "")
+    assert ("https://other.example/v1/models", "") in seen
+
+    ids, err = await fetch_models("https://loop.example/v1", "sk-1", transport=transport)
+    assert (ids, err) == ([], "TooManyRedirects")
+    ids, err = await fetch_models("https://me:pw@same.example/v1", "sk-1", transport=transport)
+    assert (ids, err) == ([], "userinfo in URL")
 
 
 def test_providers_carry_where_keys_come_from(server):
@@ -1266,6 +1383,67 @@ def test_connections_mcp_and_vault(server):
     assert client.get("/api/settings").json()["onboarded"] is True
 
 
+async def test_mcp_env_values_go_to_the_vault(settings: Settings):
+    """An MCP server added with an ``env`` block: the values are kept in the vault under
+    ``MCP_<SERVER>_<KEY>`` and app-settings.json holds references, as it does for every
+    other secret; the server still gets the real value at spawn. A value typed as a
+    reference stays as typed; the console sees the names and which ones are references;
+    removing the server removes the entries it made and no other.
+
+    Driven on the service directly: a stdio session opened inside a TestClient request
+    cannot be closed in another, so the echo server is connected and closed in one task."""
+    import sys
+
+    from nanomuse.config import MCPServerSettings
+    from nanomuse.server.connections import mcp_env_vault_name
+
+    assert mcp_env_vault_name("amap", "AMAP_MAPS_API_KEY") == "MCP_AMAP_AMAP_MAPS_API_KEY"
+    assert mcp_env_vault_name("my.server-2", "key") == "MCP_MY_SERVER_2_KEY"
+    service = MuseService(settings, llm=MockLLM([]))
+    conn = service.connections
+    echo = str(Path(__file__).with_name("mcp_echo_server.py"))
+    conn.vault.set("OWN_TOKEN", "mine")
+    view = await conn.add_mcp(
+        {
+            "name": "echo",
+            "command": sys.executable,
+            "args": [echo],
+            "env": {"ECHO_KEY": "k-123", "ECHO_REF": "{{vault:OWN_TOKEN}}", "ECHO_PLAIN": ""},
+        }
+    )
+    try:
+        stored = json.loads((settings.data_dir / "app-settings.json").read_text("utf-8"))
+        assert stored["mcp"]["servers"][0]["env"] == {
+            "ECHO_KEY": "{{vault:MCP_ECHO_ECHO_KEY}}",
+            "ECHO_REF": "{{vault:OWN_TOKEN}}",
+            "ECHO_PLAIN": "",
+        }
+        assert "k-123" not in json.dumps(stored)
+        assert conn.vault.get("MCP_ECHO_ECHO_KEY") == "k-123"
+        # the running server was spawned with the real value, and the config keeps the reference
+        manager = conn._mcp["echo"]
+        assert manager._resolved(manager.servers[0]).env["ECHO_KEY"] == "k-123"
+        assert settings.mcp.servers[-1].env["ECHO_KEY"] == "{{vault:MCP_ECHO_ECHO_KEY}}"
+        mine = [m for m in view["mcp"] if m["name"] == "echo"][0]
+        assert mine["env"] == [
+            {"name": "ECHO_KEY", "vault": True},
+            {"name": "ECHO_REF", "vault": True},
+            {"name": "ECHO_PLAIN", "vault": False},
+        ]
+        assert "k-123" not in json.dumps(view)
+        # a server from config.toml with a plain value: the console is told it is plain
+        settings.mcp.servers.append(
+            MCPServerSettings(name="toml", command="x", env={"TOKEN": "plain-text"})
+        )
+        toml = [m for m in conn.view()["mcp"] if m["name"] == "toml"]
+        assert toml[0]["env"] == [{"name": "TOKEN", "vault": False}]
+        assert "plain-text" not in json.dumps(toml)
+    finally:
+        assert await conn.remove_mcp("echo") is True
+    assert "MCP_ECHO_ECHO_KEY" not in conn.vault.names()
+    assert conn.vault.get("OWN_TOKEN") == "mine"
+
+
 def test_app_settings_are_layered_on_config(server, settings: Settings):
     from nanomuse.config import Settings as S
     from nanomuse.config import apply_app_settings, load_app_settings
@@ -1278,6 +1456,24 @@ def test_app_settings_are_layered_on_config(server, settings: Settings):
     apply_app_settings(fresh, load_app_settings(settings.data_dir))
     assert fresh.llm.model == "m2" and fresh.llm.api_key == "{{vault:LLM_API_KEY}}"
     assert fresh.connectors.email.imap_host == "imap.x" and fresh.browser.enabled is True
+
+
+def test_a_broken_app_settings_file_is_reported_not_silently_a_first_start(tmp_path: Path):
+    from loguru import logger
+
+    from nanomuse.config import load_app_settings
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "app-settings.json").write_text('{"version": 1, "llm": {"model": "m2"', "utf-8")
+    lines: list[str] = []
+    sink = logger.add(lambda m: lines.append(str(m)), level="WARNING")
+    try:
+        assert load_app_settings(data_dir) == {}
+        assert load_app_settings(tmp_path / "nowhere") == {}, "no file is a quiet first start"
+    finally:
+        logger.remove(sink)
+    assert len(lines) == 1 and "app-settings.json" in lines[0], lines
 
 
 def test_files_are_scoped_to_workspace(server, settings: Settings):
@@ -1710,6 +1906,10 @@ def test_push_keys_subscriptions_and_gone_endpoints(settings: Settings, monkeypa
     assert svc.subscribe({**FAKE_SUB, "endpoint": "https://push.example/sub/2"}) == 2
     assert svc.subscribe(FAKE_SUB) == 2  # re-subscribing the same endpoint replaces it
     assert PushService(settings.data_dir).view()["subscriptions"] == 2
+    # the key pair and the subscriptions (a browser's p256dh and auth) are the owner's only
+    if os.name == "posix":
+        for name in ("push-vapid.json", "push-subscriptions.json"):
+            assert (settings.data_dir / name).stat().st_mode & 0o777 == 0o600, name
 
     sent: list[tuple[str, dict[str, Any]]] = []
 
@@ -2040,6 +2240,7 @@ def test_triggers_start_work_from_mail_events_and_webhooks(
         "mail": False,
         "event": False,
         "hook": True,
+        "device": False,
     }
     assert client.get("/api/upcoming").json()["triggers"]["items"] == []
 
@@ -2316,3 +2517,177 @@ def test_update_endpoint(server, monkeypatch):
     view = client.get("/api/update").json()
     assert view["enabled"] is False and view["newer"] is False and view["current"]
     assert TestClient(client.app).get("/api/update").status_code == 401
+
+
+def test_static_app_caching_headers(server):
+    """The build's hashed assets may be kept for a year; index.html and sw.js never are."""
+    client, _, _ = server
+    plain = TestClient(client.app)  # the app itself needs no token
+    from nanomuse.server.api import STATIC_DIR
+
+    asset = next((STATIC_DIR / "assets").glob("*.js"))
+    r = plain.get(f"/assets/{asset.name}")
+    assert r.status_code == 200
+    assert r.headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert plain.get("/").headers["cache-control"] == "no-cache"
+    assert plain.get("/sw.js").headers["cache-control"] == "no-cache"
+    # the app's own routes, not the HTML, answer a wrong API path
+    r = plain.get("/api/no-such-thing")
+    assert r.status_code == 404 and "no such endpoint" in r.json()["detail"]
+
+
+# --------------------------------------------------------------------- the data export (#488)
+def test_data_export_is_the_agent_data_as_a_zip(server):
+    """*Download your agent data* for the web (parity note 37): the runtime answers the
+    token with the zip itself, and a credential is never inside it."""
+    import io
+    import zipfile
+
+    client, service, _ = server
+    service.app.triggers.create("mail", "summarise it", match="landlord")
+
+    r = client.get("/api/data/export")
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"] == "application/zip"
+    assert 'attachment; filename="nanomuse-data-' in r.headers["content-disposition"]
+    assert "no-store" in r.headers["cache-control"]  # who you are is in it: never cached
+
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        names = z.namelist()
+        readme = z.read("README.txt").decode()
+    assert "README.txt" in names and "triggers.db" in names
+    # the chats go in as the runtime keeps them, index first (written at startup)
+    assert "threads/index.json" in names
+    # a credential is never in the file, and neither are the logs or the person's own files
+    for secret in ("vault.enc", "vault.key", "server_token", "push-vapid.json"):
+        assert secret not in names
+    assert not [n for n in names if n.startswith(("logs/", "workspace/"))]
+    assert "triggers.db" in readme and "vault.enc" in readme  # the README names what is left out
+
+    # the chats go in once there are any
+    (service.settings.data_dir / "threads").mkdir(parents=True, exist_ok=True)
+    (service.settings.data_dir / "threads" / "main.json").write_text('{"messages": []}', "utf-8")
+    with zipfile.ZipFile(io.BytesIO(client.get("/api/data/export").content)) as z:
+        assert "threads/main.json" in z.namelist()
+
+    # the token is the credential for this as for everything else
+    assert TestClient(client.app).get("/api/data/export").status_code == 401
+
+
+def test_data_export_does_not_follow_symlinks(tmp_path: Path):
+    """An allowed name cannot smuggle an excluded key or another directory into the zip."""
+    import io
+    import zipfile
+
+    from nanomuse.server.data_export import agent_data_zip
+
+    data = tmp_path / "data"
+    outside = tmp_path / "outside"
+    data.mkdir()
+    outside.mkdir()
+    secret = outside / "secret"
+    secret.write_text("not for export", "utf-8")
+    try:
+        (data / "memory.db").symlink_to(secret)
+        (data / "threads").symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"this platform cannot create symlinks: {exc}")
+
+    with zipfile.ZipFile(io.BytesIO(agent_data_zip(data))) as z:
+        assert z.namelist() == ["README.txt"]
+
+
+# --------------------------------------------------------------------- the fourth kind (#486)
+def test_a_device_coming_online_reaches_the_feed(server):
+    """A device of the account coming online runs the standing instruction in the chat it
+    was set from, once per arrival, with one entry in the Feed."""
+    from nanomuse.cloud import CLOUD_KEY
+
+    client, service, llm = server
+    assert service.app.trigger_kinds()["device"] is False
+    with pytest.raises(ValueError, match="hub"):
+        service.create_trigger("device", "tell me")
+    service.app.vault.set(CLOUD_KEY, "cloud-key-for-the-test")
+    assert service.app.trigger_kinds()["device"] is True
+    trig = service.create_trigger("device", "tell me when the phone is back", match="pixel")
+    assert trig.kind == "device" and trig.thread == "main"
+    llm.script.append(LLMResponse(content="The phone is back online."))
+
+    fired = client.portal.call(
+        lambda: service.device_came_online({"id": "phone-1", "name": "Pixel", "kind": "phone"})
+    )
+    assert [t.id for t in fired] == [trig.id]
+    wait_idle(service, "main")
+    notice = [e for e in events_of(client, "main", "notice") if e.get("source") == "trigger"]
+    assert notice and notice[-1]["text"] == "Device online: Pixel"
+    said = events_of(client, "main", "assistant")[-1]
+    assert said["about"] == "Device online: Pixel" and "back online" in said["text"]
+    # who is around is private data, like the inbox: the thread is tainted for egress
+    assert service.app.sentinel.tainted_for("main")
+    assert service.app.triggers.get(trig.id).fired == 1  # type: ignore[union-attr]
+
+    # a device that does not match the words fires nothing at all
+    assert (
+        client.portal.call(
+            lambda: service.device_came_online({"id": "tab-1", "name": "Tab", "kind": "tablet"})
+        )
+        == []
+    )
+    wait_idle(service, "main")
+
+    # and without the hub there is nothing to watch: the kind is refused, by the API and
+    # by the tool the agent uses
+    service.settings.hub.enabled = False
+    assert service.app.trigger_kinds()["device"] is False
+    with pytest.raises(ValueError, match="hub"):
+        service.create_trigger("device", "tell me")
+
+
+def test_device_trigger_shows_in_the_triggers_view(server):
+    from nanomuse.cloud import CLOUD_KEY
+
+    client, service, _ = server
+    service.app.vault.set(CLOUD_KEY, "cloud-key-for-the-test")
+    service.create_trigger("device", "tell me", match="pixel")
+    view = client.get("/api/triggers").json()
+    assert view["available"]["device"] is True
+    item = view["items"][0]
+    assert item["kind"] == "device" and item["lead_minutes"] == 0 and item["secret"] == ""
+
+
+def test_the_hub_devices_frame_fires_them(server):
+    """The hub's `devices` frame, as the hub client hands it over: what was already online
+    when it arrived is not an arrival; the drop and the return are. A reconnect gets a new
+    baseline, so devices that came online while this runtime was away do not fire."""
+    from nanomuse.cloud import CLOUD_KEY
+
+    client, service, llm = server
+    service.app.vault.set(CLOUD_KEY, "cloud-key-for-the-test")
+    trig = service.create_trigger("device", "tell me when the phone is back", match="pixel")
+    me = {"id": service.hub.device_id, "name": "Desk", "kind": "computer", "online": True}
+    phone = {"id": "phone-1", "name": "Pixel", "kind": "phone", "online": True}
+
+    client.portal.call(lambda: service.hub._on_devices([me, phone]))  # the welcome frame
+    assert service.app.triggers.get(trig.id).fired == 0  # type: ignore[union-attr]
+
+    client.portal.call(lambda: service.hub._on_devices([me, {**phone, "online": False}]))
+    assert service.app.triggers.get(trig.id).fired == 0  # type: ignore[union-attr]
+
+    llm.script.append(LLMResponse(content="The phone is back online."))
+    client.portal.call(lambda: service.hub._on_devices([me, phone]))
+    wait_idle(service, "main")
+    assert service.app.triggers.get(trig.id).fired == 1  # type: ignore[union-attr]
+
+    # A connection drop loses the transitions while this runtime is away. Its next welcome
+    # frame is a baseline, not a claim that every currently-online device just arrived.
+    client.portal.call(lambda: service.hub._on_devices([me, {**phone, "online": False}]))
+    service.hub._hub_state_changed("connecting", "")
+    client.portal.call(lambda: service.hub._on_devices([me, phone]))
+    wait_idle(service, "main")
+    assert service.app.triggers.get(trig.id).fired == 1  # type: ignore[union-attr]
+    notice = [e for e in events_of(client, "main", "notice") if e.get("source") == "trigger"]
+    assert notice and notice[-1]["text"] == "Device online: Pixel"
+    # an unchanged frame brings nothing
+    client.portal.call(lambda: service.hub._on_devices([me, phone]))
+    wait_idle(service, "main")
+    assert service.app.triggers.get(trig.id).fired == 1  # type: ignore[union-attr]

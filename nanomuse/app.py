@@ -117,7 +117,11 @@ class NanoMuseApp:
         if self.device is not None and self.device.has_host:
             mcp_servers.append(device_mcp_server(self.device))
         self.mcp = (
-            MCPManager(mcp_servers, resolve=lambda v: self.vault.resolve(v, strict=False))
+            MCPManager(
+                mcp_servers,
+                resolve=lambda v: self.vault.resolve(v, strict=False),
+                redact=self.vault.redact,
+            )
             if mcp_servers
             else None
         )
@@ -456,12 +460,14 @@ class NanoMuseApp:
                 self.tools.remove(name)
 
     def trigger_kinds(self) -> dict[str, bool]:
-        """Which trigger kinds have their connector: mail needs the mailbox, event the calendar."""
+        """Which trigger kinds have their connector: mail needs the mailbox, event the
+        calendar, device a Cloud account with this computer joining the hub."""
         s = self.settings
         return {
             "mail": bool(s.connectors.email.enabled and s.connectors.email.imap_host),
             "event": bool(s.connectors.calendar.enabled and s.connectors.calendar.feeds),
             "hook": True,
+            "device": bool(s.hub.enabled and self.cloud_signed_in()),
         }
 
     async def start(self) -> NanoMuseApp:

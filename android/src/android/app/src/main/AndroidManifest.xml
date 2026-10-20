@@ -22,6 +22,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <!-- nanoMuse: the hub connection (this phone reachable from the user's other devices) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <!-- nanoMuse: the screen-lock confirmation on the approval card's "always" for a payment
+         (guard/DeviceCredential.kt, the framework BiometricPrompt); a normal permission, granted
+         at install, and the prompt refuses the call without it -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- T50: PARTIAL_WAKE_LOCK held by AgentForegroundService while sessions
          are streaming so Doze + OEM CPU throttling don't stall long shell
          tools after screen-off. -->
@@ -222,11 +226,15 @@
                  calls keep working because MainActivity is always enabled.
                  The minis:// deep-link filter stays on MainActivity since
                  deep-links never go through the LAUNCHER category. -->
+            <!-- nanoMuse: the scheme the system knows us by is `nanomuse`, not upstream's `minis`,
+                 so a phone with OpenMinis installed too never gets a chooser for either app's links
+                 (io.github.nanomuse.deeplink.OwnScheme reads both; the app's own links go to this
+                 activity by name). -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="minis" />
+                <data android:scheme="nanomuse" />
             </intent-filter>
         </activity>
 

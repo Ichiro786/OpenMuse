@@ -51,24 +51,14 @@ android {
                 keyPassword = props.getProperty("keyPassword")
             }
         }
-        // nanoMuse: committed CI debug key. Every CI runner mints its own throwaway
-        // debug key, so consecutive CI APKs carry different signatures and Android
-        // refuses to install one over the other ("update incompatible"). This key
-        // uses the stock public debug credentials (android/android) and is debug-only.
-        create("ciDebug") {
-            storeFile = file("ci-debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
     }
 
     defaultConfig {
         applicationId = "io.github.nanomuse.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 43
-        versionName = "1.0.0"
+        versionCode = 48
+        versionName = "1.0.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -102,14 +92,6 @@ android {
     }
 
     buildTypes {
-        // nanoMuse: debug builds install next to the release app (io.github.nanomuse.app.debug),
-        // so a CI APK never replaces the store version on a test phone.
-        debug {
-            applicationIdSuffix = ".debug"
-            // nanoMuse: sign with the committed CI key so consecutive CI builds
-            // share one signature and install over each other (see signingConfigs).
-            signingConfig = signingConfigs.getByName("ciDebug")
-        }
         release {
             isMinifyEnabled = true
             proguardFiles(
@@ -137,6 +119,12 @@ android {
 
     androidResources {
         noCompress += listOf("tar.gz", "proot-aarch64")
+        // nanoMuse: a warm arm64 build leaves sandbox payloads in the shared assets directory.
+        if (project.findProperty("nm.abi") == "x86_64") {
+            // An explicit list replaces AGP's defaults, so retain its normal hidden-file filters.
+            ignoreAssetsPatterns += "!.svn:!.git:!.ds_store:!*.scc:.*:<dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~".split(":")
+            ignoreAssetsPatterns += listOf("proot-aarch64", "alpine-minirootfs.tar.gz", "alpine-minirootfs.tar")
+        }
     }
 
     testOptions {
@@ -225,7 +213,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
 
-    // nanoMuse: frosted-glass pill bottom bar — Haze backdrop blur, in the Pixel taskbar's manner.
+    // nanoMuse: the frosted-glass pill bottom bar: Haze backdrop blur, in the Pixel taskbar's manner.
     // 1.6.10, not 2.x: Haze 1.7.x and 2.x need compileSdk 37, and this module is on 36.
     implementation("dev.chrisbanes.haze:haze-android:1.6.10")
 
@@ -353,6 +341,8 @@ dependencies {
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.json:json:20231013")
+    // nanoMuse: Exercise Android speech factories and dispatch in JVM regression tests.
+    testImplementation("org.mockito:mockito-core:5.24.0")
 
     // Testing — Instrumented (on-device) tests
     // [T-android-downgrade-compat] MigrationTestHelper replays the committed

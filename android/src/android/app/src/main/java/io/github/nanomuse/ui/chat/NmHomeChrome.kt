@@ -130,7 +130,9 @@ fun NmAssistantBubble(
     }
 }
 
-private fun isBareBlock(raw: String): Boolean {
-    val t = raw.trimStart()
-    return t.startsWith("```") || t.startsWith("~~~") || t.startsWith("|") || t.startsWith("<")
+internal fun isBareBlock(raw: String): Boolean {
+    val t = raw.trim()
+    if (!t.startsWith("```nanomuse-")) return false
+    val closeIdx = t.indexOf("\n```")
+    return closeIdx < 0 || closeIdx + 4 == t.length
 }
