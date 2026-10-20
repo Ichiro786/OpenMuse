@@ -59,7 +59,6 @@ object FeedFlow {
     const val DEFAULT_MINUTE = 0
     private const val NOTIFICATION_ID = 0x6E6D_4645 // "nmFE"
 
-    private val block = Regex("```$BLOCK[ \\t]*\\r?\\n([\\s\\S]*?)```")
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _introAcknowledged = MutableStateFlow(false)
@@ -184,18 +183,67 @@ object FeedFlow {
 
     /** Called after every completed turn: `nanomuse-feed` blocks become posts. */
     fun afterTurn(context: Context, sessionId: String, assistantText: String?) {
-        if (assistantText.isNullOrEmpty() || !assistantText.contains("```$BLOCK")) return
-        val today = FeedStore.posts.value.filter { it.day == SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date()) }
-        val drafts = block.findAll(assistantText).mapNotNull { m -> parseDraft(m.groupValues[1]) }
+        if (assistantText.isNullOrEmpty()) return
+        val feedSession = isFeedSession(context, sessionId)
+        // nanoMuse (fork): outside the feed's conversation only the explicit tag counts; inside it,
+        // a model that answered in a plain ```json block or a bare array (often because the
+        // user's own instruction describes another format) still gets its posts written.
+        val parsed = extractDrafts(assistantText, loose = feedSession)
+        if (parsed.isEmpty()) {
+            if (feedSession) AppLogger.warning(TAG, "feed run in $sessionId produced no readable posts")
+            return
+        }
+        val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val today = FeedStore.posts.value.filter { it.day == todayKey }
+        val drafts = parsed
             .filter { d -> today.none { it.title.equals(d.title.trim().take(80), ignoreCase = true) } }
-            .toList()
+            .distinctBy { it.title.trim().lowercase() }
         if (drafts.isEmpty()) return
         val written = FeedStore.append(drafts)
-        if (written.isNotEmpty() && isFeedSession(context, sessionId)) {
+        if (written.isNotEmpty() && feedSession) {
             AppLogger.info(TAG, "feed run in $sessionId wrote ${written.size} post(s)")
             lastWritten = written.map { it.title }
             lastWrittenAt = System.currentTimeMillis()
         }
+    }
+
+    private val anyFence = Regex("```([A-Za-z0-9_-]*)[ \\t]*\\r?\\n([\\s\\S]*?)```")
+
+    /**
+     * Posts in [text]. Strict: only `nanomuse-feed` fences. Loose (the feed's own conversation):
+     * also `json` or untagged fences and a bare JSON array/object, each holding one post or a
+     * list of posts (a top-level `posts`/`items`/`feed` array too).
+     */
+    internal fun extractDrafts(text: String, loose: Boolean): List<FeedStore.Draft> {
+        val out = mutableListOf<FeedStore.Draft>()
+        anyFence.findAll(text).forEach { m ->
+            val tag = m.groupValues[1].lowercase()
+            if (tag == BLOCK || (loose && (tag.isEmpty() || tag == "json" || tag == "jsonc"))) {
+                out += draftsFromJson(m.groupValues[2])
+            }
+        }
+        if (out.isEmpty() && loose) {
+            val t = text.trim()
+            val start = t.indexOfFirst { it == '[' || it == '{' }
+            val end = maxOf(t.lastIndexOf(']'), t.lastIndexOf('}'))
+            if (start >= 0 && end > start) out += draftsFromJson(t.substring(start, end + 1))
+        }
+        return out
+    }
+
+    private fun draftsFromJson(raw: String): List<FeedStore.Draft> {
+        val json = raw.trim()
+        val value: Any = runCatching { if (json.startsWith("[")) JSONArray(json) else JSONObject(json) }.getOrNull() ?: return emptyList()
+        val objects = mutableListOf<JSONObject>()
+        fun collect(a: JSONArray) { for (i in 0 until a.length()) a.optJSONObject(i)?.let(objects::add) }
+        when (value) {
+            is JSONArray -> collect(value)
+            is JSONObject -> {
+                val list = listOf("posts", "items", "feed").firstNotNullOfOrNull { value.optJSONArray(it) }
+                if (list != null) collect(list) else objects += value
+            }
+        }
+        return objects.mapNotNull(::parseDraft)
     }
 
     /**
@@ -235,18 +283,25 @@ object FeedFlow {
         return true
     }
 
-    private fun parseDraft(json: String): FeedStore.Draft? {
-        val o = runCatching { JSONObject(json.trim()) }.getOrNull() ?: return null
-        val title = o.optString("title").trim().ifEmpty { return null }
-        val body = o.optString("body").trim().ifEmpty { return null }
-        val type = o.optString("type").trim().lowercase().takeIf { it in TYPES } ?: "note"
-        val source = when (val s = o.opt("source")) {
+    private fun parseDraft(o: JSONObject): FeedStore.Draft? {
+        val title = o.optString("title").trim().ifEmpty { o.optString("headline").trim() }.ifEmpty { return null }
+        val body = listOf("body", "text", "content", "summary").map { o.optString(it).trim() }.firstOrNull { it.isNotEmpty() } ?: return null
+        val rawType = listOf("type", "area", "category", "kind").map { o.optString(it).trim().lowercase() }.firstOrNull { it.isNotEmpty() }.orEmpty()
+        val type = rawType.takeIf { it in TYPES } ?: TYPE_ALIASES[rawType] ?: "note"
+        val source = when (val s = o.opt("source") ?: o.opt("sources")) {
             is JSONArray -> List(s.length()) { s.optString(it).trim() }.filter { it.isNotEmpty() }
             is String -> s.split(";", ",").map { it.trim() }.filter { it.isNotEmpty() }
             else -> emptyList()
         }
         return FeedStore.Draft(title = title, type = type, emoji = o.optString("emoji").trim().take(4), body = body, source = source.take(4))
     }
+
+    /** Words models use for a post's kind, mapped onto [TYPES]. */
+    private val TYPE_ALIASES = mapOf(
+        "news" to "brief", "update" to "brief", "briefing" to "brief", "tech" to "brief", "ai" to "brief",
+        "goals" to "goal", "progress" to "goal", "todo" to "reminder", "task" to "reminder", "reminders" to "reminder",
+        "ideas" to "idea", "suggestion" to "idea", "memories" to "memory", "notes" to "note",
+    )
 
     val TYPES = setOf("brief", "reminder", "idea", "goal", "memory", "note")
 
@@ -264,6 +319,7 @@ object FeedFlow {
             appendLine(digest.ifBlank { "(nothing recorded yet — write a gentle first day: what the feed is for, and three things you could start tracking or preparing if they tell you a little about themselves)" })
             appendLine()
             appendLine(
+                "Format (required, even if the standing instruction above describes another layout; the app reads only these blocks): " +
                 "When a message asks you to write the feed: reply with one short line, then 3 to 6 posts, EACH as its own fenced code block tagged `$BLOCK` " +
                     "containing JSON {\"emoji\": \"one emoji\", \"title\": \"<= 30 characters\", \"type\": \"brief|reminder|idea|goal|memory|note\", " +
                     "\"body\": \"2 to 6 sentences or a short bullet list, Markdown allowed\", \"source\": [\"where it came from, e.g. GLOBAL.md, diary 2026-09-24, goal: <title>\"]}. " +
