@@ -211,6 +211,21 @@ class BackupViewModel(app: Application) : AndroidViewModel(app) {
     fun clearError() { _errorText.value = null }
     fun clearExportReady() { _exportReady.value = null }
 
+    /** OpenMuse: copy the finished package to a document the user picked (SAF CreateDocument). */
+    fun saveExportTo(uri: android.net.Uri) {
+        val file = _exportReady.value?.packageFile ?: return
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching {
+                    getApplication<Application>().contentResolver.openOutputStream(uri, "w")!!.use { out ->
+                        file.inputStream().use { it.copyTo(out) }
+                    }
+                }.onFailure { AppLogger.error(TAG, "[Backup] save to file failed: ${it.message}") }.isSuccess
+            }
+            if (ok) _statusText.value = null else _errorText.value = "Could not save the backup file."
+        }
+    }
+
     /**
      * Run an export. [passphrase] must be non-empty when [encrypt] is on.
      *
@@ -234,12 +249,10 @@ class BackupViewModel(app: Application) : AndroidViewModel(app) {
         // can only land in our own sandbox. Re-read here rather than trusting
         // the cached list: the user may have removed the last destination in
         // another screen since this one was composed.
+        // OpenMuse: no destination is allowed again. The package stays on the phone and
+        // the screen offers "Save to Files…" (SAF), so a backup can live in Downloads or
+        // any document provider instead of needing an rclone server.
         refreshDestinations()
-        if (!hasDestination) {
-            _errorText.value = getApplication<Application>()
-                .getString(com.openminis.app.R.string.backup_needs_destination)
-            return
-        }
         val encrypting = _encrypt.value
         if (encrypting && passphrase.isNullOrEmpty()) {
             _errorText.value = "Set a passphrase to encrypt this backup."
