@@ -1,7 +1,10 @@
 name: Android
 
 # A debug APK (arm64-v8a) for every push and pull request that touches the
-# Android tree. Debug-signed only: no keystore and no secrets are involved;
+# Android tree. Debug-signed; when the repo secret ANDROID_DEBUG_KEYSTORE_B64 is set (a base64
+# PKCS12 keystore, alias androiddebugkey, password android) it becomes the debug key, so every
+# APK carries the same signature and installs over the last one. Without it (forks, PRs from
+# forks) the runner's throwaway debug key signs, as before;
 # release builds happen on a developer machine with scripts/release-apk.sh.
 
 on:
@@ -85,6 +88,20 @@ jobs:
           export GOROOT="$(go env GOROOT)" GOPATH="$(go env GOPATH)"
           export PATH="$GOPATH/bin:$PATH" # gomobile / gobind land there
           bash scripts/android/build-natives.sh
+
+      # OpenMuse: one fixed debug key for every build (see the header). Secrets are empty on pull
+      # requests from forks, which then fall back to the runner's own debug key.
+      - name: Fixed debug signing key
+        env:
+          DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_B64" ]; then
+            mkdir -p "$HOME/.android"
+            printf '%s' "$DEBUG_KEYSTORE_B64" | base64 -d > "$HOME/.android/debug.keystore"
+            echo "Signing with the repo's fixed debug key."
+          else
+            echo "::notice::ANDROID_DEBUG_KEYSTORE_B64 not set; this APK is signed with a throwaway debug key and will not install over earlier builds."
+          fi
 
       - name: assembleDebug
         id: assemble
