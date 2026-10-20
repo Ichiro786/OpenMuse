@@ -227,6 +227,11 @@ private fun BackupTab(
     val destinations by vm.destinations.collectAsState()
     val historyRecords by vm.historyRecords.collectAsState()
     val lastResult by vm.lastResult.collectAsState()
+    val exportReady by vm.exportReady.collectAsState()
+    // OpenMuse: save the finished package anywhere on the phone (Downloads, Files, Drive app).
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(com.openminis.app.backup.BackupFormat.MIME_TYPE),
+    ) { uri -> if (uri != null) vm.saveExportTo(uri) }
 
     // Re-read destinations every time this tab appears: the user may have just
     // added one via "Manage Destinations…" and navigated back, and a stale
@@ -399,7 +404,7 @@ private fun BackupTab(
             // dies with the app it protects — that is not a backup, so the
             // button refuses rather than producing one (iOS parity).
             enabled = running || (
-                selected.isNotEmpty() && passphraseValid && destinations.isNotEmpty()
+                selected.isNotEmpty() && passphraseValid
                 ),
             colors = if (running) {
                 androidx.compose.material3.ButtonDefaults.buttonColors(
@@ -439,7 +444,6 @@ private fun BackupTab(
         // already selected (same ordering and rationale as iOS).
         if (!running) {
             val hint = when {
-                destinations.isEmpty() -> stringResource(R.string.backup_needs_destination)
                 selected.isEmpty() -> stringResource(R.string.backup_needs_category)
                 encrypt && passphrase.isEmpty() -> stringResource(R.string.backup_needs_passphrase)
                 else -> null
@@ -490,6 +494,18 @@ private fun BackupTab(
                     ResultDestinationRow(
                         outcome = d,
                         showDivider = i < r.destinations.lastIndex,
+                    )
+                }
+            }
+            exportReady?.takeIf { it.packageFile.exists() }?.let { ready ->
+                MinisButton(
+                    onClick = { saveLauncher.launch(ready.packageFile.name) },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    PrimaryActionContent(
+                        icon = Icons.Outlined.FolderZip,
+                        label = stringResource(R.string.backup_save_to_files),
+                        busy = false,
                     )
                 }
             }
