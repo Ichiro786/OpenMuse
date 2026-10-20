@@ -1,5 +1,9 @@
 package io.github.nanomuse.net
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
@@ -12,6 +16,7 @@ import org.junit.Test
 import java.net.Proxy
 import java.net.ProxySelector
 import java.net.URI
+import java.util.concurrent.TimeUnit
 
 class OwnProviderProxyTest {
     private val routed = setOf("chatgpt.com", "auth.openai.com", "api.openai.com", "dashscope.aliyuncs.com")
@@ -84,9 +89,39 @@ class OwnProviderProxyTest {
         assertNull(OwnProviderProxy.authenticator.authenticate(null, challenge(answered)))
     }
 
+    @Test fun `cancelling the probe hangs up on the proxy at once`() = runBlocking {
+        HoldingServer().use { server ->
+            val cfg = OwnProviderProxy.Config(enabled = true, host = "127.0.0.1", port = server.port)
+            // on another thread: the latch waits below block this one
+            val job = launch(Dispatchers.Default) { OwnProviderProxy.probe(cfg, "http://provider.invalid/") }
+            assertTrue("the probe never reached the proxy", server.accepted.await(5, TimeUnit.SECONDS))
+            job.cancel()
+            // Before #336 the socket stayed open until the 10 s read timeout.
+            assertTrue("the proxy connection stayed open after the cancel", server.closedByClient.await(1, TimeUnit.SECONDS))
+            job.join()
+        }
+    }
+
     @Test fun `the host of a URL`() {
         assertEquals("chatgpt.com", OwnProviderProxy.hostOf("https://chatgpt.com/backend-api"))
         assertEquals("dashscope.aliyuncs.com", OwnProviderProxy.hostOf(" https://dashscope.aliyuncs.com/compatible-mode/v1 "))
         assertEquals("", OwnProviderProxy.hostOf("not a url"))
+    }
+
+    @Test fun `cancelling the probe while peeking a 403 body closes the call`() = runBlocking {
+        BodyHoldingServer(403).use { server ->
+            val cfg = OwnProviderProxy.Config(enabled = true, host = "127.0.0.1", port = server.port)
+            val job = launch(Dispatchers.Default) { OwnProviderProxy.probe(cfg, "http://provider.invalid/") }
+            try {
+                assertTrue("the proxy body reader was not entered", server.awaitBodyReader("OwnProviderProxy.kt", "peekBody"))
+                job.cancel()
+                assertTrue("the proxy body stayed open after cancel", server.closedByClient.await(1, TimeUnit.SECONDS))
+                withTimeout(1_000) { job.join() }
+            } finally {
+                job.cancel()
+                server.close()
+                withTimeout(5_000) { job.join() }
+            }
+        }
     }
 }

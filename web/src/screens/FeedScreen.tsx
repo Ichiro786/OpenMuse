@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { api } from "../api";
+import { LoadError } from "../components/LoadError";
 import { Markdown } from "../components/Markdown";
 import { MuseRoundButton } from "../components/MuseHeader";
 import { Sheet } from "../components/Sheet";
@@ -28,6 +29,31 @@ import type { CalendarData, CalendarEvent, FeedItem, FeedPost, FeedPostsData, Up
 import { Toggle } from "../components/Form";
 import { cx, readStorage, relativeTime, timeShort, writeStorage } from "../util";
 
+const readActivity = () => api.feed(80);
+
+/** A failed section keeps its last data and retries without refetching its neighbours. */
+function useFeedRequest<T>(request: () => Promise<T>, version: string) {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setError(null);
+    request()
+      .then((result) => { if (alive) setData(result); })
+      .catch((cause: unknown) => {
+        if (alive) setError(cause instanceof Error && cause.message ? cause.message : "Could not load.");
+      });
+    return () => { alive = false; };
+  }, [request, version, attempt]);
+  return { data, setData, error, retry: () => setAttempt((value) => value + 1) };
+}
+
+function FeedRequestError({ label, request }: { label: string; request: { error: string | null; retry: () => void } }) {
+  if (!request.error) return null;
+  return <div role="alert" aria-label={label}><LoadError message={request.error} onRetry={request.retry} /></div>;
+}
+
 /**
  * The Feed, the way Muse does it: posts written for you from what it knows, steered by
  * your "feed instructions" — and, below them, what happened while you were away: replies
@@ -35,41 +61,18 @@ import { cx, readStorage, relativeTime, timeShort, writeStorage } from "../util"
  */
 export function FeedScreen() {
   const { state, send, openThread, openFile, markFeedSeen, setTab, toast } = useStore();
-  const [items, setItems] = useState<FeedItem[] | null>(null);
-  const [posts, setPosts] = useState<FeedPostsData | null>(null);
-  const [upcoming, setUpcoming] = useState<UpcomingData | null>(null);
-  const [calendar, setCalendar] = useState<CalendarData | null>(null);
+  const feedVersion = `${state.feedVersion}:${state.remindersVersion}`;
+  const activityRequest = useFeedRequest(readActivity, feedVersion);
+  const postsRequest = useFeedRequest(api.feedPosts, feedVersion);
+  const upcomingRequest = useFeedRequest(api.upcoming, feedVersion);
+  const calendarRequest = useFeedRequest(api.calendar, `${state.calendarVersion}:${state.connectionsVersion}`);
+  const items = activityRequest.data;
+  const { data: posts, setData: setPosts } = postsRequest;
+  const upcoming = upcomingRequest.data;
+  const calendar = calendarRequest.data;
   const name = state.profile?.name ?? "nanoMuse";
   const t = useT();
   const locale = useLocale();
-
-  useEffect(() => {
-    let alive = true;
-    api.feed(80)
-      .then((d) => alive && setItems(d))
-      .catch((e: Error) => toast(e.message));
-    api.upcoming()
-      .then((d) => alive && setUpcoming(d))
-      .catch(() => undefined);
-    api.feedPosts()
-      .then((d) => alive && setPosts(d))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.feedVersion, state.remindersVersion]);
-
-  // the day's events, when a calendar is connected (a feed refresh pushes a new version)
-  useEffect(() => {
-    let alive = true;
-    api.calendar()
-      .then((d) => alive && setCalendar(d))
-      .catch(() => undefined);
-    return () => {
-      alive = false;
-    };
-  }, [state.calendarVersion, state.connectionsVersion]);
 
   // Looking at the feed marks it read — the newest item's time is the watermark.
   useEffect(() => {
@@ -119,6 +122,7 @@ export function FeedScreen() {
       />
 
       <div className="flex-1 overflow-y-auto px-3.5 pb-7">
+        <FeedRequestError label={t("Feed")} request={postsRequest} />
         {/* Muse's feed: a day heading, white cards; the first card explains what drives it */}
         {postDays.length === 0 && (
           <>
@@ -176,10 +180,13 @@ export function FeedScreen() {
         ))}
 
         <div className="space-y-4 px-0.5 pt-3">
+        <FeedRequestError label={t("Next up")} request={upcomingRequest} />
         {upcoming && <NextUp data={upcoming} name={name} onSettings={() => setTab("you")} onGoals={() => setTab("goals")} />}
+        <FeedRequestError label={t("Calendar")} request={calendarRequest} />
         {calendar?.configured && <TodayBlock data={calendar} onAsk={() => openThread("main")} />}
+        <FeedRequestError label={t("While you were away")} request={activityRequest} />
 
-        {items && items.length === 0 && (!posts || posts.posts.length === 0) && (
+        {items && items.length === 0 && posts !== null && posts.posts.length === 0 && (
           <div className="py-10 text-center text-muted text-[14px] px-6">
             <Moon size={28} className="mx-auto mb-2 opacity-60" />
             {t("Nothing yet. Once {name} works on a goal in the background or needs your approval, it shows up here.", { name })}
@@ -236,7 +243,7 @@ export function FeedScreen() {
                   toast((e as Error).message);
                 }
               }}
-              className="w-full rounded-full bg-surface-2 py-2.5 text-[15px] font-medium text-rose-500"
+              className="w-full rounded-full bg-surface-2 py-2.5 text-[15px] font-medium text-rose-600 dark:text-rose-300"
             >
               {t("Delete this post")}
             </button>
@@ -459,6 +466,7 @@ function FeedSettingsSheet({
           onChange={(e) => setText(e.target.value)}
           rows={4}
           maxLength={2000}
+          aria-label={t("Feed instructions")}
           placeholder={t("Build me a feed about what I care about. Keep it short and direct, easy to skim, no clickbait.")}
           className="w-full resize-none rounded-2xl bg-surface-2 px-3.5 py-2.5 text-[15px] leading-snug outline-none focus:ring-2 focus:ring-accent/40"
         />
@@ -546,7 +554,7 @@ function NextUp({
                 : t("Soon")}
           : <span className="font-medium">{next.title}</span>
           {next.next_step && <span className="text-muted"> · {next.next_step}</span>}
-          {next.overdue && <span className="text-rose-500 font-medium"> · {t("overdue")}</span>}
+          {next.overdue && <span className="text-rose-600 dark:text-rose-300 font-medium"> · {t("overdue")}</span>}
           {data.queue.length > 1 && <span className="text-muted"> · {t("{n} more in line", { n: data.queue.length - 1 })}</span>}
         </div>
       )}
@@ -607,7 +615,7 @@ function TodayBlock({ data, onAsk }: { data: CalendarData; onAsk: () => void }) 
           ))}
         </ul>
       )}
-      {broken.length > 0 && <div className="mt-1.5 text-[12px] text-rose-500">{t("{name} could not be read", { name: broken.map((f) => f.name).join(", ") })}</div>}
+      {broken.length > 0 && <div className="mt-1.5 text-[12px] text-rose-600 dark:text-rose-300">{t("{name} could not be read", { name: broken.map((f) => f.name).join(", ") })}</div>}
       <button type="button" onClick={onAsk} className="mt-2 text-[12.5px] text-accent font-medium">
         {t("Ask about your week")}
       </button>

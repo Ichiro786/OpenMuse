@@ -1,6 +1,6 @@
 # The web console: your model, your key, your plan
 
-> The web console is the app `nanomuse serve` serves at `/` — the front door of
+> The web console is the app `nanomuse serve` serves at `/`: the front door of
 > the desktop app and of a self-hosted runtime ([app.md](app.md)). This page is
 > about one part of it: how it picks the model that answers, and what it offers
 > when the model lacks something. The guide for making a key is
@@ -10,9 +10,9 @@
 
 The console reads the same list of providers as the phones, the desktop and the
 relay: [`nanomuse/llm/providers.json`](../nanomuse/llm/providers.json) (contract
-C11). Each provider says what one key there covers — `chat`, `vision` (the
+C11). Each provider says what one key there covers, `chat`, `vision` (the
 hands read screenshots), `image` (the avatar studio's pictures), `video` (its
-clips) — and which sign-ins it has besides a key. The console asks the runtime
+clips), and which sign-ins it has besides a key. The console asks the runtime
 first (`GET /api/providers`, which also says which slots are configured today
 and what that covers) and falls back to the copy bundled at build time on an
 older runtime, with nothing known about what is configured. `web/src/providers.ts`
@@ -23,7 +23,7 @@ and the sentences.
 
 **Connections → Chat model.** The provider tiles are the runtime's presets, the
 region's first pick first (Alibaba Cloud Bailian on the mainland, OpenRouter
-elsewhere — [region.ts](../web/src/region.ts)). Under the tiles the chosen
+elsewhere; [region.ts](../web/src/region.ts)). Under the tiles the chosen
 provider's line from the catalogue says what its key covers and what to know
 about it (the Kimi editions, the OpenRouter Image API, the ChatGPT caveat). The
 *Hands model* picker lists models that see; its default is the provider's own
@@ -35,6 +35,42 @@ blind hands model. A *Proxy (optional)* field under them takes an
 requests only (`[llm] proxy`; nanoMuse Cloud never goes through it, a SOCKS
 address needs `httpx[socks]` on the runtime); a saved password comes back as
 dots, and an emptied field clears it.
+
+**Connections → Chat model → Your own endpoints.** A server that speaks the
+OpenAI API but is not in the catalogue (a gateway, a relay, vLLM or LM Studio
+on another machine) is an *endpoint* of the runtime's list, and the list holds
+as many as you use (#294). Under *Local or your own endpoint* each saved
+endpoint is a tile, reading its name over its host, and the last tile is *Add
+an endpoint*: a name (optional; the host otherwise), the base URL, the API key
+(or *No key*), and the ids of its models when it does not list them at
+`/models` (the form says so when it does not). The key goes into the vault
+under the endpoint's own name (`ENDPOINT_<ID>_API_KEY`); adding a second
+endpoint never touches the first's. With an endpoint's tile chosen, a card
+under the tiles says where its key is, how many models it serves and which
+slots answer through it, with *Rename*, *Change key*, *Edit models*, *Ask for
+its models* and *Remove*; the chat model picker lists the endpoint's models,
+and *Save* sets the chat slot by the endpoint's id (`PUT /api/connections/llm
+{"endpoint": "<id>", "model": ...}`), never by retyping its address or key.
+Renaming, rekeying or moving an endpoint reaches every slot that uses it. The
+*Hands model* picker gains one group per other endpoint of the list; a model
+picked there sends the hands' screenshots through that endpoint with its key
+(`PUT /api/connections/gui {"endpoint": "<id>", "model": ...}`), and the
+*Making pictures* and *Making clips* selects list the endpoints under *Your
+endpoints* the same way (`PUT /api/connections/image` / `/video` with
+`endpoint` and `model`). Removing an endpoint is refused while the chat model
+answers through it (pick another chat model first); hands, pictures or clips
+set on it go back to *Automatic*, and its key leaves the vault. A chat model
+set on *Other OpenAI-compatible endpoint* before the list existed becomes
+endpoint number one on the runtime's next start, its key copied to the
+endpoint's own vault entry; nothing is asked. The entry it was copied from
+(`LLM_API_KEY` as a rule) stays in the vault, since a `config.toml` may still
+name it; it can be removed by hand (`DELETE /api/vault/{name}`) once nothing
+does. One address is one endpoint: adding or moving an endpoint to an address
+another one already has is refused, naming that endpoint. The list is `GET
+/api/connections` → `endpoints`, each `{id, label, base_url, key_source,
+models, slots}`, never a key; the routes are in [app.md](app.md#api). A
+runtime without the list offers the single *Other OpenAI-compatible endpoint*
+tile as before.
 
 **Connections → Making pictures, Making clips.** The two media rows of the
 Models contract (0.1.41), one card each under the chat model. The value is
@@ -76,13 +112,13 @@ start the Codex sign-in (`POST /api/chatgpt/login` → `{url}`), opens the page
 in a new tab, polls `GET /api/chatgpt/status` every two seconds for up to ten
 minutes, and when the tokens are in the runtime's store offers *Use it for the
 chat* (`[llm] provider = "chatgpt"`) and *Sign out of ChatGPT*
-(`POST /api/chatgpt/logout`). The card says what the sign-in covers — chat and
-the hands, not pictures or clips — and carries the honest line about OpenAI's
+(`POST /api/chatgpt/logout`). The card says what the sign-in covers (chat and
+the hands, not pictures or clips) and carries the honest line about OpenAI's
 terms. A runtime without these routes answers 404; the card then names the
 command to run in a terminal, `nanomuse chatgpt login`, instead of pretending.
 The sign-in's callback lands on port 1455 of the machine the runtime runs on.
 When the browser cannot reach it (a runtime on another computer, or the port
-taken — `port_bound: false` in the login's answer), the browser ends on an
+taken; `port_bound: false` in the login's answer), the browser ends on an
 address that will not load; the card has a box for that address and hands it
 to the runtime (`POST /api/chatgpt/callback {url}`; a stale link is 400
 `state_mismatch`, a login older than ten minutes 409 `no_login`). The box is
@@ -100,9 +136,9 @@ the invitation. The 80 % heads-up and the first-sign-in sheet point the same
 way.
 
 **Avatar studio.** Without an image model the *Draw* button is off and the
-line under it is the one sentence — *Pictures need a provider with image
+line under it is the one sentence (*Pictures need a provider with image
 models: Alibaba Cloud Bailian, Zhipu GLM, SiliconFlow or Volcengine Ark* on
-the mainland, *OpenRouter, OpenAI, Google Gemini or xAI Grok* elsewhere — with
+the mainland, *OpenRouter, OpenAI, Google Gemini or xAI Grok* elsewhere) with
 *Change model* beside it. **Settings → Image & video models** shows the same
 sentence as its value when the runtime says pictures or clips are not covered.
 
@@ -115,13 +151,13 @@ first run done) and opens the chat, where the opening happens the way it does
 on the phones and the desktop (contract C4 in [parity.md](parity.md)):
 
 1. **The app speaks first**, as the agent, three lines in the console's
-   language — hello, *a bit about how I work* (this computer, the files you
+   language: hello, *a bit about how I work* (this computer, the files you
    point it to, asking first, where your messages go), and *what should I call
    you?* They cost no tokens and the model never sees them as messages; the
    chat draws them where the history begins (`GET /api/firstrun?lang=` returns
    them as `intro`).
 2. **The model asks your name** and, when you give it (or decline), reports it
-   in a ```` ```nanomuse-naming ```` block at the end of its reply — the same
+   in a ```` ```nanomuse-naming ```` block at the end of its reply, the same
    JSON the desktop and the phones read (`user_address`, `suggest`,
    `agent_name`; `nanomuse/fences.py`). The runtime owns the phases
    (`none → ask_user_name → ask_agent_name → named → done`,
@@ -165,7 +201,7 @@ come from the catalogue in the console's language (`name` / `name_zh`).
 (`nanomuse/server/failures.py`; the sentence is the key in `web/src/i18n/zh-CN.ts`,
 so the Chinese is looked up from the English): the allowance used up (with the
 ways card under it), the daily cap, a rate limit, a bad key, a disabled account,
-a model the relay does not offer, the provider behind the relay in trouble —
+a model the relay does not offer, the provider behind the relay in trouble,
 and since 0.1.40 the four that fell through to *The model provider answered
 with an error: …* and the five the operator's switches send
 ([cloud.md](cloud.md#controls)):
@@ -176,7 +212,7 @@ with an error: …* and the five the operator's switches send
 | `403 not_invited` | This relay takes new accounts by invitation only; sign in with an invite code under Account. |
 | `429 too_many_in_flight` | Too many turns are running on this account at once; wait for one to finish and try again. |
 | `429 provider_busy` | The model provider is busy; try again in a moment. |
-| `429 allowance_exhausted` with `paused: true` | The free allowance is paused on this relay for now, not used up. Your own model key under Connections keeps you going; your sign-in, your devices and what is left stay as they are. — the same ways card as a spent pool, the notice carries `paused` |
+| `429 allowance_exhausted` with `paused: true` | The free allowance is paused on this relay for now, not used up. Your own model key under Connections keeps you going; your sign-in, your devices and what is left stay as they are. (the same ways card as a spent pool, the notice carries `paused`) |
 | `403 signup_closed` | New sign-ups are paused on this relay for now; existing accounts keep working. Try again later. |
 | `503 service_paused` | nanoMuse Cloud is paused by its operator for now; your sign-in and your data are kept. Try again later. |
 | `503 sync_paused` | Conversation sync is paused on this relay for now; what is stored is kept and your devices keep working on their own. |
@@ -217,7 +253,7 @@ destination. The same words appear under a denied step in today's record. A
 shape it does not know is shown as it came.
 
 **Permissions you granted** (avatar → Permissions) are listed by the risk class
-of the tool they cover, the gravest first: sensitive, moderate, low, safe (the
+of the tool they cover, the gravest first: sensitive, moderate, safe (the
 class comes from `GET /api/state` → `settings.tools`); each row says the tool,
 how long the grant lasts and when it was given, and can be revoked on its own.
 

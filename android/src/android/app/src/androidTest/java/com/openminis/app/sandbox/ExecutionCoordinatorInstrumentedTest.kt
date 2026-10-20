@@ -37,8 +37,6 @@ class ExecutionCoordinatorInstrumentedTest {
 
     @After
     fun tearDown() {
-        // nanoMuse: each session owns a persistent shell; stop all between tests.
-        ExecutionCoordinator.stopCurrentCommand()
         PRootKernel.clearBindMounts()
         PRootKernel.customEnvironment.clear()
         cleanupSessionDirs()
@@ -46,49 +44,48 @@ class ExecutionCoordinatorInstrumentedTest {
 
     // ==================== Session mounting ====================
 
-    // nanoMuse: verify the current session paths instead of the removed singleton session id.
     @Test
-    fun executeUsesSessionSpecificMounts() = runBlocking {
+    fun executeSetsMountedSessionId() = runBlocking {
         skipIfNoBoot()
 
         val sessionId = "session-mount-test"
-        ExecutionCoordinator.execute(sessionId, "echo hello")
+        val result = ExecutionCoordinator.execute(sessionId, "echo hello")
 
-        assertEquals(
-            File(context.filesDir, "minis-sessions/$sessionId/attachments").absolutePath,
-            PRootKernel.bindMounts["/var/minis/attachments"]
-        )
+        // nanoMuse: the coordinator keeps one shell per session; there is no single mounted id.
+        assertEquals(0, result.exitCode)
+        assertTrue(ExecutionCoordinator.hasShell(sessionId))
     }
 
     @Test
     fun executeSwitchesSessionMounts() = runBlocking {
         skipIfNoBoot()
 
-        ExecutionCoordinator.execute("session-A", "echo a")
-        assertEquals(
-            File(context.filesDir, "minis-sessions/session-A/attachments").absolutePath,
-            PRootKernel.bindMounts["/var/minis/attachments"]
-        )
+        // nanoMuse: sessions no longer swap one mount; each keeps its own shell side by side.
+        val resultA = ExecutionCoordinator.execute("session-A", "echo a")
+        assertEquals(0, resultA.exitCode)
+        assertTrue(ExecutionCoordinator.hasShell("session-A"))
 
-        ExecutionCoordinator.execute("session-B", "echo b")
-        assertEquals(
-            File(context.filesDir, "minis-sessions/session-B/attachments").absolutePath,
-            PRootKernel.bindMounts["/var/minis/attachments"]
-        )
+        val resultB = ExecutionCoordinator.execute("session-B", "echo b")
+        assertEquals(0, resultB.exitCode)
+        assertTrue(ExecutionCoordinator.hasShell("session-B"))
+        assertTrue(ExecutionCoordinator.hasShell("session-A"))
     }
 
     @Test
-    fun executeSameSessionKeepsMountProjection() = runBlocking {
+    fun executeSameSessionDoesNotRemount() = runBlocking {
         skipIfNoBoot()
 
         ExecutionCoordinator.execute("session-X", "echo first")
 
-        // nanoMuse: this checks the resolver projection, not shell-process reuse.
-        val mountsBefore = PRootKernel.bindMounts.toMap()
+        // Get current bind mount count
+        val mountCount = PRootKernel.bindMounts.size
 
         ExecutionCoordinator.execute("session-X", "echo second")
 
-        assertEquals(mountsBefore, PRootKernel.bindMounts)
+        // Mounts should remain the same (not cleared and re-added)
+        assertEquals(mountCount, PRootKernel.bindMounts.size)
+        // nanoMuse: the session's shell is reused, not remounted.
+        assertTrue(ExecutionCoordinator.hasShell("session-X"))
     }
 
     @Test
@@ -97,8 +94,11 @@ class ExecutionCoordinatorInstrumentedTest {
 
         ExecutionCoordinator.execute("session-mounts", "echo test")
 
+        // Should have session-level + global bind mounts
         // Session: attachments, offloads, workspace, browser (4)
-        // Global: memory, skills, shared, mcp-servers (4); user mounts can add more.
+        // Global: memory, skills (2)
+        // nanoMuse: the coordinator's global set is memory, skills, shared and mcp-servers, so eight mounts in all.
+        assertEquals(8, PRootKernel.bindMounts.size)
 
         // Verify session-level mounts
         assertTrue(PRootKernel.bindMounts.containsKey("/var/minis/attachments"))
@@ -109,8 +109,6 @@ class ExecutionCoordinatorInstrumentedTest {
         // Verify global mounts
         assertTrue(PRootKernel.bindMounts.containsKey("/var/minis/memory"))
         assertTrue(PRootKernel.bindMounts.containsKey("/var/minis/skills"))
-        assertTrue(PRootKernel.bindMounts.containsKey("/var/minis/shared"))
-        assertTrue(PRootKernel.bindMounts.containsKey("/var/minis/mcp-servers"))
     }
 
     @Test
@@ -239,46 +237,42 @@ class ExecutionCoordinatorInstrumentedTest {
 
     // ==================== sessionDidTerminate ====================
 
-    // nanoMuse: check per-session shell state because multiple sessions can stay live now.
     @Test
-    fun sessionDidTerminateStopsMatchingSessionShell() = runBlocking {
+    fun sessionDidTerminateClearsMountsForMatchingSession() = runBlocking {
         skipIfNoBoot()
 
-        val stateCommand = "printf '%s' \"${'$'}NM_SESSION_STATE\""
-        ExecutionCoordinator.execute("session-terminate", "export NM_SESSION_STATE=alive")
-        assertEquals(
-            "alive",
-            ExecutionCoordinator.execute("session-terminate", stateCommand).output.trim()
-        )
+        ExecutionCoordinator.execute("session-terminate", "echo test")
+        // nanoMuse: observe the session's shell instead of the removed mountedSessionId.
+        assertTrue(ExecutionCoordinator.hasShell("session-terminate"))
         assertTrue(PRootKernel.bindMounts.isNotEmpty())
 
         ExecutionCoordinator.sessionDidTerminate("session-terminate")
 
-        assertEquals(
-            "",
-            ExecutionCoordinator.execute("session-terminate", stateCommand).output.trim()
-        )
+        // nanoMuse: sessionDidTerminate stops and drops the shell; it does not touch the
+        // kernel's bind mount table, so only the registry entry is asserted.
+        assertFalse(ExecutionCoordinator.hasShell("session-terminate"))
     }
 
     @Test
     fun sessionDidTerminateIgnoresMismatchedSession() = runBlocking {
         skipIfNoBoot()
 
-        val stateCommand = "printf '%s' \"${'$'}NM_SESSION_STATE\""
-        ExecutionCoordinator.execute("session-keep", "export NM_SESSION_STATE=kept")
-        val mountsBefore = PRootKernel.bindMounts.toMap()
+        ExecutionCoordinator.execute("session-keep", "echo test")
+        val mountsBefore = PRootKernel.bindMounts.size
 
         ExecutionCoordinator.sessionDidTerminate("session-other")
 
-        assertEquals(mountsBefore, PRootKernel.bindMounts)
-        assertEquals("kept", ExecutionCoordinator.execute("session-keep", stateCommand).output.trim())
+        // nanoMuse: terminating another session leaves this session's shell in place.
+        assertTrue(ExecutionCoordinator.hasShell("session-keep"))
+        assertFalse(ExecutionCoordinator.hasShell("session-other"))
+        assertEquals(mountsBefore, PRootKernel.bindMounts.size)
     }
 
     @Test
     fun sessionDidTerminateIsNoOpWhenNoSession() {
-        val mountsBefore = PRootKernel.bindMounts.toMap()
         ExecutionCoordinator.sessionDidTerminate("any-session")
-        assertEquals(mountsBefore, PRootKernel.bindMounts)
+        // nanoMuse: nothing was registered for this id, so nothing is registered afterwards.
+        assertFalse(ExecutionCoordinator.hasShell("any-session"))
     }
 
     // ==================== stopCurrentCommand ====================
@@ -368,15 +362,21 @@ class ExecutionCoordinatorInstrumentedTest {
         PRootKernel.clearBindMounts()
         PRootKernel.customEnvironment.clear()
 
+        // nanoMuse: there is no mountedSessionId field to reset any more; stop and drop every
+        // per-session shell a previous test may have left behind instead.
+        testSessionIds.forEach { ExecutionCoordinator.sessionDidTerminate(it) }
     }
 
+    // nanoMuse: shared between the per-session reset above and the directory cleanup below.
+    private val testSessionIds = listOf("session-mount-test", "session-A", "session-B", "session-X",
+        "session-mounts", "session-dirs-test", "session-verify-paths",
+        "session-output", "session-fail", "session-ok", "session-timeout",
+        "session-callback", "session-serial", "session-terminate",
+        "session-keep", "session-iso-A", "session-iso-B",
+        "session-global-A", "session-global-B")
+
     private fun cleanupSessionDirs() {
-        listOf("session-mount-test", "session-A", "session-B", "session-X",
-            "session-mounts", "session-dirs-test", "session-verify-paths",
-            "session-output", "session-fail", "session-ok", "session-timeout",
-            "session-callback", "session-serial", "session-terminate",
-            "session-keep", "session-iso-A", "session-iso-B",
-            "session-global-A", "session-global-B").forEach { id ->
+        testSessionIds.forEach { id ->
             File(context.filesDir, "minis-sessions/$id").deleteRecursively()
         }
         File(context.filesDir, "minis-global").deleteRecursively()

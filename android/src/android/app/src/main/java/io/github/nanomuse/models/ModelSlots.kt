@@ -26,9 +26,9 @@ import kotlinx.coroutines.launch
 
 /**
  * The four model slots of Settings → Models (0.1.41 "Choice"): chat, the hands (operating the
- * screen), pictures and clips. Each slot keeps its value where it always was — the default
+ * screen), pictures and clips. Each slot keeps its value where it always was, that is the default
  * model group for chat (`defaultPrimaryGroupId`), `hands.model_entry`, `avatar.provider_id /
- * avatar.model`, `media.video.*` — so the upstream Model groups screen, Settings → Hands and
+ * avatar.model` and `media.video.*`, so the upstream Model groups screen, Settings → Hands and
  * Settings → Image & video models stay consistent with the page. This object is the one place
  * that lists what a slot can be set to, says what it is now, and sets it; the order for a slot
  * nobody chose is [SlotOrder].
@@ -286,9 +286,9 @@ object ModelSlots {
     }
 
     /**
-     * A provider switched off while new chats answered through it — nanoMuse Cloud above all
+     * A provider switched off while new chats answered through it, nanoMuse Cloud above all
      * (Settings › Models › *Use nanoMuse Cloud models*; the desktop's `setCloudModels` does the
-     * same) — hands the chat slot to the first source that still talks: the relay's recommended
+     * same), hands the chat slot to the first source that still talks: the relay's recommended
      * chat model when the relay is on, else the first own provider with a chat model, its
      * catalogue default first ([groups]' order). So the Models page names what answers, and new
      * chats do not fall through upstream's last-used chain without a word. Nothing moves when
@@ -325,14 +325,26 @@ object ModelSlots {
      * ([mainChatFollows]). A group with another name of the person's own is never edited; when
      * such a group is the default and already leads with the pick, the groups do not move.
      * False for a picture or video model, which is no chat model. True when the chats follow.
+     *
+     * With [groupId], the pick was a group row of a chat's picker (or an entry under one): a
+     * group of the person's own, named by them or mixing providers, becomes the default as it
+     * is, never edited, and the main chat follows it with the pick (the iPhone's
+     * `followPick(entryId:groupId:)`); a group named after the pick's provider is ours to lead
+     * with the pick, as above.
      */
-    fun followPick(context: Context, entryId: String): Boolean {
+    fun followPick(context: Context, entryId: String, groupId: String? = null): Boolean {
         val repo = repo(context) ?: return false
         val config = repo.config.value
         val entry = config.modelEntries.firstOrNull { it.id == entryId } ?: return false
         val inst = config.instances.firstOrNull { it.id == entry.providerInstanceId } ?: return false
         if (NanoMuseCloud.drawsOrFilms(entry.model) || ImageGen.looksLikeImageModel(entry.model.id)) return false
         val name = providerLabel(context, inst)
+        val picked = groupId?.let { id -> config.modelGroups.firstOrNull { it.id == id && entryId in it.memberEntryIds } }
+        if (picked != null && MainChatFollow.keepAsIs(picked.name, name, picked.memberEntryIds.map { id -> config.modelEntries.firstOrNull { it.id == id }?.providerInstanceId })) {
+            if (repo.defaultPrimaryGroupId != picked.id) repo.defaultPrimaryGroupId = picked.id
+            mainChatFollows(context, MainChatFollow.Pick(picked.id, entryId))
+            return true
+        }
         val default = config.modelGroups.firstOrNull { it.id == config.defaultPrimaryGroupId }
         if (default != null && default.memberEntryIds.firstOrNull() == entryId) {
             mainChatFollows(context, MainChatFollow.Pick(default.id, entryId))
@@ -356,18 +368,22 @@ object ModelSlots {
     /**
      * The main chat follows the chat slot ([MainChatFollow]): its row gets the group binding
      * the chat view-model would write for the same pick, unless it already says so, and the
-     * open view-model is told through [chatSlotWritten]. Side chats are not touched; a draft
-     * main chat has no row and resolves to the default group when it is first written to.
+     * open view-models are told through [chatSlotWritten]. Side chats with a row are not
+     * touched. A draft main chat has no row to write, but its view-model is told all the same:
+     * it resolved the default when it was built and would otherwise keep that provider for the
+     * first message, whatever the Models page says.
      */
     fun mainChatFollows(context: Context, pick: MainChatFollow.Pick) {
         val app = context.applicationContext as? MinisApp ?: return
-        val sid = MainChatFollow.target(MainChat.persisted(context)) ?: return
-        val chats = app.chatRepositoryOrNull ?: return
+        val sid = MainChatFollow.target(MainChat.persisted(context))
+        val chats = app.chatRepositoryOrNull
         scope.launch {
-            val session = runCatching { chats.getSession(sid) }.getOrNull() ?: return@launch
-            if (!MainChatFollow.alreadySays(session.modelBinding, pick)) {
-                val modelId = repo(context)?.config?.value?.modelEntries?.firstOrNull { it.id == pick.entryId }?.model?.id ?: session.modelId
-                chats.updateSessionBinding(sid, MainChatFollow.binding(pick), modelId)
+            if (sid != null && chats != null) {
+                val session = runCatching { chats.getSession(sid) }.getOrNull()
+                if (session != null && !MainChatFollow.alreadySays(session.modelBinding, pick)) {
+                    val modelId = repo(context)?.config?.value?.modelEntries?.firstOrNull { it.id == pick.entryId }?.model?.id ?: session.modelId
+                    chats.updateSessionBinding(sid, MainChatFollow.binding(pick), modelId)
+                }
             }
             _chatSlotWritten.tryEmit(pick)
         }

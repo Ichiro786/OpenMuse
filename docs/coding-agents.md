@@ -1,8 +1,8 @@
 # Coding agents
 
-The Cursor, Codex and Claude Code sessions on your computer, seen and steered from
-any device of your account — the phone on the way home, the browser, another
-computer — and from the Muse itself.
+The Cursor, Codex, Claude Code and DeepSeek Harness sessions on your computer, seen and steered
+from any device of your account (the phone on the way home, the browser, another
+computer) and from the Muse itself.
 
 Nothing is installed into the agents and nothing is proxied through anyone's
 server. The runtime or the desktop app on the computer reads what the agents
@@ -14,22 +14,22 @@ the frames.
 
 - **Phone**: the drawer's *Coding* row (or *Settings → Coding agents*, or the
   `nanomuse://coding` link). Pick a computer, an agent, a session; read the
-  transcript; type a message and watch the run — the text as it streams, the
-  tools as they are called — and stop it if it goes wrong.
+  transcript; type a message and watch the run (the text as it streams, the
+  tools as they are called) and stop it if it goes wrong.
 - **Web**: the *Coding* screen. This computer's agents at the top, the
   account's other computers after them.
 - **Desktop**: *Settings → Coding agents*, also opened by the *Coding agents*
-  chip on a device card under *Settings → Devices*. This computer first — each
+  chip on a device card under *Settings → Devices*. This computer first (each
   agent with its version, how many of its processes run right now and its
-  chats — then the account's other computers; an agent's chats, a chat's
+  chats), then the account's other computers; an agent's chats, a chat's
   transcript, a composer, the run as it streams (text and tools) and a *Stop*
-  button. A computer with none of the three installed says so.
-- **The Muse**: ask it — "what did I ask Cursor to do last?", "tell Codex in the
-  api repo to add a test for the parser" — and it uses the `coding_agents` tool
+  button. A computer with none of them installed says so.
+- **The Muse**: ask it ("what did I ask Cursor to do last?", "tell Codex in the
+  api repo to add a test for the parser"), and it uses the `coding_agents` tool
   with the same read-only readers and the same runner, on this computer or,
   with `device`, on another one.
 
-Only computers that announce the `coding.*` actions on the hub appear — one
+Only computers that announce the `coding.*` actions on the hub appear: one
 running the runtime, or one with the desktop app, which announces them too; a
 phone never does.
 
@@ -40,6 +40,7 @@ phone never does.
 | Cursor | `~/.cursor/projects/<workspace-slug>/agent-transcripts/<id>/<id>.jsonl`; CLI chats also `~/.cursor/chats/<hash>/<id>/meta.json` (the `cwd`) | `cursor-agent -p --output-format stream-json --stream-partial-output --force [--resume <id>] [--workspace <dir>] "<text>"` |
 | Codex | `~/.codex/sessions/YYYY/MM/DD/rollout-<time>-<id>.jsonl` | `codex exec [resume <id>] --json --skip-git-repo-check -c sandbox_mode="workspace-write" [-C <dir>] "<text>"` |
 | Claude Code | `~/.claude/projects/<workspace-slug>/<id>.jsonl` | `claude -p --output-format stream-json --verbose --permission-mode acceptEdits [--resume <id>] "<text>"` |
+| dsh (DeepSeek Harness) | `~/.dsh/sessions/<workspace-slug>/<id>/session.v4.jsonl.zstd` | `dsh --profile headless --json [--session-id <id>] "<text>"` |
 
 Reading is best effort: a line that does not parse is skipped, a missing
 directory is an agent with no sessions. The `~` is the user's home unless
@@ -53,9 +54,39 @@ title and last exchange quoted, and the run says `resumed: false`; the apps say
 so above the composer. The same fallback runs when a chat the store called
 resumable turns out unknown to the CLI.
 
+dsh is [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): the
+chats of `dsh web` and of DeepSeek's own desktop app, kept under `~/.dsh`. The
+runtime and the nanoMuse desktop app both read and drive them; the runtime reads
+the store with `zstandard`, one of its dependencies. nanoMuse's own desktop chats
+are kept in its own home and are not among them.
+
+dsh's store needs two things said: it is **zstd**, and it is **many zstd frames**
+appended as the session is written, so decompressing it once stops at the end of
+the first frame and a long chat loses everything after its opening lines. The
+frames are therefore read one after another to the end, and a last frame cut short
+by a write in progress costs only that frame. Two kinds of session are
+also not chats the person had and are left out: a `user/message` whose
+`source.kind` is not `user` (runtime context, the skill catalog, background-job
+notices all arrive that way), and a session whose header says `origin:
+"subagent"` or names a `parentSession`.
+
+dsh is also the one agent whose command line is not looked for on `PATH` alone:
+the desktop app ships the harness inside itself (`…/Resources/dsh/`) and starts it
+as `node …/dsh/lib/bin.js <profile>`, so a computer with the app has dsh sessions
+but no `dsh` on `PATH`. The desktop plugin therefore falls back to the harness it
+is running inside (the entry in its own command line) and starts that through
+node. A `dsh` installed on `PATH` is still used first, as for the other three.
+That fallback only sends: dsh counts as installed when a `dsh` is on `PATH` or
+`~/.dsh` exists, so a computer where nobody has used it does not list a fourth
+agent.
+Either way, and on the runtime too, the run gets `DSH_HOME=~/.dsh`: the desktop
+app points `DSH_HOME` at its own home for the harness it runs, and a run there
+would neither find the chat it was asked to continue nor leave a new one where the
+list looks.
+
 `running` on an agent is the number of its processes alive right now, read from
 `/proc` on Linux, `ps` on macOS and `tasklist` (plus the command lines of
-`node.exe`, for the node-bundled Cursor CLI) on Windows — never `pgrep -f`, and
+`node.exe`, for the node-bundled Cursor CLI) on Windows; never `pgrep -f`, and
 at most once every two seconds.
 
 The runner stops reading when the agent's terminal event arrives, not at pipe
@@ -65,12 +96,13 @@ after a grace period.
 
 ## Where it runs
 
-Every agent runs with the permissions it has on that computer — Codex in
-`workspace-write`, Claude Code with `acceptEdits`, Cursor with `--force` — and
-edits files there. Sending a message is therefore treated like running a
-command on that computer: the request travels only between devices of one
-account, over the account's own hub session, and the computer can refuse remote
-control altogether (*Remote control* off keeps `coding.*` local). On the desktop
+Every agent runs with the permissions it has on that computer (Codex in
+`workspace-write`, Claude Code with `acceptEdits`, Cursor with `--force`, dsh
+headless under its own sandbox policy) and edits files there. Sending a message
+is therefore treated like running a command on that computer: the request travels
+only between devices of one account, over the account's own hub session, and the
+computer can refuse remote control altogether (*Remote control* off keeps
+`coding.*` local). On the desktop
 app `coding.send` and `coding.stop` pass the same gate as `shell` and `files`:
 with *Remote control* off, a device that is not yet trusted raises a card on the
 screen, and the answer (once, always, no, or none in time) decides; the
@@ -88,8 +120,8 @@ On the runtime (`nanomuse serve`), behind the app token:
 GET  /api/coding                                  → {agents: [{id, name, installed, cli, version, sessions_root, running}], runs: […]}
 GET  /api/coding/sessions?agent=&limit=&device=   → {sessions: [{agent, id, title, workspace, path, created_at, updated_at, messages, status, last_user, last_assistant, source, resumable}]}
 GET  /api/coding/sessions/{agent}/{id}?device=    → the session with transcript: [{role, text}]
-POST /api/coding/send    {agent, text, session_id?, workspace?, device?, wait?}  → the run
-POST /api/coding/stop    {run_id, device?}
+POST /api/coding/send    {agent, text, session_id?, workspace?, device?}  → the run
+POST /api/coding/stop    {run, device?}
 ```
 
 A run is `{id, agent, session_id, asked_session_id, workspace, text, started_at,
@@ -112,7 +144,7 @@ lives in the plugin's data directory under `coding/`.
 
 `device` names another computer; the same request travels as hub actions
 (`coding.agents`, `coding.sessions`, `coding.session`, `coding.send`,
-`coding.stop`, `coding.runs` — see [hub.md](hub.md)). `coding.send` with `wait`
+`coding.stop`, `coding.runs`; see [hub.md](hub.md)). `coding.send` with `wait`
 follows the run on the target's bus and forwards each step as an `event` frame
 whose body carries the run id, so the caller can `coding.stop` it; the `result`
 frame is the finished run.

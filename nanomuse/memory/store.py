@@ -1,7 +1,8 @@
 """Long-term memory: small facts about the user that persist across sessions.
 
 Stored in SQLite. Retrieval is a lightweight keyword/bigram overlap score weighted
-by how rare each word is in the store (works for English and CJK without external
+by how rare each word is in the store (words in any alphabetic script, Latin, Cyrillic,
+Greek, Arabic and the rest, plus character bigrams for CJK, without external
 embeddings); when an embedding endpoint is available (``embeddings.py``) a second
 ranking by meaning is fused in. Memories can always be listed and *forgotten* by the
 user. Every change a tidy-up makes (see ``consolidate.py``) is logged with the text
@@ -25,7 +26,11 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from nanomuse.memory.embeddings import MemoryIndex
 
-_WORD_RE = re.compile(r"[A-Za-z0-9_]+")
+# A word is a run of letters or digits in any script (Cyrillic, Greek, Arabic, accented
+# Latin, ...); CJK is left out of the class and handled by character below. The old
+# ``[A-Za-z0-9_]+`` made every non-Latin line an empty set, and the tidy-up's guard then
+# had nothing to compare and approved anything (#270).
+_WORD_RE = re.compile(r"[^\W_\u3400-\u9fff]+")
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
 
 
@@ -71,8 +76,8 @@ class MemoryChange:
 
 
 def tokenize(text: str) -> set[str]:
-    """Words for latin text + character bigrams for CJK."""
-    tokens = {w.lower() for w in _WORD_RE.findall(text) if len(w) > 1}
+    """Words for alphabetic scripts (case folded) + character bigrams for CJK."""
+    tokens = {w.casefold() for w in _WORD_RE.findall(text) if len(w) > 1}
     cjk = "".join(_CJK_RE.findall(text))
     tokens.update(cjk[i : i + 2] for i in range(len(cjk) - 1))
     if len(cjk) == 1:
@@ -198,6 +203,13 @@ class MemoryStore:
         ).fetchall()
         return [self._row(r) for r in rows]
 
+    def _recent(self, limit: int = 1000) -> list[MemoryItem]:
+        rows = self._conn.execute(
+            "SELECT * FROM memories ORDER BY COALESCE(NULLIF(updated_at, ''), created_at) DESC, rowid DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [self._row(r) for r in rows]
+
     def forget(self, memory_id: str) -> bool:
         cur = self._conn.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
         self._conn.commit()
@@ -265,7 +277,7 @@ class MemoryStore:
 
     def relevant(self, context: str, limit: int = 20) -> list[MemoryItem]:
         """Memories to inject into the system prompt: matches first, then most recent."""
-        items = self.all()
+        items = self._recent()
         if len(items) <= limit:
             return items
         return self._fill(self.search(context, limit=limit), items, limit)
@@ -279,6 +291,8 @@ class MemoryStore:
             if item.id not in seen:
                 matched.append(item)
                 seen.add(item.id)
+        if len(matched) >= limit and limit >= 2 and items and items[0].id not in seen:
+            matched = [*matched[: limit - 1], items[0]]
         return matched
 
     async def search_async(self, query: str, limit: int = 10) -> list[MemoryItem]:
@@ -289,7 +303,7 @@ class MemoryStore:
 
     async def relevant_async(self, context: str, limit: int = 20) -> list[MemoryItem]:
         """``relevant`` with the meaning-based ranking fused in when an index is set up."""
-        items = self.all()
+        items = self._recent()
         if len(items) <= limit:
             return items
         if self.index is not None:

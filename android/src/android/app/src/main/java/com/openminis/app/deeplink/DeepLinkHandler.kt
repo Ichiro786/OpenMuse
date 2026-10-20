@@ -94,12 +94,16 @@ sealed class DeepLinkAction {
         val title: String,
     ) : DeepLinkAction()
 
+    /** nanoMuse: one of the home shell's tabs (`minis://feed`), where a Feed notification lands. */
+    data class OpenHomeTab(val tab: io.github.nanomuse.ui.home.HomeTab) : DeepLinkAction()
+
     data object Unknown : DeepLinkAction()
 }
 
 object DeepLinkHandler {
     fun parse(uri: Uri?): DeepLinkAction {
-        if (uri == null || uri.scheme != "minis") return DeepLinkAction.Unknown
+        // nanoMuse: the system knows the app as `nanomuse://`, the app itself says `minis://`; both are read here
+        if (uri == null || !io.github.nanomuse.deeplink.OwnScheme.isOwn(uri.scheme)) return DeepLinkAction.Unknown
         val host = uri.host ?: return DeepLinkAction.Unknown
         val path = uri.path.orEmpty()
 
@@ -122,6 +126,7 @@ object DeepLinkHandler {
                 else -> DeepLinkAction.Unknown
             }
             "settings" -> parseSettingsPath(uri)
+            "feed" -> DeepLinkAction.OpenHomeTab(io.github.nanomuse.ui.home.HomeTab.FEED) // nanoMuse: the feed's notification opens the Feed tab
             "session" -> {
                 // minis://session/<sessionId>                → OpenSession
                 // minis://session/<sessionId>/<resource-path> → OpenHtmlPreview

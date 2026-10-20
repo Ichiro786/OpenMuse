@@ -2,7 +2,7 @@ import { pathToFileURL } from "node:url";
 import { app, BrowserWindow, clipboard, desktopCapturer, dialog, globalShortcut, ipcMain, Menu, nativeImage, nativeTheme, powerSaveBlocker, screen, shell, systemPreferences, Tray } from "electron";
 import { randomBytes } from "node:crypto";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -15,6 +15,10 @@ import { EXTERNAL_URL, navigationVerdict, sameOrigin } from "./navigation";
 import { relink } from "./profile-link";
 import { maskProxyUrl, proxyEnv, validProxyUrl } from "./proxy";
 import { HostStartWatch, maskToken, waitedText, type WaitState } from "./host-start";
+import { HostWork } from "./host-work";
+import { ProtectedExit, type ExitDialog, type ExitIntent, type WorkItem, type WorkSource } from "./protected-exit";
+import { WindowsUpdates, RestartNsisUpdater } from "./windows-updates";
+import { windowsNetworkCost } from "./windows-network-cost";
 
 /**
  * nanoMuse Desktop — the nanoMuse desktop, built on DeepSeek Harness.
@@ -77,6 +81,17 @@ const T = {
   open: zh ? "打开 nanoMuse" : "Open nanoMuse",
   newChat: zh ? "新聊天" : "New chat",
   quickChat: zh ? "快速唤起" : "Quick chat",
+  quitApp: zh ? "退出 nanoMuse" : "Quit nanoMuse",
+  // the protected exit: what a real quit (later, a restart-update) would end
+  exitBusyTitle: zh ? "有工作还在进行" : "Work is still in progress",
+  exitBusyLead: zh ? "现在退出会结束这些工作：" : "Quitting now would end this work:",
+  restartBusyLead: zh ? "现在重启更新会结束这些工作：" : "Restarting to update now would end this work:",
+  exitBusyNote: zh
+    ? "默认继续运行，让这些工作完成。只有在这里明确确认，工作才会被结束。"
+    : "Keeping the app running is the default: the work finishes. It ends only because you confirmed it here.",
+  exitBusyKeep: zh ? "继续运行" : "Keep running",
+  exitBusyQuit: zh ? "结束工作并退出" : "End the work and quit",
+  exitBusyRestart: zh ? "结束工作并重启更新" : "End the work and restart to update",
 };
 
 /** dev flag: `--screenshot=/tmp/x.png` writes the window once the web app is up, then quits (a headless check) */
@@ -103,6 +118,7 @@ let child: ChildProcess | null = null;
 let mainWindow: BrowserWindow | null = null;
 let hostUrl: string | null = null;
 let quitting = false;
+let sessionEnding = false;
 let restarts = 0;
 /** The proxy the running Host was started with ("" for none): the Network row offers a restart while it differs from the setting. */
 let hostProxy = "";
@@ -153,7 +169,7 @@ function log(line: string): void {
   }
 }
 
-type Shipped = { dsh?: string; bundle?: string; platform?: string; arch?: string };
+type Shipped = { dsh?: string; bundle?: string; platform?: string; arch?: string; sharp?: "native" | "wasm" };
 
 /** What scripts/prepare-dsh.mjs wrote next to the staged dsh: the versions for About. */
 function shipped(): Shipped {
@@ -446,12 +462,14 @@ let glibCriticals = 0;
 const GLIB_CRITICAL = /GLib-GObject-CRITICAL \*\*: .*g_object_(un)?ref: assertion 'G_IS_OBJECT \(object\)' failed/;
 
 /**
- * Linux: whether a Host stderr line is the GLib assertion that sharp's libvips raises on
- * every picture it touches inside Electron — the harness resizes the hands' screenshots
- * with sharp, whose prebuilt libvips carries its own GLib, while Electron's binary links
- * the system's and leaks its symbols into the process (electron/electron#46323; sharp's
- * install notes, "Electron and Linux"). Harmless to the picture, 65 000 lines a session
- * in the log. The first one is logged with this explanation; the rest are counted.
+ * Linux: whether a Host stderr line is the GLib assertion that sharp's prebuilt libvips
+ * raised on every picture it touched inside Electron, whose binary links the system's GLib
+ * and leaks its symbols into the process (electron/electron#46323; sharp's install notes,
+ * "Electron and Linux"); on some systems the clash was a SIGSEGV on the first decode (#274).
+ * The Linux package now carries sharp's WebAssembly build (scripts/prepare-dsh.mjs) and
+ * the line should not appear at all; the filter stays for a copy whose dsh was staged
+ * by hand with the native one. The first line is logged with this explanation; the rest
+ * are counted.
  */
 function glibCritical(line: string): boolean {
   if (!GLIB_CRITICAL.test(line)) return false;
@@ -501,6 +519,83 @@ async function restartHost(): Promise<void> {
   } finally {
     restartingHost = false;
   }
+}
+
+// ---- the protected exit ---------------------------------------------------------------------
+//
+// A real exit (the menu's Quit, the tray's Quit, closing the last window) never just quits:
+// the Host is asked what work is on (src/host-work.ts, the plugin's src/work.ts), the gate
+// closes so nothing new starts under the hand-over, and work that is on is named first, with
+// keeping it running as the default; an explicit confirmation ends it, and the stop is waited
+// for before the Host goes. Closing the window to stay in the tray, idling, a crash and the
+// system switching off never request installation through this path.
+
+/** The Host's work routes, once the Host is up; until then nothing answers and the exit reads as idle. */
+let hostWork: HostWork | null = null;
+/** The one protected exit, reused by both update installation intents. */
+let exitGuard: ProtectedExit | null = null;
+let windowsUpdates: WindowsUpdates | null = null;
+
+const workSource: WorkSource = {
+  busy: async (strict) => {
+    if (strict && !hostWork) throw new Error("The Host is not ready for an update restart");
+    return (await hostWork?.busy(strict)) ?? [];
+  },
+  setGate: async (open, strict) => {
+    if (strict && !hostWork) throw new Error("The Host is not ready for an update restart");
+    await hostWork?.setGate(open, strict);
+  },
+  stopAll: async (strict) => {
+    if (strict && !hostWork) throw new Error("The Host is not ready for an update restart");
+    await hostWork?.stopAll(strict);
+  },
+};
+
+/** One line of the question, in the person's language: what kind of work it is, and whose. */
+function workLine(item: WorkItem): string {
+  switch (item.kind) {
+    case "reply":
+      return zh ? "有回复正在生成" : "A reply is being written";
+    case "computer":
+      return zh ? "有电脑操作正在进行" : "The hands are working on this computer's screen";
+    case "task":
+      return item.label ? (zh ? `来自 ${item.label} 的任务` : `A task from ${item.label}`) : zh ? "有其他设备交来的任务" : "A task from another device";
+    case "approval":
+      return zh ? "有操作等待你的确认" : "An approval is waiting for you";
+  }
+}
+
+const exitDialog: ExitDialog = {
+  async confirm(items, intent) {
+    const restart = intent === "restart-update";
+    const { response } = await dialog.showMessageBox({
+      type: "warning",
+      title: T.exitBusyTitle,
+      message: T.exitBusyTitle,
+      detail: `${restart ? T.restartBusyLead : T.exitBusyLead}\n${items.map((item) => `• ${workLine(item)}`).join("\n")}\n\n${T.exitBusyNote}`,
+      buttons: [T.exitBusyKeep, restart ? T.exitBusyRestart : T.exitBusyQuit],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    });
+    return response === 1;
+  },
+};
+
+/** A real exit, the person's own: the protected exit asks about the work first. */
+function protectedQuit(intent: ExitIntent = "quit"): void {
+  if (quitting || sessionEnding || !exitGuard) {
+    app.quit();
+    return;
+  }
+  const exit = windowsUpdates && intent === "quit" ? windowsUpdates.quit() : exitGuard.requestExit(intent);
+  void exit.then(() => {
+    // Keep running after the last window closed with no tray to come back through: the
+    // window comes back, or the app would stay alive with nothing on screen to reach it by.
+    // An update being installed is on its way out (the library quits after the installer
+    // has started), so it is not read as kept running.
+    if (!quitting && windowsUpdates?.snapshot().phase !== "installing" && !mainWindow && !tray) void showWindow();
+  });
 }
 
 function details(message: string): string {
@@ -682,6 +777,7 @@ interface Prefs {
   openAtLogin: boolean;
   menuBar: boolean;
   quickChat: boolean;
+  autoDownloadUpdates?: boolean;
   /** The person's own quick-chat combination (an Electron accelerator); absent means the platform's default. */
   quickChatKey?: string;
   /** The proxy for the model providers (`http://host:port`, `socks5://host:port`); absent means none. */
@@ -722,11 +818,15 @@ function readPrefs(): Prefs {
   }
 }
 
-function writePrefs(): void {
+function writePrefs(next: Prefs = prefs, strict = false): void {
   try {
     mkdirSync(harnessHome(), { recursive: true });
-    writeFileSync(prefsPath(), `${JSON.stringify(prefs, null, 2)}\n`);
+    // the proxy address may carry `user:pass@`: the file is the owner's alone, like cloud.json and
+    // hands.json next to it (`mode` applies to a new file only, so an existing one is tightened too)
+    writeFileSync(prefsPath(), `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+    chmodSync(prefsPath(), 0o600);
   } catch (exc) {
+    if (strict) throw exc;
     log(`prefs: could not save: ${String(exc)}`);
   }
 }
@@ -735,7 +835,7 @@ function writePrefs(): void {
 function showWindow(): BrowserWindow | null {
   if (!mainWindow && hostUrl) {
     mainWindow = createWindow();
-    void mainWindow.loadURL(hostUrl);
+    void loadHost(mainWindow, hostUrl);
   }
   if (!mainWindow) return null;
   if (mainWindow.isMinimized()) mainWindow.restore();
@@ -791,7 +891,7 @@ function applyMenuBar(): void {
       { label: T.open, click: () => void showWindow() },
       { label: T.newChat, accelerator: prefs.quickChat ? quickChatKey() : undefined, click: () => showWindow()?.webContents.send("nanomuse:quick-chat") },
       { type: "separator" },
-      { label: T.quit, click: () => app.quit() },
+      { label: T.quit, click: () => protectedQuit() },
     ]),
   );
   if (process.platform !== "darwin") tray.on("click", () => void showWindow());
@@ -859,7 +959,7 @@ async function reportBug(): Promise<{ screenshot: string; url: string }> {
     surface: "Desktop app",
     version: app.getVersion(),
     os: facts.join(" · "),
-    what: screenshot ? `\n\n(Drag the screenshot nanoMuse saved to Downloads — ${screenshot.split(/[\\/]/).pop()} — in here.)` : "",
+    what: screenshot ? `\n\n(Drag the screenshot nanoMuse saved to Downloads, ${screenshot.split(/[\\/]/).pop()}, in here.)` : "",
   });
   const url = `${ISSUES_PAGE}/new?${params.toString()}`;
   void shell.openExternal(url);
@@ -896,6 +996,17 @@ function registerBridge(): void {
   ipcMain.handle("nanomuse:relaunch", () => {
     relaunchNow();
   });
+  ipcMain.handle("nanomuse:updates:snapshot", () => windowsUpdates?.snapshot() ?? null);
+  ipcMain.handle("nanomuse:updates:auto-download", async (_e, enabled: boolean) => {
+    await windowsUpdates?.setAutoDownload(enabled);
+    return windowsUpdates?.snapshot() ?? null;
+  });
+  for (const action of ["check", "download", "restart"] as const) {
+    ipcMain.handle(`nanomuse:updates:${action}`, async () => {
+      await windowsUpdates?.[action]();
+      return windowsUpdates?.snapshot() ?? null;
+    });
+  }
   ipcMain.handle("nanomuse:permissions:settings", (_e, kind: PermissionKind | "files") => {
     if (process.platform === "darwin" && typeof kind === "string" && kind in PERMISSION_PANES) void shell.openExternal(PERMISSION_PANES[kind]);
   });
@@ -1511,10 +1622,10 @@ async function guidePermissions(): Promise<Record<PermissionKind, PermissionStat
       message: zh ? "nanoMuse 需要「辅助功能」权限" : "nanoMuse needs Accessibility",
       detail: zh
         ? viaHelper
-          ? `动手操作电脑要靠它移动鼠标和输入。系统会弹出请求；在「系统设置 → 隐私与安全性 → 辅助功能」里打开 ${target} 即可——这是 nanoMuse 自带的一个小程序，专门负责截图和操作，权限只给它。`
-          : "动手操作电脑要靠它移动鼠标和输入。系统会弹出请求；在「系统设置 → 隐私与安全性 → 辅助功能」里打开 nanoMuse Desktop 即可——它附带的运行时作为应用的一部分运行，不会单独出现在列表里。"
+          ? `动手操作电脑要靠它移动鼠标和输入。系统会弹出请求；在「系统设置 → 隐私与安全性 → 辅助功能」里打开 ${target} 即可。这是 nanoMuse 自带的一个小程序，专门负责截图和操作，权限只给它。`
+          : "动手操作电脑要靠它移动鼠标和输入。系统会弹出请求；在「系统设置 → 隐私与安全性 → 辅助功能」里打开 nanoMuse Desktop 即可。它附带的运行时作为应用的一部分运行，不会单独出现在列表里。"
         : viaHelper
-          ? `The hands move the mouse and type through it. The system asks next; in System Settings → Privacy & Security → Accessibility, switch on ${target} — the small program nanoMuse brings along for the screenshots and the input. Only it needs the permission.`
+          ? `The hands move the mouse and type through it. The system asks next; in System Settings → Privacy & Security → Accessibility, switch on ${target}, the small program nanoMuse brings along for the screenshots and the input. Only it needs the permission.`
           : "The hands move the mouse and type through it. The system asks next; in System Settings → Privacy & Security → Accessibility, switch on nanoMuse Desktop. The runtime it bundles runs as part of the app and does not appear separately.",
       buttons: [zh ? "继续" : "Continue", zh ? "以后再说" : "Later"],
       defaultId: 0,
@@ -1529,10 +1640,10 @@ async function guidePermissions(): Promise<Record<PermissionKind, PermissionStat
       detail: zh
         ? viaHelper
           ? `它靠截图看到屏幕上有什么。点「继续」后系统会询问一次；在「屏幕录制」面板里打开 ${target}（只需要这一项）。打开后它会自己重新启动，应用本身不用重启。`
-          : "它靠截图看到屏幕上有什么。点「继续」后系统会询问一次；在「屏幕录制」面板里打开 nanoMuse Desktop（只需要这一项），然后重新启动应用——macOS 的这项权限只对重新启动后的应用生效。"
+          : "它靠截图看到屏幕上有什么。点「继续」后系统会询问一次；在「屏幕录制」面板里打开 nanoMuse Desktop（只需要这一项），然后重新启动应用：macOS 的这项权限只对重新启动后的应用生效。"
         : viaHelper
           ? `It sees the screen through screenshots. After Continue the system asks once; switch on ${target} in the Screen Recording pane (that one entry is all). It restarts by itself once the switch is on; the app does not need to.`
-          : "It sees the screen through screenshots. After Continue the system asks once; switch on nanoMuse Desktop in the Screen Recording pane (that one entry is all), then relaunch the app — macOS applies this permission to freshly started apps only.",
+          : "It sees the screen through screenshots. After Continue the system asks once; switch on nanoMuse Desktop in the Screen Recording pane (that one entry is all), then relaunch the app: macOS applies this permission to freshly started apps only.",
       buttons: [zh ? "继续" : "Continue", zh ? "以后再说" : "Later"],
       defaultId: 0,
       cancelId: 1,
@@ -1692,7 +1803,7 @@ function mainWindowClosed(): void {
     return;
   }
   log("window closed; no tray — quitting");
-  app.quit();
+  protectedQuit();
 }
 
 function createWindow(): BrowserWindow {
@@ -1737,9 +1848,20 @@ function createWindow(): BrowserWindow {
     callback(permission === "media" && sameOrigin(details.requestingUrl, hostUrl));
   });
   win.on("closed", mainWindowClosed);
+  // Windows logoff/shutdown may close the last window without before-quit.
+  win.on("session-end", () => { sessionEnding = true; });
   // the splash: the logo in a loading ring and the wordmark (resources/loading.html) — no face
   void win.loadFile(join(ownResources(), "loading.html"), { query: { lang: zh ? "zh" : "en" } });
   return win;
+}
+
+/**
+ * Show the Host's web app in `win`, then drop the splash from the window's history: a back
+ * press (a mouse's side button too) would otherwise land on loading.html, which never moves on.
+ */
+async function loadHost(win: BrowserWindow, url: string): Promise<void> {
+  await win.loadURL(url);
+  if (!win.isDestroyed()) win.webContents.navigationHistory.clear();
 }
 
 async function boot(): Promise<void> {
@@ -1752,7 +1874,9 @@ async function boot(): Promise<void> {
     throw exc;
   }
   log(`ready: ${hostUrl.replace(/token=\S+/, "token=…")}`);
-  await mainWindow?.loadURL(hostUrl);
+  // the work routes the protected exit asks at quit time (an old plugin answers nothing usable)
+  hostWork = new HostWork(hostUrl, { log });
+  if (mainWindow) await loadHost(mainWindow, hostUrl);
   if (screenshotFlag && mainWindow) {
     // the web app loads its plugins after the document; give it a moment
     await new Promise((r) => setTimeout(r, 8000));
@@ -1823,7 +1947,7 @@ function buildMenu(): void {
   // GNOME whose appindicator extension does not take Electron 44's registration (Ubuntu
   // 20.04: "org.freedesktop.StatusNotifierItem-<pid>-1/StatusNotifierItem/1" is not a bus
   // name to it) the tray icon never appears, so its Quit cannot be reached.
-  if (process.platform !== "darwin") help.push({ type: "separator" }, { label: T.about, click: about }, { type: "separator" }, { label: T.quit, role: "quit", accelerator: "CmdOrCtrl+Q" });
+  if (process.platform !== "darwin") help.push({ type: "separator" }, { label: T.about, click: about }, { type: "separator" }, { label: T.quit, accelerator: "CmdOrCtrl+Q", click: () => protectedQuit() });
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(process.platform === "darwin"
       ? [
@@ -1836,7 +1960,7 @@ function buildMenu(): void {
               { role: "hideOthers" },
               { role: "unhide" },
               { type: "separator" },
-              { role: "quit" },
+              { label: T.quitApp, accelerator: "Command+Q", click: () => protectedQuit() },
             ],
           } as Electron.MenuItemConstructorOptions,
         ]
@@ -1901,6 +2025,7 @@ if (!app.requestSingleInstanceLock({ version: app.getVersion() })) {
     buildMenu();
     prefs = readPrefs();
     applyPrefs();
+    exitGuard = new ProtectedExit({ work: workSource, dialog: exitDialog, finish: () => app.quit(), log });
     log(`nanoMuse Desktop ${app.getVersion()} starting (${process.platform} ${process.arch}, packaged=${app.isPackaged})`);
     if (operatorCheckFlag) {
       await operatorCheck(operatorCheckFlag);
@@ -1909,6 +2034,30 @@ if (!app.requestSingleInstanceLock({ version: app.getVersion() })) {
     if (!screenshotFlag) void ensureMacPermissionsAtLaunch().catch((exc: unknown) => log(`permissions: ${String(exc)}`));
     try {
       await boot();
+      if (process.platform === "win32" && process.arch === "x64" && app.isPackaged && !screenshotFlag) {
+        windowsUpdates = new WindowsUpdates({
+          currentVersion: app.getVersion(), supported: true,
+          autoDownload: prefs.autoDownloadUpdates !== false,
+          saveAutoDownload: (enabled) => {
+            const next = { ...prefs, autoDownloadUpdates: enabled };
+            writePrefs(next, true);
+            prefs = next;
+          },
+          networkCost: windowsNetworkCost,
+          createUpdater: (canQuit) => {
+            const updater = new RestartNsisUpdater(canQuit);
+            updater.logger = { info: (line) => log(`update: ${line}`), warn: (line) => log(`update: ${line}`), error: (line) => log(`update: ${line}`) };
+            return updater;
+          },
+          handoff: async (intent, install) => !quitting && !sessionEnding && !!exitGuard && exitGuard.requestExit(intent, install ? () => {
+            if (quitting || sessionEnding) throw new Error("The system is ending the session");
+            install();
+          } : undefined),
+          cancelHandoff: async () => { await exitGuard?.cancelHandoff(); },
+        });
+        windowsUpdates.subscribe((state) => { mainWindow?.webContents.send("nanomuse:updates:state", state); });
+        windowsUpdates.start();
+      }
     } catch (exc) {
       await reportStartupFailure(exc);
       app.quit();
@@ -1922,13 +2071,17 @@ if (!app.requestSingleInstanceLock({ version: app.getVersion() })) {
     // The main window's own `closed` decides (mainWindowClosed): the Host keeps running on
     // macOS while the app is in the Dock, and on Linux and Windows while there is a tray.
     // This fires only when the overlays are gone too; the same rule applies.
-    if (process.platform !== "darwin" && !tray) app.quit();
+    if (process.platform !== "darwin" && !tray) protectedQuit();
   });
   app.on("before-quit", (e) => {
     releaseAwake();
     globalShortcut.unregisterAll();
     if (quitting) return;
     quitting = true;
+    windowsUpdates?.dispose();
+    // This cleanup never requests installation. Only the explicit protected
+    // quit or restart above can hand a verified package to the installer.
+    log(`quit: the exit ${exitGuard?.approval === "user" ? "went through the protected exit with the person's say-so" : "did not go through the protected exit (the system, a crash, or a Host that was not up)"}`);
     if (startWatch) {
       // a Host still starting goes with the app; the log says it was alive
       log("quit: the host was still starting; stopping it");

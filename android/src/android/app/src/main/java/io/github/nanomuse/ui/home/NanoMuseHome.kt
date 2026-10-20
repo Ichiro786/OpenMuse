@@ -335,7 +335,7 @@ fun NanoMuseHome(
 
     // The drawer + tab shell, as a local composable so it can share every piece of state above
     // and still be one branch of the phase switch below.
-    // nanoMuse: the frosted pill bar blurs this shell's content — the shell is the haze source.
+    // nanoMuse: the frosted pill bar blurs this shell's content; the shell is the haze source.
     val hazeState = rememberHazeState()
     val homeShell: @Composable () -> Unit = {
     // nanoMuse: only active chats focus voice; the other tabs retain their navigation.
@@ -508,12 +508,14 @@ fun NanoMuseHome(
                                     header = header,
                                     onDiscuss = { discussPost(it) },
                                     onEditRoutine = { navController.safeNavigate(Routes.scheduledTaskEdit(it)) },
+                                    bottomInset = bottom,
                                 )
                                 HomeTab.IDEAS -> IdeasTab(
                                     header = header,
                                     onSendToChat = { sendToMainChat(it) },
                                     onCreateRoutine = { createRoutine(it) },
                                     onStartGoal = { category, seed -> startGoal(category, seed) },
+                                    bottomInset = bottom,
                                 )
                                 HomeTab.GOALS -> GoalsTab(
                                     header = header,
@@ -522,6 +524,7 @@ fun NanoMuseHome(
                                     onEditRoutine = { navController.safeNavigate(Routes.scheduledTaskEdit(it)) },
                                     onRoutineRuns = { navController.safeNavigate(Routes.scheduledTaskRuns(it)) },
                                     onAllRoutines = { navController.safeNavigate(Routes.SCHEDULED_TASKS) },
+                                    bottomInset = bottom,
                                 )
                                 HomeTab.LIBRARY -> LibraryTab(
                                     header = header,
@@ -531,6 +534,7 @@ fun NanoMuseHome(
                                         navController.safeNavigate(Routes.FILE_PREVIEW)
                                     },
                                     onOpenSession = { showSession(it) },
+                                    bottomInset = bottom,
                                 )
                                 HomeTab.CHAT -> Unit
                             }
