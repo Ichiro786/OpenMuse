@@ -323,6 +323,9 @@ internal fun AssistantHeader() {
 
 @Composable
 internal fun AssistantMessageView(message: ChatMessage, onRetry: (() -> Unit)? = null) {
+    // nanoMuse: the legacy renderer observes the same non-destructive Feed-only boundary.
+    if (io.github.nanomuse.feed.FeedChatOutput.hideAssistant(message.role, message.content,
+            message.toolBlocks.filter { it.kind == "text" }.map { it.content }, message.isStreaming)) return
     Column(
         modifier = Modifier
             .fillMaxWidth()

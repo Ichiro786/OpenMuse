@@ -158,8 +158,14 @@ internal object HeadlessChatRunner {
         thinkingLevel: ThinkingLevel? = null,
         wait: Boolean,
         timeoutMs: Long,
+        feedOnly: Boolean = false, // nanoMuse: backend workers must not consume an old/queued/failed response.
     ): PromptResult = withContext(Dispatchers.Main) {
         val vm = viewModel(context, sessionId)
+        // nanoMuse: a worker owns its session, so enqueuing behind an unrelated turn is an error.
+        if (feedOnly && (vm.isStreaming.value || vm.isCompacting.value)) {
+            return@withContext PromptResult("Error", null, false)
+        }
+        val priorIds = if (feedOnly) app(context).chatRepository.dao.loadMessages(sessionId).map { it.id }.toSet() else emptySet()
         // Apply per-call thinking override BEFORE sendMessage so streamMessage
         // picks up the new level. Caller passes null to keep the VM's existing
         // setting (default OFF for a fresh VM, last user-set value otherwise).
@@ -213,6 +219,9 @@ internal object HeadlessChatRunner {
             )
         }
         for (att in attachments) vm.addAttachment(att)
+        // nanoMuse: readiness may suspend; never enqueue a worker behind a newly-started turn.
+        if (feedOnly && (vm.isStreaming.value || vm.isCompacting.value)) return@withContext PromptResult("Error", null, false)
+        val feedRun = if (feedOnly) vm.nmBeginFeedRun() else null
         vm.sendMessage(text)
         if (!wait) return@withContext PromptResult(status = "Running", responseText = null, timedOut = false)
 
@@ -233,15 +242,23 @@ internal object HeadlessChatRunner {
             true
         } ?: false
 
+        // nanoMuse: timeout stops the actual worker, rather than leaving a late write in flight.
+        if (feedOnly && !finished) vm.nmStopFeedWorker()
+
         // Best-effort: read the last assistant text from the DB so we don't
         // depend on the in-memory UI list (which may not have flushed yet).
         val app = app(context)
         val msgs = app.chatRepository.dao.loadMessages(sessionId)
-        val lastAssistant = msgs.lastOrNull { it.role == "assistant" }
+        val lastAssistant = msgs.lastOrNull { it.role == "assistant" && (!feedOnly || it.id !in priorIds) }
         val responseText = lastAssistant?.let { extractText(it.partsJson) }
+        // nanoMuse: an error may have emitted a valid-looking partial payload; never ingest it.
+        val failed = feedOnly && (feedRun == null || !vm.nmFeedRunCompleted(feedRun) || vm.canResume.value ||
+            lastAssistant == null || !io.github.nanomuse.feed.FeedWorkerCompletion.finalText(lastAssistant.partsJson) || lastAssistant.errorInfo != null ||
+            lastAssistant.streamInterruptCount > 0 || vm.error.value != null ||
+            vm.messages.value.lastOrNull { it.role == "assistant" }?.error != null)
         PromptResult(
-            status = if (finished) "Completed" else "Timeout",
-            responseText = responseText,
+            status = if (!finished) "Timeout" else if (failed) "Error" else "Completed",
+            responseText = if (failed) null else responseText,
             timedOut = !finished,
         )
     }
@@ -503,6 +520,11 @@ internal object HeadlessChatRunner {
         }
         if (ready == null) throw RPCException(-32000, "Session VM did not resolve a provider within 5s")
         vm.revertCompact()
+    }
+
+    // nanoMuse: account teardown and timeout must wait until the owning worker actually exits.
+    suspend fun stopFeedWorker(context: Context, sessionId: String) = withContext(Dispatchers.Main) {
+        providers[sessionId]?.get(ChatViewModel::class.java)?.nmStopFeedWorker()
     }
 
     suspend fun cancel(context: Context, sessionId: String): Boolean = withContext(Dispatchers.Main) {

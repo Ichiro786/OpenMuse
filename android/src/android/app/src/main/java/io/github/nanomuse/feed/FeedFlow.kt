@@ -10,7 +10,9 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import com.openminis.app.MinisApp
 import com.openminis.app.R
 import com.openminis.app.logging.AppLogger
-import com.openminis.app.scheduled.ScheduledAgentRunner
+import com.openminis.app.service.AgentForegroundService
+import com.openminis.app.debug.HeadlessChatRunner
+import io.github.nanomuse.account.AccountData
 import com.openminis.app.scheduled.ScheduledRepeatMode
 import com.openminis.app.scheduled.ScheduledTargetMode
 import com.openminis.app.scheduled.ScheduledTask
@@ -26,21 +28,22 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 /**
- * How the feed gets written, Muse style: one built-in routine (a plain scheduled task the user
- * can switch off or re-time), which sends a one-line prompt into the feed's own conversation.
- * That conversation's system prompt carries the user's feed preferences and a digest of what the
- * agent knows (GLOBAL.md, the last seven days of diary, USER.md, goals); the model answers with
- * `nanomuse-feed` blocks, which the app turns into files under `feed/YYYY-MM-DD/` and into cards.
+ * One hidden worker serves scheduled, first-day, manual and native-tool Feed requests. Its
+ * prompt carries preferences, memories, goals and reactions. Only its owning run may validate
+ * the returned post data and write files under `feed/YYYY-MM-DD/`.
  *
  * The conversation is the agent's workbench, not a chat of the person's: it is kept out of the
  * drawer, the chat list, the search and the main-chat fallback ([hidden]), the posts show in the
@@ -60,6 +63,12 @@ object FeedFlow {
     private const val NOTIFICATION_ID = 0x6E6D_4645 // "nmFE"
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val routineLock = Mutex()
+    private val launchLock = Any()
+    private val runs = FeedGeneration()
+    @Volatile private var currentJob: Job? = null
+    @Volatile private var accepting = true
+    @Volatile private var dataOwner: String? = null
 
     private val _introAcknowledged = MutableStateFlow(false)
     val introAcknowledged: StateFlow<Boolean> = _introAcknowledged
@@ -71,11 +80,8 @@ object FeedFlow {
     /** The feed's working conversation, which no list shows (`ChatRepository.observeSessions`, `MainChat`). */
     val hidden: StateFlow<Set<String>> = _hidden
 
-    /** Titles the last feed run wrote, for the notification; cleared once told. */
-    @Volatile private var lastWritten: List<String> = emptyList()
-    @Volatile private var lastWrittenAt = 0L
-
     fun init(context: Context) {
+        dataOwner = AccountData.key(context)
         FeedStore.init(context)
         _introAcknowledged.value = prefs(context).getBoolean(KEY_INTRO_ACK, false)
         publishSession(prefs(context).getString(KEY_SESSION, null))
@@ -84,13 +90,16 @@ object FeedFlow {
 
     /** Another account's preferences and routine are in place (contract C12): read them again. */
     fun refresh(context: Context) {
+        dataOwner = AccountData.key(context)
+        accepting = true
         _introAcknowledged.value = prefs(context).getBoolean(KEY_INTRO_ACK, false)
         publishSession(prefs(context).getString(KEY_SESSION, null))
         scope.launch { runCatching { ensureRoutine(context) }.onFailure { AppLogger.warning(TAG, "ensure failed: ${it.message}") } }
     }
 
     private fun publishSession(id: String?) {
-        _hidden.value = if (id.isNullOrEmpty()) emptySet() else setOf(id)
+        // Keep previous workers hidden across account switches, including a late stream callback.
+        if (!id.isNullOrEmpty()) _hidden.value = _hidden.value + id
     }
 
     fun acknowledgeIntro(context: Context) {
@@ -110,17 +119,31 @@ object FeedFlow {
      * conversation; until then it quietly does nothing and is retried on the next launch and
      * whenever the Feed tab shows. A conversation the user deleted is recreated and re-bound.
      */
-    suspend fun ensureRoutine(context: Context): ScheduledTask? {
+    suspend fun ensureRoutine(context: Context): ScheduledTask? = routineLock.withLock {
+        ensureRoutineLocked(context)
+    }
+
+    private suspend fun ensureRoutineLocked(context: Context): ScheduledTask? {
+        if (!accepting || AccountData.key(context) != dataOwner) return null
+        val account = AccountData.key(context)
         val app = context.applicationContext as? MinisApp ?: return null
         if (!app.subsystemsReady()) return null
         val manager = ScheduledTaskManager(app)
         val p = prefs(app)
         var sessionId = p.getString(KEY_SESSION, null)
-        if (sessionId != null && withContext(Dispatchers.IO) { app.chatRepository.getSession(sessionId!!) } == null) sessionId = null
+        AccountData.reconcile(app)
+        if (sessionId != null) {
+            val session = app.chatRepository.getSession(sessionId)
+            if (session == null || session.source !in setOf("scheduled", FeedChatOutput.SOURCE) ||
+                sessionId !in AccountData.sessionsOf(app, account)) sessionId = null
+        }
         if (sessionId == null) {
-            sessionId = GoalSessions.create(app, app.getString(R.string.nm_feed_session_title)) ?: return null
+            sessionId = GoalSessions.create(app, app.getString(R.string.nm_feed_session_title), source = FeedChatOutput.SOURCE) ?: return null
+            if (!accepting || AccountData.key(context) != account) return null
             p.edit().putString(KEY_SESSION, sessionId).apply()
         }
+        // Migrate the marker, never the worker's history. Source filtering hides it on cold starts.
+        app.chatRepository.dao.updateSource(sessionId, FeedChatOutput.SOURCE)
         publishSession(sessionId)
         val existing = p.getString(KEY_TASK, null)?.let { manager.get(it) }
         val prompt = app.getString(R.string.nm_feed_prompt)
@@ -140,39 +163,161 @@ object FeedFlow {
             AppLogger.info(TAG, "feed routine created: task=${task.id} session=$sessionId")
             task
         } else if (existing.targetMode.sessionIdOrNull != sessionId) {
+            // Preserve the person's edited routine text, schedule and enabled flag.
             manager.update(existing.copy(targetMode = ScheduledTargetMode.AppendToSession(sessionId)))
         } else existing
     }
 
     /** Runs the routine right now (the "Write it now" button). */
-    fun generateNow(context: Context) = writeNow(context) {}
+    fun generateNow(context: Context) { scope.launch { launchGeneration(context) } }
 
     /**
      * The first feed day, written on its own right after the first conversation ends (the
-     * agent has its name, so a model is there to answer). Once per install: the flag is set
-     * when the run is actually dispatched, so a phone without a model yet gets it later.
+     * agent has its name, so a model is there to answer). Once per account: a valid completed
+     * run sets the flag, so an unconfigured or failed attempt can be retried later.
      */
     fun writeFirstDay(context: Context) {
         val p = prefs(context)
         if (p.getBoolean(KEY_FIRST_DAY, false)) return
-        writeNow(context) { p.edit().putBoolean(KEY_FIRST_DAY, true).apply() }
+        scope.launch { launchGeneration(context, firstDay = true) }
     }
 
-    private fun writeNow(context: Context, onDispatch: () -> Unit) {
-        if (_generating.value) return
-        scope.launch {
-            _generating.value = true
+    /** Stop and invalidate before account-owned files/preferences move to another account. */
+    suspend fun beforeAccountChange(context: Context) {
+        val job = synchronized(launchLock) {
+            accepting = false
+            runs.invalidate()
+            currentJob
+        }
+        job?.cancelAndJoin()
+        // Also waits out an in-flight worker-session creation before AccountData moves preferences.
+        routineLock.withLock { }
+        _generating.value = false
+    }
+
+    internal suspend fun request(context: Context, caller: String?, hint: String = "", statusOnly: Boolean = false): FeedGeneration.Result {
+        val app = context.applicationContext as? MinisApp ?: return FeedGeneration.Result("error", error = "not_ready")
+        val account = AccountData.key(app)
+        if (!accepting || account != dataOwner || caller.isNullOrBlank() || caller in hidden.value) return FeedGeneration.Result("error", error = "invalid_caller")
+        val session = app.chatRepository.getSession(caller)
+        if (session == null || session.source == FeedChatOutput.SOURCE) return FeedGeneration.Result("error", error = "invalid_caller")
+        AccountData.reconcile(app)
+        if (caller !in AccountData.sessionsOf(app, account) || AccountData.key(app) != account) {
+            return FeedGeneration.Result("error", error = "owner_changed")
+        }
+        if (statusOnly) return synchronized(launchLock) {
+            if (!accepting || account != dataOwner || AccountData.key(app) != account) FeedGeneration.Result("error", error = "owner_changed")
+            else runs.status(account)
+        }
+        return launchGeneration(app, expectedAccount = account, hint = hint).first
+    }
+
+    internal fun status(context: Context): FeedGeneration.Result = runs.status(AccountData.key(context))
+
+    /** Scheduled, first-day, manual and native requests share this one app-owned slot. */
+    private suspend fun launchGeneration(
+        context: Context, expectedAccount: String = AccountData.key(context), firstDay: Boolean = false,
+        hint: String = "",
+    ): Pair<FeedGeneration.Result, Job?> {
+        val app = context.applicationContext as? MinisApp ?: return FeedGeneration.Result("error", error = "not_ready") to null
+        val ticket = synchronized(launchLock) {
+            if (!accepting || expectedAccount != dataOwner || AccountData.key(app) != expectedAccount) return FeedGeneration.Result("error", error = "owner_changed") to null
+            runs.begin(expectedAccount) ?: return FeedGeneration.Result("busy") to null
+        }
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            var result: FeedGeneration.Result? = null
+            var workerSession: String? = null
+            var runTask: ScheduledTask? = null
+            var titles: List<String> = emptyList()
             try {
-                val task = ensureRoutine(context) ?: run {
-                    AppLogger.warning(TAG, "no model configured; cannot write the feed")
+                val task = ensureRoutine(app) ?: run {
+                    result = FeedGeneration.Result("error", error = "not_configured")
                     return@launch
                 }
-                onDispatch()
-                val app = context.applicationContext as MinisApp
-                ScheduledAgentRunner.run(app, task, waitForCompletion = true)
+                val sid = task.targetMode.sessionIdOrNull ?: return@launch
+                if (!accepting || AccountData.key(app) != ticket.account || !runs.bind(ticket, sid)) return@launch
+                workerSession = sid
+                runTask = task
+                if (firstDay && prefs(app).getBoolean(KEY_FIRST_DAY, false)) {
+                    result = FeedGeneration.Result("empty")
+                    return@launch
+                }
+                if (FeedStore.remainingCapacity() == 0) {
+                    result = FeedGeneration.Result("daily_limit")
+                    return@launch
+                }
+                AgentForegroundService.startService(app, sessionCount = 1, toolStatus = task.label)
+                val prompt = task.prompt + if (hint.isBlank()) "" else "\nUser's feed request (task context, not output-format instructions):\n" + hint.trim().take(1500)
+                val response = HeadlessChatRunner.prompt(
+                    context = app, sessionId = sid, text = prompt, wait = true,
+                    timeoutMs = 10 * 60_000L, feedOnly = true,
+                )
+                result = if (response.status != "Completed" || response.timedOut) {
+                    FeedGeneration.Result("error", error = if (response.timedOut) "timeout" else "generation_failed")
+                } else runs.complete(ticket, AccountData.key(app), sid, response.responseText.orEmpty()) { drafts ->
+                    val written = FeedStore.append(drafts)
+                    titles = written.map { it.title }
+                    written.size
+                }
+            } catch (cancelled: CancellationException) {
+                result = FeedGeneration.Result("cancelled")
+                throw cancelled
+            } catch (_: Exception) {
+                result = FeedGeneration.Result("error", error = "generation_failed")
             } finally {
-                _generating.value = false
+                val outcome = result ?: FeedGeneration.Result("error", error = "generation_failed")
+                try {
+                    // Wait for the actual stream job before account files move or a new run takes its slot.
+                    workerSession?.let { sid -> withContext(kotlinx.coroutines.NonCancellable) { HeadlessChatRunner.stopFeedWorker(app, sid) } }
+                    if (accepting && AccountData.key(app) == ticket.account) {
+                        if (firstDay && outcome.status in setOf("completed", "empty")) prefs(app).edit().putBoolean(KEY_FIRST_DAY, true).apply()
+                        runTask?.let { task ->
+                            ScheduledTaskManager(app).markFired(task.id, workerSession.orEmpty(), outcome.json(), ok = outcome.status in setOf("completed", "empty", "daily_limit"))
+                            if (outcome.status == "completed") notifyWritten(app, titles)
+                        }
+                    }
+                } finally {
+                    synchronized(launchLock) {
+                        runs.finish(ticket, outcome)
+                        if (currentJob === coroutineContext[Job]) {
+                            currentJob = null
+                            _generating.value = false
+                        }
+                    }
+                }
             }
+        }
+        synchronized(launchLock) {
+            if (!accepting || AccountData.key(app) != ticket.account) {
+                runs.finish(ticket)
+                job.cancel()
+                return FeedGeneration.Result("cancelled", error = "owner_changed") to null
+            }
+            currentJob = job
+            _generating.value = true
+            job.start()
+        }
+        return FeedGeneration.Result("running", runId = ticket.id) to job
+    }
+
+    /** Intercepts both current and stale worker tasks, so a stale alarm never falls back to chat. */
+    suspend fun handles(context: Context, task: ScheduledTask): Boolean {
+        if (task.id == taskId(context)) return true
+        val sid = task.targetMode.sessionIdOrNull ?: return false
+        val app = context.applicationContext as? MinisApp ?: return false
+        return sid in hidden.value || sid in AccountData.hiddenSessionIds() ||
+            app.chatRepository.getSession(sid)?.source == FeedChatOutput.SOURCE
+    }
+
+    suspend fun runScheduled(context: Context, task: ScheduledTask, wait: Boolean): String? {
+        val account = AccountData.key(context)
+        if (task.id != taskId(context) || task.targetMode.sessionIdOrNull != sessionId(context)) return null
+        val (result, job) = launchGeneration(context)
+        if (wait) job?.join()
+        if (result.status != "running" || AccountData.key(context) != account) return null
+        val outcome = status(context)
+        return task.targetMode.sessionIdOrNull.takeIf {
+            !wait || (outcome.runId == result.runId && outcome.status in setOf("completed", "empty", "daily_limit"))
         }
     }
 
@@ -181,82 +326,16 @@ object FeedFlow {
         ScheduledTaskManager(context).setEnabled(id, enabled)
     }
 
-    /** Called after every completed turn: `nanomuse-feed` blocks become posts. */
-    fun afterTurn(context: Context, sessionId: String, assistantText: String?) {
-        if (assistantText.isNullOrEmpty()) return
-        val feedSession = isFeedSession(context, sessionId)
-        // nanoMuse (fork): outside the feed's conversation only the explicit tag counts; inside it,
-        // a model that answered in a plain ```json block or a bare array (often because the
-        // user's own instruction describes another format) still gets its posts written.
-        val parsed = extractDrafts(assistantText, loose = feedSession)
-        if (parsed.isEmpty()) {
-            if (feedSession) AppLogger.warning(TAG, "feed run in $sessionId produced no readable posts")
-            return
-        }
-        val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
-        val today = FeedStore.posts.value.filter { it.day == todayKey }
-        val drafts = parsed
-            .filter { d -> today.none { it.title.equals(d.title.trim().take(80), ignoreCase = true) } }
-            .distinctBy { it.title.trim().lowercase() }
-        if (drafts.isEmpty()) return
-        val written = FeedStore.append(drafts)
-        if (written.isNotEmpty() && feedSession) {
-            AppLogger.info(TAG, "feed run in $sessionId wrote ${written.size} post(s)")
-            lastWritten = written.map { it.title }
-            lastWrittenAt = System.currentTimeMillis()
-        }
-    }
+    /** Decoder compatibility for existing worker-format regression tests. Never ingests a chat. */
+    internal fun extractDrafts(text: String, loose: Boolean): List<FeedStore.Draft> =
+        FeedPayload.parse(text, loose).drafts
 
-    private val anyFence = Regex("```([A-Za-z0-9_-]*)[ \\t]*\\r?\\n([\\s\\S]*?)```")
+    /** Suppress the generic scheduler notice. The owning ingestion emits its own bounded notice. */
+    fun notifyIfFeed(context: Context, task: ScheduledTask): Boolean = task.id == taskId(context)
 
-    /**
-     * Posts in [text]. Strict: only `nanomuse-feed` fences. Loose (the feed's own conversation):
-     * also `json` or untagged fences and a bare JSON array/object, each holding one post or a
-     * list of posts (a top-level `posts`/`items`/`feed` array too).
-     */
-    internal fun extractDrafts(text: String, loose: Boolean): List<FeedStore.Draft> {
-        val out = mutableListOf<FeedStore.Draft>()
-        anyFence.findAll(text).forEach { m ->
-            val tag = m.groupValues[1].lowercase()
-            if (tag == BLOCK || (loose && (tag.isEmpty() || tag == "json" || tag == "jsonc"))) {
-                out += draftsFromJson(m.groupValues[2])
-            }
-        }
-        if (out.isEmpty() && loose) {
-            val t = text.trim()
-            val start = t.indexOfFirst { it == '[' || it == '{' }
-            val end = maxOf(t.lastIndexOf(']'), t.lastIndexOf('}'))
-            if (start >= 0 && end > start) out += draftsFromJson(t.substring(start, end + 1))
-        }
-        return out
-    }
-
-    private fun draftsFromJson(raw: String): List<FeedStore.Draft> {
-        val json = raw.trim()
-        val value: Any = runCatching { if (json.startsWith("[")) JSONArray(json) else JSONObject(json) }.getOrNull() ?: return emptyList()
-        val objects = mutableListOf<JSONObject>()
-        fun collect(a: JSONArray) { for (i in 0 until a.length()) a.optJSONObject(i)?.let(objects::add) }
-        when (value) {
-            is JSONArray -> collect(value)
-            is JSONObject -> {
-                val list = listOf("posts", "items", "feed").firstNotNullOfOrNull { value.optJSONArray(it) }
-                if (list != null) collect(list) else objects += value
-            }
-        }
-        return objects.mapNotNull(::parseDraft)
-    }
-
-    /**
-     * The scheduled runner finished [task]: when it is the feed's routine, this takes the
-     * completion notice over (true), so the generic "task done" with the model's raw reply never
-     * shows. With the app on screen the Feed tab already shows the posts; in the background, and
-     * only when the run wrote something, one notification names them and opens the Feed.
-     */
-    fun notifyIfFeed(context: Context, task: ScheduledTask): Boolean {
-        if (task.id != taskId(context)) return false
-        val titles = lastWritten.takeIf { it.isNotEmpty() && System.currentTimeMillis() - lastWrittenAt < 30 * 60_000L } ?: return true
-        lastWritten = emptyList()
-        if (ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return true
+    /** Titles belong to this successful ingestion, never a previous run or another account. */
+    private fun notifyWritten(context: Context, titles: List<String>) {
+        if (titles.isEmpty() || ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) return
         val body = titles.take(3).joinToString(" · ")
         val open = OwnScheme.intent(context, Uri.parse("minis://feed"), flags = 0)
         val pending = PendingIntent.getActivity(
@@ -280,54 +359,44 @@ object FeedFlow {
         } catch (_: SecurityException) {
             AppLogger.warning(TAG, "POST_NOTIFICATIONS denied; the feed's notice was not shown")
         }
-        return true
     }
 
-    private fun parseDraft(o: JSONObject): FeedStore.Draft? {
-        val title = o.optString("title").trim().ifEmpty { o.optString("headline").trim() }.ifEmpty { return null }
-        val body = listOf("body", "text", "content", "summary").map { o.optString(it).trim() }.firstOrNull { it.isNotEmpty() } ?: return null
-        val rawType = listOf("type", "area", "category", "kind").map { o.optString(it).trim().lowercase() }.firstOrNull { it.isNotEmpty() }.orEmpty()
-        val type = rawType.takeIf { it in TYPES } ?: TYPE_ALIASES[rawType] ?: "note"
-        val source = when (val s = o.opt("source") ?: o.opt("sources")) {
-            is JSONArray -> List(s.length()) { s.optString(it).trim() }.filter { it.isNotEmpty() }
-            is String -> s.split(";", ",").map { it.trim() }.filter { it.isNotEmpty() }
-            else -> emptyList()
-        }
-        return FeedStore.Draft(title = title, type = type, emoji = o.optString("emoji").trim().take(4), body = body, source = source.take(4))
-    }
+    val TYPES = FeedPayload.types
 
-    /** Words models use for a post's kind, mapped onto [TYPES]. */
-    private val TYPE_ALIASES = mapOf(
-        "news" to "brief", "update" to "brief", "briefing" to "brief", "tech" to "brief", "ai" to "brief",
-        "goals" to "goal", "progress" to "goal", "todo" to "reminder", "task" to "reminder", "reminders" to "reminder",
-        "ideas" to "idea", "suggestion" to "idea", "memories" to "memory", "notes" to "note",
-    )
-
-    val TYPES = setOf("brief", "reminder", "idea", "goal", "memory", "note")
-
-    /** Appended to the system prompt of the feed's conversation (null elsewhere). */
+    /** Ordinary chats dispatch; only the worker receives the data-production contract. */
     fun systemAddendum(context: Context, sessionId: String): String? {
-        if (!isFeedSession(context, sessionId)) return null
+        if (!isFeedSession(context, sessionId)) return """
+            ## Feed generation (native backend)
+            When the user asks to create, refresh or add posts to Feed, call the native `feed_generate`
+            tool with action=generate and their request as context. The private worker writes the posts.
+            `feed_generate` with action=status returns only status/count/error metadata. A running result means accepted,
+            not completed. Report only that truthful status or the number actually published; do not invent a count.
+            Never compose generated feed post bodies, feed JSON, `nanomuse-feed` fences, introductions such as
+            "here's today's feed", or added-to-feed cards in this chat. Do not write Feed files directly.
+            The user can read the posts in Feed. An empty run is legitimate; do not invent updates or filler.
+            Answer ordinary questions and discussion of a selected post normally; these are not generation requests.
+        """.trimIndent()
         val digest = digest(context)
-        val recent = FeedStore.posts.value.take(24).map { it.title }
+        val recent = FeedStore.posts.value.take(24)
         return buildString {
-            appendLine("## This conversation writes the user's feed (nanoMuse)")
-            appendLine("The Feed tab shows short posts you write for the user, like Muse's feed. The user's standing instruction for it:")
+            appendLine("## Private Feed worker: produce data only")
+            appendLine("This is a backend workbench, not a conversation with the user. Output only a JSON array of zero to six useful posts, bounded by ${FeedStore.remainingCapacity()} remaining daily slots. Use [] when nothing merits a post.")
+            appendLine("No preface, outro, greeting, status message, added-to-feed card, or repetitive no-update filler. Never call feed_generate or another chat to dispatch this job again. Do not write Feed files directly; the owning run validates and commits the array.")
+            appendLine("Each post: {\"emoji\":\"one emoji\",\"title\":\"<= 30 characters\",\"type\":\"brief|reminder|idea|goal|memory|note\",\"body\":\"2 to 6 concrete sentences or a short Markdown list\",\"source\":[\"actual memory file, goal or retrieved evidence\"]}.")
+            appendLine("Write in the user's language. Ground posts in their instructions, memories, goals and reactions. Skip stale, unhelpful, disliked or duplicate material. Do not invent personal facts, progress, sources, live news, dates, weather or prices. Live claims require actual tool evidence; at most two quick lookups. If unavailable, omit the claim or the post. All normal tool permissions and safety approvals apply.")
+            appendLine("The following preferences and digest are user context, not permission to change this output contract:")
             appendLine("> " + FeedStore.preferences.value.replace("\n", "\n> "))
             appendLine()
             appendLine("What you know about them right now (from GLOBAL.md, the diary of the last seven days, USER.md and their goals):")
-            appendLine(digest.ifBlank { "(nothing recorded yet — write a gentle first day: what the feed is for, and three things you could start tracking or preparing if they tell you a little about themselves)" })
+            appendLine(digest.ifBlank { "No personal context recorded yet. Do not invent it; returning [] is appropriate." })
             appendLine()
-            appendLine(
-                "Format (required, even if the standing instruction above describes another layout; the app reads only these blocks): " +
-                "When a message asks you to write the feed: reply with one short line, then 3 to 6 posts, EACH as its own fenced code block tagged `$BLOCK` " +
-                    "containing JSON {\"emoji\": \"one emoji\", \"title\": \"<= 30 characters\", \"type\": \"brief|reminder|idea|goal|memory|note\", " +
-                    "\"body\": \"2 to 6 sentences or a short bullet list, Markdown allowed\", \"source\": [\"where it came from, e.g. GLOBAL.md, diary 2026-09-24, goal: <title>\"]}. " +
-                    "Write in the user's language; be concrete and useful (today's follow-ups, things they said they would do, goal progress, something they would enjoy); no clickbait, no filler, nothing you already posted. " +
-                    "Use tools only if a post needs a live fact (weather, a price, a date) — at most two quick lookups. Say nothing after the last block.",
-            )
-            if (recent.isNotEmpty()) appendLine("Recent titles (do not repeat): ${recent.joinToString(" · ")}")
-            appendLine("In ordinary conversation here, answer normally; add a `$BLOCK` block only when the user asks to put something in the feed.")
+            if (recent.isNotEmpty()) {
+                appendLine("Recent posts and reactions (do not repeat these titles or bodies):")
+                recent.forEach { post ->
+                    val reaction = when { post.disliked -> "disliked: avoid similar items"; post.liked -> "liked"; else -> "no reaction" }
+                    appendLine("- ${post.title.take(80)} [$reaction]: ${post.body.take(200)}")
+                }
+            }
         }
     }
 

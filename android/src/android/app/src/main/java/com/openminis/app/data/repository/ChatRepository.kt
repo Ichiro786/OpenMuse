@@ -15,7 +15,7 @@ class ChatRepository(internal val dao: ChatDao) {
     // the feed's working conversation is the agent's, not a chat of the person's, and stays out too (FeedFlow.hidden)
     fun observeSessions(): Flow<List<ChatSessionEntity>> =
         kotlinx.coroutines.flow.combine(dao.observeSessions(), io.github.nanomuse.sync.ConversationSync.hidden, io.github.nanomuse.feed.FeedFlow.hidden) { list, hidden, feed ->
-            if (hidden.isEmpty() && feed.isEmpty()) list else list.filter { it.id !in hidden && it.id !in feed }
+            list.filter { it.source != io.github.nanomuse.feed.FeedChatOutput.SOURCE && it.id !in hidden && it.id !in feed } // nanoMuse: worker marker is hidden before preferences/flows publish.
         }
 
     suspend fun createSession(
@@ -27,6 +27,7 @@ class ChatRepository(internal val dao: ChatDao) {
         // here; existing call sites that omit it keep the prior
         // memoryEnabled=1 behavior (legacy default).
         memoryEnabled: Boolean = true,
+        source: String? = null, // nanoMuse: atomically mark backend workers at creation.
     ): ChatSessionEntity {
         val now = System.currentTimeMillis()
         val session = ChatSessionEntity(
@@ -36,9 +37,11 @@ class ChatRepository(internal val dao: ChatDao) {
             createdAt = now,
             updatedAt = now,
             memoryEnabled = if (memoryEnabled) 1 else 0,
+            source = source, // nanoMuse: avoid a visible/syncable worker row between insert and updateSource.
         )
         dao.insertSession(session)
-        io.github.nanomuse.account.AccountData.claim(session.id) // nanoMuse: the chat belongs to whoever is signed in now (contract C12)
+        // nanoMuse: Feed's GoalSessions caller claims its worker synchronously with its captured owner.
+        if (source != io.github.nanomuse.feed.FeedChatOutput.SOURCE) io.github.nanomuse.account.AccountData.claim(session.id)
         return session
     }
 
@@ -235,8 +238,28 @@ class ChatRepository(internal val dao: ChatDao) {
         return dao.listFolders().firstOrNull { it.name.trim().lowercase() == needle }
     }
 
-    suspend fun searchSessions(query: String): List<ChatSessionEntity> =
-        dao.searchSessions("%$query%")
+    suspend fun searchSessions(query: String): List<ChatSessionEntity> {
+        val hidden = hiddenSessionIds() // nanoMuse: capture once per query, not once per result row.
+        return dao.searchSessions("%$query%").filter { it.source != io.github.nanomuse.feed.FeedChatOutput.SOURCE && it.id !in hidden }
+    }
+
+    // nanoMuse: shared visibility boundary for native session tools and search; raw backup reads stay raw.
+    private suspend fun hiddenSessionIds(): Set<String> =
+        io.github.nanomuse.sync.ConversationSync.hidden.value + io.github.nanomuse.feed.FeedFlow.hidden.value +
+            io.github.nanomuse.account.AccountData.hiddenSessionIds() // nanoMuse: close the account-switch flow lag.
+
+    private suspend fun excludeHidden(column: String, conditions: MutableList<String>, args: MutableList<Any>) {
+        conditions += "$column NOT IN (SELECT id FROM sessions WHERE source = ?)"
+        args += io.github.nanomuse.feed.FeedChatOutput.SOURCE
+        val hidden = hiddenSessionIds()
+        if (hidden.isNotEmpty()) {
+            conditions += "$column NOT IN (${hidden.joinToString(",") { "?" }})"
+            args.addAll(hidden)
+        }
+    }
+
+    private suspend fun hiddenSession(id: String): Boolean =
+        id in hiddenSessionIds() || dao.getSession(id)?.source == io.github.nanomuse.feed.FeedChatOutput.SOURCE
 
     fun observeMessages(sessionId: String): Flow<List<MessageEntity>> =
         dao.observeMessages(sessionId)
@@ -470,6 +493,7 @@ class ChatRepository(internal val dao: ChatDao) {
     ): List<SessionMeta> {
         val conditions = mutableListOf<String>()
         val args = mutableListOf<Any>()
+        excludeHidden("s.id", conditions, args) // nanoMuse: workers cannot be discovered through the CLI.
 
         if (!sessionIds.isNullOrEmpty()) {
             conditions += "s.id IN (${sessionIds.joinToString(",") { "?" }})"
@@ -546,6 +570,7 @@ class ChatRepository(internal val dao: ChatDao) {
         if (keywords.isEmpty()) return emptyList()
         val conditions = mutableListOf<String>()
         val args = mutableListOf<Any>()
+        excludeHidden("m.session_id", conditions, args) // nanoMuse: no worker payloads in cross-session search.
 
         for (kw in keywords) {
             conditions += "m.parts_json LIKE ?"
@@ -608,6 +633,7 @@ class ChatRepository(internal val dao: ChatDao) {
         startMs: Long? = null,
         endMs: Long? = null,
     ): List<MessagePageItem> {
+        if (hiddenSession(sessionId)) return emptyList() // nanoMuse: explicit worker ids cannot bypass search filtering.
         val rows = if (startMs == null && endMs == null) {
             dao.loadMessagesPage(sessionId, offset, limit)
         } else {
@@ -633,7 +659,7 @@ class ChatRepository(internal val dao: ChatDao) {
      * always describe the same set.
      */
     suspend fun messageCountInRange(sessionId: String, startMs: Long?, endMs: Long?): Int =
-        if (startMs == null && endMs == null) {
+        if (hiddenSession(sessionId)) 0 else if (startMs == null && endMs == null) { // nanoMuse: same visibility as page.
             dao.messageCountForSession(sessionId)
         } else {
             dao.messageCountForSessionInRange(sessionId, startMs, endMs)

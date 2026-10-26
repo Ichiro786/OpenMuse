@@ -54,6 +54,8 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- **Feed generation wrote to Feed through its hidden worker**, including requests started from chat. Chat received run status instead of duplicated posts or "Added to your feed" cards. Feed-only prompts omitted conversational introductions and repetitive empty updates; stored chat history was preserved.
+
 - **Provider voice input deferred native detector cleanup until its callback returned**, preventing the silence-close crash while still waiting for audio processing on another thread.
 - **Codex model discovery and response requests used the same compatibility version.** A successful live catalogue no longer had unavailable built-in chat models added to it; empty or failed discovery kept the existing fallback.
 

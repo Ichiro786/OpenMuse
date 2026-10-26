@@ -150,9 +150,16 @@ fun NanoMuseHome(
     }
 
     fun showSession(id: String) {
-        focusManager.clearFocus(force = true)
-        chatSessionId = id
-        tab = HomeTab.CHAT
+        scope.launch {
+            if (!io.github.nanomuse.feed.FeedSessionPolicy.canOpenChat(id,
+                    io.github.nanomuse.feed.FeedFlow.hidden.value) { chatRepository.getSession(it)?.source }) {
+                tab = HomeTab.FEED
+                return@launch
+            }
+            focusManager.clearFocus(force = true)
+            chatSessionId = id
+            tab = HomeTab.CHAT
+        }
     }
 
     fun showMain() {

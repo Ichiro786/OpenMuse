@@ -39,17 +39,18 @@ object MainChat {
      */
     suspend fun resolve(context: Context, chatRepository: ChatRepository): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val hidden = io.github.nanomuse.sync.ConversationSync.hidden.value + io.github.nanomuse.feed.FeedFlow.hidden.value
+        val hidden = io.github.nanomuse.sync.ConversationSync.hidden.value + io.github.nanomuse.feed.FeedFlow.hidden.value +
+            io.github.nanomuse.account.AccountData.hiddenSessionIds()
         prefs.getString(KEY_SESSION, null)?.let { id ->
-            if (id !in hidden && chatRepository.getSession(id) != null) return publish(id)
+            if (id !in hidden && chatRepository.getSession(id)?.let { it.source != io.github.nanomuse.feed.FeedChatOutput.SOURCE } == true) return publish(id)
         }
         prefs.getString(KEY_FIRST_CONVERSATION_SESSION, null)?.let { id ->
-            if (!isDraftId(id) && id !in hidden && chatRepository.getSession(id) != null) {
+            if (!isDraftId(id) && id !in hidden && chatRepository.getSession(id)?.let { it.source != io.github.nanomuse.feed.FeedChatOutput.SOURCE } == true) {
                 prefs.edit().putString(KEY_SESSION, id).apply()
                 return publish(id)
             }
         }
-        chatRepository.dao.listSessions().firstOrNull { it.id !in hidden }?.let { latest ->
+        chatRepository.dao.listSessions().firstOrNull { it.id !in hidden && it.source != io.github.nanomuse.feed.FeedChatOutput.SOURCE }?.let { latest ->
             prefs.edit().putString(KEY_SESSION, latest.id).apply()
             return publish(latest.id)
         }

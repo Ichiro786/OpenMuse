@@ -79,28 +79,45 @@ object FeedStore {
     }
 
     /** Writes a batch of posts for today, continuing today's numbering. Returns what was written. */
+    @Synchronized
     fun append(drafts: List<Draft>, now: Long = System.currentTimeMillis()): List<FeedPost> {
         if (drafts.isEmpty()) return emptyList()
         val day = DAY.format(Date(now))
         val dir = File(root, day).apply { mkdirs() }
         var next = (dir.listFiles()?.mapNotNull { FeedPost.parse(it)?.index }?.maxOrNull() ?: 0) + 1
+        val recent = _posts.value.filter { it.day == day } + _posts.value.take(24)
+        val seenTitles = recent.mapTo(mutableSetOf()) { normalizedTitle(it.title) }
+        val seenBodies = recent.mapTo(mutableSetOf()) { it.body.trim() }
         val written = mutableListOf<FeedPost>()
+        var writeFailed = false
         for (d in drafts) {
             if (next > MAX_POSTS_PER_DAY) break
+            val titleKey = normalizedTitle(d.title)
+            if (titleKey.isEmpty() || d.body.isBlank() || titleKey in seenTitles || d.body.trim() in seenBodies) continue
             val file = File(dir, "%02d.md".format(Locale.ROOT, next))
             val post = FeedPost(
                 day = day, index = next, title = d.title.trim().take(80), type = d.type, emoji = d.emoji,
                 body = d.body.trim(), source = d.source, createdAt = now, liked = false, file = file,
             )
             runCatching { file.writeText(post.serialize()) }
-                .onSuccess { written += post; next++ }
-                .onFailure { AppLogger.warning(TAG, "post not written: ${it.message}") }
+                .onSuccess { written += post; next++; seenTitles += titleKey; seenBodies += post.body }
+                .onFailure { writeFailed = true; AppLogger.warning(TAG, "post not written: ${it.message}") }
         }
         prune()
         reload()
+        if (writeFailed && written.isEmpty()) throw java.io.IOException("feed_storage_failed")
         AppLogger.info(TAG, "wrote ${written.size} post(s) for $day")
         return written
     }
+
+    @Synchronized
+    fun remainingCapacity(now: Long = System.currentTimeMillis()): Int {
+        val day = DAY.format(Date(now))
+        val lastIndex = File(root, day).listFiles()?.mapNotNull { FeedPost.parse(it)?.index }?.maxOrNull() ?: 0
+        return (MAX_POSTS_PER_DAY - lastIndex).coerceAtLeast(0)
+    }
+
+    private fun normalizedTitle(title: String): String = title.trim().take(80).lowercase(Locale.ROOT)
 
     private fun prune() {
         val days = root.listFiles()?.filter(FeedPost::isDayDir)?.sortedByDescending { it.name }.orEmpty()

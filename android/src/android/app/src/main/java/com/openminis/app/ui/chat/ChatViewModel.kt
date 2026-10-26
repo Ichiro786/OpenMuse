@@ -835,6 +835,10 @@ class ChatViewModel(
      */
     private val _canResume = MutableStateFlow(false)
     val canResume: StateFlow<Boolean> = _canResume.asStateFlow()
+    // nanoMuse: a worker requires positive terminal evidence for its own headless request.
+    private val nmFeedCompletion = io.github.nanomuse.feed.FeedWorkerCompletion()
+    internal fun nmBeginFeedRun(): Long = nmFeedCompletion.begin()
+    internal fun nmFeedRunCompleted(run: Long): Boolean = nmFeedCompletion.completed(run) && !_canResume.value
     // nanoMuse: set when the turn ceiling stops a long task; the chat shows a "continue?" card.
     private val _nmContinueAsk = MutableStateFlow<Int?>(null)
     val nmContinueAsk: StateFlow<Int?> = _nmContinueAsk.asStateFlow()
@@ -892,6 +896,7 @@ class ChatViewModel(
      * new interruption and suppress its re-stamp.
      */
     private fun markLiveInterruption() {
+        nmFeedCompletion.interrupted() // nanoMuse: context/turn-limit exits may have no row error.
         consumedRedetectGen = redetectingInterruptedTailGen
     }
 
@@ -1269,7 +1274,7 @@ class ChatViewModel(
                 providerRepository, context,
             ),
             memoryEnabled = _memoryEnabled.value,
-        )
+        ) + io.github.nanomuse.feed.FeedTool.definition() // nanoMuse: native dispatch carries the actual caller, not shell env.
 
     /**
      * Per-session loop detector. Reset alongside [agentHistory] whenever the
@@ -6893,13 +6898,14 @@ class ChatViewModel(
 
     private fun nmAfterTurn() {
         val sid = realSessionId.ifEmpty { sessionId }
+        // nanoMuse: only FeedFlow's owning run commits worker results, never ordinary chat callbacks.
+        if (sid in io.github.nanomuse.feed.FeedFlow.hidden.value) return
         // Goal blocks in the reply just finished, and the turn budget of any
         // prompt addendum, are settled first — they apply to every session.
         io.github.nanomuse.chat.SessionAddenda.onTurnFinished(sid)
         nmAllowanceHeadsUp()
         _messages.value.lastOrNull { it.role == "assistant" }?.content?.let { text ->
             io.github.nanomuse.goals.GoalFlow.afterTurn(context, sid, text)
-            io.github.nanomuse.feed.FeedFlow.afterTurn(context, sid, text)
         }
         val fc = nmFirstConversation
         if (!fc.isBoundTo(sid)) return
@@ -8048,6 +8054,7 @@ class ChatViewModel(
         fallbackStrategy: com.openminis.app.data.model.FallbackStrategy = com.openminis.app.data.model.FallbackStrategy.default,
     ) {
         AppLogger.info(TAG_STREAM, "runAgentLoop ENTER provider=${provider.javaClass.simpleName} historySize=${agentHistory.size}")
+        val nmFeedRun = nmFeedCompletion.snapshot() // nanoMuse: a late terminal event cannot settle a newer run.
         // [T-android-mem-probe-trust] Send-path context shape. The existing
         // `messages-shape` probe only runs on session LOAD, so the 2026-08-15
         // log described the session as it was opened, never as it was sent —
@@ -9331,6 +9338,8 @@ class ChatViewModel(
                 }
                 // Auto-title after first exchange
                 if (turn == 0) generateSessionTitleIfNeeded()
+                // nanoMuse: tool rows and resumable exits never grant worker completion.
+                nmFeedCompletion.terminal(nmFeedRun, turnFinishReason, _error.value != null, _canResume.value)
                 loopExitedNormally = true
                 break
             }
@@ -9838,6 +9847,8 @@ class ChatViewModel(
         val toolTitle = try { JSONObject(argsJson).optString("tool_title", name) } catch (_: Exception) { name }
 
         return when (name) {
+            // nanoMuse: Feed generation returns metadata only and runs under a separate worker lease.
+            io.github.nanomuse.feed.FeedTool.NAME -> io.github.nanomuse.feed.FeedTool.execute(context, activeSessionId, argsJson)
             FileReadTool.NAME -> {
                 val result = FileReadTool.execute(argsJson, activeSessionId, context)
                 // Record skill usage when SKILL.md under /var/minis/skills/<id>/ is read.
@@ -12042,6 +12053,8 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
      * content yet (e.g. fail during the very first turn).
      */
     private fun publishOverlayReplyExcerpt(sessionId: String) {
+        // nanoMuse: a hidden worker's generated posts are not a chat/overlay reply.
+        if (sessionId in io.github.nanomuse.feed.FeedFlow.hidden.value) return
         val snapshot = _messages.value
         val text = snapshot.asReversed().firstOrNull { msg ->
             msg.role == "assistant" && msg.content.isNotBlank()
@@ -12049,7 +12062,19 @@ Scheduled tasks: crontab / at / nohup loops will stop when the app is suspended,
         SessionActivityTracker.publishLastReply(sessionId, text)
     }
 
+    // nanoMuse: backend teardown joins the real job without spawning user-resume persistence/queue work.
+    internal suspend fun nmStopFeedWorker() {
+        nmFeedCompletion.interrupted() // nanoMuse: teardown revokes any in-flight terminal callback.
+        val job = streamJob
+        job?.cancel()
+        ExecutionCoordinator.stopCurrentCommand(activeSessionId)
+        job?.join()
+        _isStreaming.value = false
+        SessionActivityTracker.setInactive(activeSessionId)
+    }
+
     fun cancelStream() {
+        nmFeedCompletion.interrupted() // nanoMuse: even a pre-first-chunk cancellation revokes this run.
         AppLogger.info(TAG_STREAM, "cancelStream invoked _isStreaming=false (sid=$activeSessionId)")
         streamJob?.cancel()
         _isStreaming.value = false

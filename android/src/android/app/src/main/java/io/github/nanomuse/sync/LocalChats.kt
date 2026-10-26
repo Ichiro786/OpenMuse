@@ -61,18 +61,23 @@ class RoomChats(private val context: Context, private val repo: ChatRepository) 
     override suspend fun sessions(): List<LocalSession> {
         val account = io.github.nanomuse.account.AccountData.key(context)
         val others = SyncDatabase.get(context).dao().owners().filter { it.owner != account }.map { it.sessionId }.toSet()
-        return dao.listSessions().filter { it.source != "scheduled" && it.id !in others }.map { it.local() }
+        return dao.listSessions().filter {
+            it.source != "scheduled" && it.source != io.github.nanomuse.feed.FeedChatOutput.SOURCE &&
+                it.id !in io.github.nanomuse.feed.FeedFlow.hidden.value && it.id !in others
+        }.map { it.local() }
     }
 
-    override suspend fun session(id: String): LocalSession? = dao.getSession(id)?.local()
+    override suspend fun session(id: String): LocalSession? = dao.getSession(id)
+        ?.takeUnless { it.source == io.github.nanomuse.feed.FeedChatOutput.SOURCE || it.id in io.github.nanomuse.feed.FeedFlow.hidden.value }?.local()
 
     override suspend fun messages(sessionId: String): List<LocalMessage> {
+        if (session(sessionId) == null) return emptyList()
         // in safe mode the loader answers with no rows; read as "every row is gone" that would tombstone the chat
         check(!com.openminis.app.crash.CrashFrequencyDetector.isSafeMode()) { "safe mode: the chats cannot be read" }
         return repo.loadMessages(sessionId).map { LocalMessage(it.id, it.sessionId, it.role, it.partsJson, it.createdAt) }
     }
 
-    override suspend fun mainSessionId(): String? = MainChat.persisted(context)?.takeIf { dao.getSession(it) != null }
+    override suspend fun mainSessionId(): String? = MainChat.persisted(context)?.takeIf { session(it) != null }
 
     override suspend fun setMainSession(id: String?) {
         if (id == null) MainChat.clear(context) else MainChat.set(context, id)

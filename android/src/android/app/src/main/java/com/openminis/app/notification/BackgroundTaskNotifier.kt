@@ -73,6 +73,9 @@ class BackgroundTaskNotifier(
         scope.launch {
             try {
                 val session = chatRepository.getSession(sessionId)
+                // nanoMuse: FeedFlow alone notifies after successful ingestion, never on stream teardown.
+                if (io.github.nanomuse.feed.FeedSessionPolicy.isWorker(sessionId, session?.source,
+                        io.github.nanomuse.feed.FeedFlow.hidden.value)) return@launch
                 val rawTitle = session?.title?.takeIf { it.isNotBlank() }
                     ?: context.getString(R.string.notif_task_completed_default_title)
                 val title = if (isError) "❌ $rawTitle" else rawTitle

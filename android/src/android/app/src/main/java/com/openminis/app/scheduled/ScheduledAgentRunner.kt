@@ -98,6 +98,11 @@ object ScheduledAgentRunner {
             return null
         }
 
+        // nanoMuse: Feed alarms share the bounded worker used by manual/native requests.
+        if (io.github.nanomuse.feed.FeedFlow.handles(app, task)) {
+            return io.github.nanomuse.feed.FeedFlow.runScheduled(app, task, waitForCompletion)
+        }
+
         // Kick the FGS so the agent loop survives Doze / screen-off. The
         // existing service is idempotent and reused by chat UI; we pass a
         // generic status string so it shows up in the ongoing notification.

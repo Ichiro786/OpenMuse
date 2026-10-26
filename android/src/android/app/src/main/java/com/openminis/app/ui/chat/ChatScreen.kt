@@ -547,6 +547,21 @@ fun ChatScreen(
     nmBottomOverlay: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val context = LocalContext.current
+    // nanoMuse: final mount boundary for restored state, direct routes and split-pane selections.
+    // Bind the decision to its id so an old allowed value cannot render a new worker for one frame.
+    val nmKnownWorkers by io.github.nanomuse.feed.FeedFlow.hidden.collectAsState()
+    val nmChatAccess by produceState<Pair<String, Boolean>?>(null, sessionId, nmKnownWorkers) {
+        value = sessionId to io.github.nanomuse.feed.FeedSessionPolicy.canOpenChat(sessionId, nmKnownWorkers) {
+            chatRepository.getSession(it)?.source
+        }
+    }
+    if (sessionId in nmKnownWorkers || nmChatAccess?.first != sessionId || nmChatAccess?.second != true) {
+        if (sessionId in nmKnownWorkers || nmChatAccess == (sessionId to false)) LaunchedEffect(sessionId) {
+            io.github.nanomuse.ui.home.HomeBus.showTab(io.github.nanomuse.ui.home.HomeTab.FEED)
+            onBack()
+        }
+        return
+    }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
     // Scoped to a process-level per-session ViewModelStore (ChatViewModelStore)
