@@ -96,8 +96,10 @@ jobs:
           DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
         run: |
           if [ -n "$DEBUG_KEYSTORE_B64" ]; then
-            mkdir -p "$HOME/.android"
-            printf '%s' "$DEBUG_KEYSTORE_B64" | base64 -d > "$HOME/.android/debug.keystore"
+            # Gradle on the runner does not read ~/.android/debug.keystore (it made a fresh key),
+            # so the debug signingConfig takes the path explicitly from NM_DEBUG_KEYSTORE.
+            printf '%s' "$DEBUG_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/nm-debug.keystore"
+            echo "NM_DEBUG_KEYSTORE=$RUNNER_TEMP/nm-debug.keystore" >> "$GITHUB_ENV"
             echo "Signing with the repo's fixed debug key."
           else
             echo "::notice::ANDROID_DEBUG_KEYSTORE_B64 not set; this APK is signed with a throwaway debug key and will not install over earlier builds."
