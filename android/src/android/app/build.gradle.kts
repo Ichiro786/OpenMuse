@@ -40,6 +40,17 @@ android {
     // keyPassword; git-ignored) and fall back to the debug key otherwise, so a
     // release APK can be built by anyone. One key for every version.
     signingConfigs {
+        // OpenMuse: CI points NM_DEBUG_KEYSTORE at the repo's fixed debug key so every APK has the
+        // same signature and installs over the last one. Unset locally: the usual debug key.
+        getByName("debug") {
+            val fixed = System.getenv("NM_DEBUG_KEYSTORE")?.let { file(it) }
+            if (fixed != null && fixed.isFile) {
+                storeFile = fixed
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
         val keystoreProperties = rootProject.file("../../keystore.properties")
         if (keystoreProperties.isFile) {
             val props = Properties()
