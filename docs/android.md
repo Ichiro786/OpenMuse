@@ -242,6 +242,9 @@ state stays in its ViewModel. Feed schedule retains the existing daily routine c
 feed shows clearly labeled, local sample posts and an illustration; generating real posts replaces
 these previews without writing sample files or changing existing posts.
 
+Within each day, the newest batch appears first. Posts written together keep their original
+order within that batch; their saved likes and dislikes stay with the posts.
+
 The upper scrolling fade is slightly lighter. In dark mode, home and side chats use
 pure black around the navigation pill, including the gap below the composer. Its
 rounded glass area stays open to the scrolling content, preserving the live frosted
@@ -274,6 +277,9 @@ Kimi (a device code) and OpenRouter; *Sign in* opens the same form on the sign-i
 `KimiOAuthManager` or `OpenRouterOAuthManager`. The ChatGPT row carries the line that
 OpenAI's terms cover a ChatGPT plan inside OpenAI's own Codex, that other apps have had this
 access cut off before (OpenCode, January 2026), and that an API key works if it stops.
+Codex model discovery and response requests advertise the same compatibility version. When
+live discovery succeeds, its chat catalogue is authoritative; unavailable built-in chat models
+are not added to it. Empty or failed discovery keeps the existing fallback catalogue.
 Anthropic and Gemini open on OpenMinis' own provider types for them; everything else on the
 OpenAI-compatible form. The Claude sign-in needs an identifier Anthropic expects at the start
 of every request; it is read at build time from `app/provider-customization.properties`, which
@@ -379,6 +385,8 @@ pack is unavailable still falls back once to the default service.
 
 The voice detector releases its allocated recorder if recording cannot start or is cancelled
 before capture begins. You can retry voice input without leaving that recorder allocated.
+If a voice callback stops capture, native detector cleanup waits until that callback's
+audio-processing call has returned. A stop on another thread waits for in-flight processing too.
 
 ## Local HTML previews
 
@@ -423,6 +431,9 @@ is approved one at a time, and *for this chat* answers stay bound to the app or 
 they were given for. Another device of your account that wants to run, read or write
 something on the phone (hub `shell`, `files`, `open`, `screen`…) is approved by the person
 holding the phone first: *once* or *always for that device*, revocable under Permissions.
+When the phone approves a task running on another device, remembered answers use the sender's
+`grant_key` when provided. A shared abbreviated preview alone does not make two such steps
+share an answer. Older senders without a grant key retain the preview fallback.
 A path another device or the agent names (hub `files`, `nanomuse-media`, `nanomuse-pc put`)
 is resolved inside the sandbox only (`io.github.nanomuse.sandbox.SandboxPaths`): `..` and a
 symlink out of the rootfs lead nowhere, so the app's own private files stay out of reach.

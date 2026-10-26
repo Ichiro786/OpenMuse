@@ -54,6 +54,12 @@ All notable changes to nanoMuse. The format follows [Keep a Changelog](https://k
 
 ### Android
 
+- **Provider voice input deferred native detector cleanup until its callback returned**, preventing the silence-close crash while still waiting for audio processing on another thread.
+- **Codex model discovery and response requests used the same compatibility version.** A successful live catalogue no longer had unavailable built-in chat models added to it; empty or failed discovery kept the existing fallback.
+
+- **The Feed showed each day's newest batch first**, keeping the model's order within a batch and preserving existing reactions.
+- **Remembered remote-task approvals used the sender's grant key when available**, so steps with the same abbreviated preview no longer shared an answer solely because of that preview. Older senders retained the preview fallback.
+
 - **Responses API requests no longer failed on repeated tool-call ids in accumulated or restored history.** Later copies receive deterministic request-unique suffixes while every tool output remains paired with its call. For [#501](https://github.com/nano-muse/nanoMuse/issues/501).
 
 - **Memory and date changes no longer invalidate the agent's static prompt prefix.** Safety and phone-operation instructions now stay ahead of a deterministic suffix containing skills, MCP metadata, model/device state, conversation addenda, memory and `USER.md`, with runtime context last, preserving provider prefix-cache hits across memory writes and day changes. For #502.
