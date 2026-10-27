@@ -720,20 +720,25 @@ class MainActivity : ComponentActivity() {
                 nav.navigate(Routes.terminal(action.initCommand))
             }
             is DeepLinkAction.OpenSession -> {
-                // nanoMuse: in compact windows the home shell shows the chat itself —
-                // pushing chat/{sessionId} here put the OpenMinis chat screen on top of it.
-                if (io.github.nanomuse.ui.home.HomeShell.openSession(nav, action.sessionId)) return
-                // T-double-chat-fix (secondary): mirror AppNavigation's
-                // OpenSession options so a runtime deep-link (notification /
-                // shortcut / onNewIntent) can't stack a duplicate chat on
-                // top of the same chat that's already showing.
-                nav.navigate(Routes.chat(action.sessionId)) {
-                    popUpTo(Routes.SESSION_LIST) {
-                        inclusive = false
-                        saveState = true
+                // nanoMuse: check persistent worker identity before compact OR wide navigation.
+                lifecycleScope.launch {
+                    val repo = (application as? MinisApp)?.chatRepositoryOrNull ?: return@launch
+                    if (io.github.nanomuse.ui.home.HomeShell.redirectWorker(nav, action.sessionId) { repo.getSession(it)?.source }) return@launch
+                    // nanoMuse: in compact windows the home shell shows the chat itself —
+                    // pushing chat/{sessionId} here put the OpenMinis chat screen on top of it.
+                    if (io.github.nanomuse.ui.home.HomeShell.openSession(nav, action.sessionId)) return@launch
+                    // T-double-chat-fix (secondary): mirror AppNavigation's
+                    // OpenSession options so a runtime deep-link (notification /
+                    // shortcut / onNewIntent) can't stack a duplicate chat on
+                    // top of the same chat that's already showing.
+                    nav.navigate(Routes.chat(action.sessionId)) {
+                        popUpTo(Routes.SESSION_LIST) {
+                            inclusive = false
+                            saveState = true
+                        }
+                        launchSingleTop = true
+                        restoreState = true
                     }
-                    launchSingleTop = true
-                    restoreState = true
                 }
             }
             is DeepLinkAction.CreateEnvironmentVariable -> {

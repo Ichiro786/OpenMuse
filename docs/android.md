@@ -245,6 +245,17 @@ these previews without writing sample files or changing existing posts.
 Within each day, the newest batch appears first. Posts written together keep their original
 order within that batch; their saved likes and dislikes stay with the posts.
 
+Feed generation uses its own hidden working conversation. Scheduled runs, the first feed and
+manual generation write posts to Feed rather than adding feed cards or post bodies to main chat.
+A request made in chat starts that same feed workflow; its reply reports only the run's status,
+not the generated posts. Discussing a post still opens an ordinary conversation about that post.
+
+The feed writer follows the saved instructions and available personal context. It writes only
+useful, grounded posts, can produce no posts when there is nothing worth adding, and does not
+pad a run with repeated "no update" reports. Its structured output has no chat introduction or
+closing sentence. Only the feed worker ingests that output; ordinary chat JSON is not a feed.
+Older feed-protocol cards are suppressed in chat without deleting stored conversation history.
+
 The upper scrolling fade is slightly lighter. In dark mode, home and side chats use
 pure black around the navigation pill, including the gap below the composer. Its
 rounded glass area stays open to the scrolling content, preserving the live frosted

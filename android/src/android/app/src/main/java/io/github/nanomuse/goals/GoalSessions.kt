@@ -9,7 +9,8 @@ import com.openminis.app.data.MemoryGlobalPrefs
  * chat boots through it, and fall back to the first visible entry.
  */
 object GoalSessions {
-    suspend fun create(app: MinisApp, title: String): String? {
+    suspend fun create(app: MinisApp, title: String, source: String = "scheduled"): String? {
+        val owner = io.github.nanomuse.account.AccountData.key(app)
         val providers = app.providerRepository
         val defaultGroupId = providers.defaultPrimaryGroupId
         val seedModelId = defaultGroupId
@@ -21,8 +22,9 @@ object GoalSessions {
             modelId = seedModelId,
             title = title,
             memoryEnabled = MemoryGlobalPrefs.isGlobalEnabled(app),
+            source = source,
         )
-        app.chatRepository.dao.updateSource(session.id, "scheduled")
+        if (source == io.github.nanomuse.feed.FeedChatOutput.SOURCE) io.github.nanomuse.account.AccountData.claimNow(app, session.id, owner)
         if (defaultGroupId != null) {
             app.chatRepository.updateSessionBinding(
                 session.id,

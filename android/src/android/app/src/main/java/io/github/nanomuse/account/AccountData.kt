@@ -91,6 +91,9 @@ object AccountData {
     suspend fun sessionsOf(context: Context, account: String): List<String> =
         SyncDatabase.get(context.applicationContext).dao().sessionsOf(account)
 
+    /** Native session queries must not wait for the asynchronous account-visibility flow. */
+    internal suspend fun hiddenSessionIds(): Set<String> = app?.let { reconcile(it) }.orEmpty()
+
     // -- leaving and entering -----------------------------------------------------------------
 
     /**
@@ -102,6 +105,7 @@ object AccountData {
      */
     suspend fun leave(context: Context, account: String, keep: Boolean) {
         val ctx = context.applicationContext
+        io.github.nanomuse.feed.FeedFlow.beforeAccountChange(ctx)
         runCatching { reconcile(ctx, account) }.onFailure { AppLogger.warning(TAG, "reconcile before leaving: ${it.message}") }
         if (!keep) deleteChats(ctx, account)
         val stash = File(ctx.filesDir, "$STASH/${AccountScope.dirName(account)}")

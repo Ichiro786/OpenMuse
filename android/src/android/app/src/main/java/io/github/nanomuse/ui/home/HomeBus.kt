@@ -28,7 +28,10 @@ object HomeBus {
 
     fun showTab(tab: HomeTab) { _requests.tryEmit(Request.ShowTab(tab)) }
 
-    fun showSession(sessionId: String) { _requests.tryEmit(Request.ShowSession(sessionId)) }
+    fun showSession(sessionId: String) {
+        if (sessionId in io.github.nanomuse.feed.FeedFlow.hidden.value) showTab(HomeTab.FEED)
+        else _requests.tryEmit(Request.ShowSession(sessionId))
+    }
 
     fun prefillComposer(text: String) { _requests.tryEmit(Request.PrefillComposer(text)) }
 
@@ -49,12 +52,25 @@ object HomeShell {
     /** Set by AppNavigation from the window size class; read from MainActivity's warm-start path. */
     @Volatile var active: Boolean = false
 
+    /** Both cold and warm session links resolve source before the compact/wide split. */
+    suspend fun redirectWorker(nav: NavController, sessionId: String, source: suspend (String) -> String?): Boolean {
+        if (io.github.nanomuse.feed.FeedSessionPolicy.canOpenChat(sessionId,
+                io.github.nanomuse.feed.FeedFlow.hidden.value, source)) return false
+        openTab(nav, HomeTab.FEED)
+        return true
+    }
+
     /**
      * Shows [sessionId] inside the shell — pops back to it if something sits on top, or mounts
      * it when the graph started elsewhere — and returns true. Returns false in wide windows,
      * where the caller keeps the upstream list/detail route.
      */
     fun openSession(nav: NavController, sessionId: String): Boolean {
+        // Consume worker requests before the wide-window fallback can navigate to chat/<worker>.
+        if (sessionId in io.github.nanomuse.feed.FeedFlow.hidden.value) {
+            openTab(nav, HomeTab.FEED)
+            return true
+        }
         if (!active) return false
         val shellRoute = Routes.SESSION_LIST
         val onStack = try {

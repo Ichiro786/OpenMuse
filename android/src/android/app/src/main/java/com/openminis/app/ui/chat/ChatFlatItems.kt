@@ -607,6 +607,9 @@ internal fun buildFlatChatItems(
     }
     for (idx in fromIndex until messages.size) {
         val message = messages[idx]
+        // nanoMuse: hide reserved worker output as a whole turn (including legacy prefaces), never user rows.
+        if (io.github.nanomuse.feed.FeedChatOutput.hideAssistant(message.role, message.content,
+                message.toolBlocks.filter { it.kind == "text" }.map { it.content }, message.isStreaming)) continue
         // [T-android-perf-logging] Per-100-message progress breadcrumb.
         // `out.size` is the running row count, so a sudden jump between two
         // progress lines localizes the heavy batch. Only fires on the

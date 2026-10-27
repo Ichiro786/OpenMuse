@@ -279,6 +279,11 @@ fun AppNavigation(
                 navController.safeNavigate(Routes.terminal(initialDeepLink.initCommand))
             }
             is DeepLinkAction.OpenSession -> {
+                // nanoMuse: cold-start and restored links cannot mount a private worker, including wide windows.
+                if (io.github.nanomuse.ui.home.HomeShell.redirectWorker(navController, initialDeepLink.sessionId) {
+                        chatRepository.getSession(it)?.source }) {
+                    return@LaunchedEffect
+                }
                 // nanoMuse: in compact windows the home shell shows the chat itself.
                 if (io.github.nanomuse.ui.home.HomeShell.openSession(navController, initialDeepLink.sessionId)) {
                     return@LaunchedEffect
