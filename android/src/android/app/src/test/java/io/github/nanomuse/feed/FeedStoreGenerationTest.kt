@@ -1,6 +1,7 @@
 package io.github.nanomuse.feed
 
 import android.content.Context
+import com.openminis.app.R
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Rule
@@ -19,6 +20,7 @@ class FeedStoreGenerationTest {
         val context = mock(Context::class.java)
         `when`(context.applicationContext).thenReturn(context)
         `when`(context.filesDir).thenReturn(folder.root)
+        `when`(context.getString(R.string.nm_feed_default_preferences)).thenReturn("Test feed preferences")
         FeedStore.init(context)
     }
 
